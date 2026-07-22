@@ -9,6 +9,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.function.Function;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
@@ -58,7 +59,12 @@ public class JwtServiceImp implements JwtService {
             HashMap<String, Object> extractClaims, UserDetails userDetails) {
         return Jwts.builder()
                 .claims(extractClaims)
-                .claim("roles", userDetails.getAuthorities())
+                .claim("roles",
+                        userDetails.getAuthorities()
+                                .stream()
+                                .map(GrantedAuthority::getAuthority)
+                                .toList()
+                )
                 .subject(userDetails.getUsername())
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + 604800000))

@@ -32,13 +32,7 @@ import java.util.Map;
 @RestController
 @Slf4j
 @RequestMapping("/auth")
-@CrossOrigin(
-        origins = {
-                "http://localhost:3000",
-                "http://192.168.1.133:3000"
-        },
-        allowCredentials = "true"
-)
+
 public class AuthController {
 
 
@@ -73,10 +67,6 @@ public class AuthController {
 
         authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(credential.email(), credential.password()));
         var user = userService.findByEmail(credential.email());
-
-        // Utilisateur connecté
-        user.setStatus(true);
-        userService.createOrUpdate(userMapper.toUserReq(user));
 
         var jwt = jwtService.generateToken(user);
         var refreshToken = jwtService.generateRefreshToken(new HashMap<>(), user);
@@ -176,18 +166,6 @@ public class AuthController {
 
         String token = getCookie(request, "accessToken");
 
-        if(token != null){
-
-            String email = jwtService.extractUsername(token);
-
-            var user = userService.findByEmail(email);
-
-            if(user != null){
-                user.setStatus(false);
-                userService.createOrUpdate(userMapper.toUserReq(user));
-            }
-        }
-
 
         Cookie accessCookie = new Cookie("accessToken", null);
         accessCookie.setHttpOnly(true);
@@ -228,6 +206,18 @@ public class AuthController {
             }
         }
         return null;
+    }
+
+    @PutMapping("/status")
+    public ResponseEntity<?> updateStatus(
+            @RequestParam String email,
+            @RequestParam Boolean status
+    ) {
+        userService.updateStatus(email, status);
+
+        return ResponseEntity.ok(
+                Map.of("message", "Status updated successfully")
+        );
     }
 
 }

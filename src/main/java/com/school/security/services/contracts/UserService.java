@@ -21,4 +21,8 @@ public interface UserService extends Service<UserReqDto, UserResDto, Long> {
     UserResDto getUserRestByEmail(String email);
 
     Long getAccountNoRole();
+
+    void updateStatus(String email, Boolean status);
+
+    void updateAccount(String email, Boolean isActive);
 }

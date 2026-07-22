@@ -23,6 +23,7 @@ public class UserMapper implements Mapper<UserReqDto, User, UserResDto> {
     public User fromDto(UserReqDto d) {
         User user = new User();
         user.setEmail(d.email());
+        user.setNumber(d.number());
         user.setFirstname(d.firstname());
         user.setGender(d.gender());
         user.setPwd(d.password());
@@ -38,9 +39,11 @@ public class UserMapper implements Mapper<UserReqDto, User, UserResDto> {
                 entity.getFirstname(),
                 entity.getLastname(),
                 entity.getEmail(),
+                entity.getNumber(),
                 entity.getGender(),
                 entity.getStatus(),
-                toRoleResDto(entity.getRoles()));
+                entity.getCreatedAt(),
+                entity.getRoles().getFirst().getName());
     }
 
     public UserReqDto toUserReq(User entity){
@@ -48,6 +51,7 @@ public class UserMapper implements Mapper<UserReqDto, User, UserResDto> {
              entity.getFirstname(),
              entity.getLastname(),
              entity.getEmail(),
+             entity.getNumber(),
              entity.getStatus(),
              entity.getPassword(),
              entity.getGender()

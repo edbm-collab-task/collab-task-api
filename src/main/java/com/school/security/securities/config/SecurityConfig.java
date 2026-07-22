@@ -40,7 +40,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/register", "/auth/logout", "/auth/refresh", "/auth/code").permitAll()
                         .requestMatchers(HttpMethod.GET, "/users", "/users/*", "/users/email").permitAll()
                         .requestMatchers(HttpMethod.PUT, "/users/account")
-                        .hasAuthority("SUPER_ADMIN")
+                        .hasAuthority("ADMIN")
                         .requestMatchers(HttpMethod.PUT,"/auth/status").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

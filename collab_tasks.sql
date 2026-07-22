@@ -1,587 +1,413 @@
 -- ============================================================
--- Collab_tasks BDD
--- Version: 1.0
--- Date: 2026-07-20
+-- SCRIPT DE CREATION DE LA BASE DE DONNEES - Collab Tasks
+-- SGBD : PostgreSQL
+-- Description : Base de donnees pour la gestion de projets, taches,
+--               utilisateurs, fichiers et suivi d'activites.
 -- ============================================================
 
 -- ============================================================
--- PARTIE 1 : CRÉATION DE LA BASE ET DES EXTENSIONS
+-- TABLE : Address (Adresses)
+-- Description : Stocke les adresses physiques des utilisateurs.
+-- Relation : N-N avec Users via la table has_address.
 -- ============================================================
-
--- Créer la base (à exécuter en tant que super-utilisateur)
--- CREATE DATABASE collab_tasks;
--- \c collab_tasks;
-
--- Extension pour les UUID
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
--- ============================================================
--- PARTIE 2 : TABLES DE RÉFÉRENCE
--- ============================================================
-
--- 2.1 TABLE ROLE (rôles globaux + rôles de projet dynamiques)
-CREATE TABLE role (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name        VARCHAR(100) NOT NULL UNIQUE,
-    description TEXT,
-    is_default  BOOLEAN NOT NULL DEFAULT false,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 2.2 TABLE STATUT
-CREATE TABLE statut (
-    id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    label  VARCHAR(100) NOT NULL,
-    "order" INT NOT NULL DEFAULT 0
+CREATE TABLE Address(
+   id_address SERIAL,                   -- Identifiant auto-incremente de l'adresse (PK)
+   lot VARCHAR(256),                    -- Numero de lot / rue / adresse detaillee
+   city_town VARCHAR(256),              -- Ville ou commune
+   country VARCHAR(50),                 -- Pays
+   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- Date de creation de l'enregistrement
+   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- Date de derniere modification
+   PRIMARY KEY(id_address)
 );
 
 -- ============================================================
--- PARTIE 3 : TABLES PRINCIPALES
+-- TABLE : Role (Roles utilisateurs)
+-- Description : Definit les roles possibles des utilisateurs
+--               (ex: Admin, Manager, Collaborateur).
 -- ============================================================
-
--- 3.1 TABLE UTILISATEUR
-CREATE TABLE utilisateur (
-    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name          VARCHAR(255) NOT NULL,
-    email         VARCHAR(255) NOT NULL UNIQUE,
-    role_id       UUID NOT NULL REFERENCES role(id),
-    password_hash VARCHAR(255) NOT NULL,
-    is_active     BOOLEAN NOT NULL DEFAULT true,
-    created_at    TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 3.2 TABLE PROJET
-CREATE TABLE projet (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title       VARCHAR(255) NOT NULL,
-    description TEXT,
-    owner_id    UUID NOT NULL REFERENCES utilisateur(id) ON DELETE CASCADE,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 3.3 TABLE TÂCHE
-CREATE TABLE tache (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title       VARCHAR(255) NOT NULL,
-    description TEXT,
-    projet_id   UUID NOT NULL REFERENCES projet(id) ON DELETE CASCADE,
-    statut_id   UUID REFERENCES statut(id) ON DELETE SET NULL,
-    priority    VARCHAR(50) DEFAULT 'medium',
-    due_date    TIMESTAMP WITH TIME ZONE,
-    created_by  UUID NOT NULL REFERENCES utilisateur(id),
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 3.4 TABLE PIÈCE_JOINTE
-CREATE TABLE piece_jointe (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    filename    VARCHAR(255) NOT NULL,
-    url         TEXT NOT NULL,
-    tache_id    UUID NOT NULL REFERENCES tache(id) ON DELETE CASCADE,
-    uploaded_by UUID NOT NULL REFERENCES utilisateur(id),
-    mime_type   VARCHAR(100),
-    size        INT,
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 3.5 TABLE AFFECTATION (avec rôle spécifique au projet)
-CREATE TABLE affectation (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tache_id     UUID NOT NULL REFERENCES tache(id) ON DELETE CASCADE,
-    user_id      UUID NOT NULL REFERENCES utilisateur(id) ON DELETE CASCADE,
-    role_id      UUID REFERENCES role(id) ON DELETE SET NULL,
-    assigned_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    assigned_by  UUID NOT NULL REFERENCES utilisateur(id),
-
-    UNIQUE(tache_id, user_id)
-);
-
--- 3.6 TABLE PROJET_ROLE (rôles disponibles dans un projet)
-CREATE TABLE projet_role (
-    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    projet_id  UUID NOT NULL REFERENCES projet(id) ON DELETE CASCADE,
-    role_id    UUID NOT NULL REFERENCES role(id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-
-    UNIQUE(projet_id, role_id)
+CREATE TABLE Role(
+   id_role SERIAL,                      -- Identifiant auto-incremente du role (PK)
+   name VARCHAR(256) NOT NULL,          -- Nom du role (ex: 'Administrateur')
+   is_active BOOLEAN DEFAULT TRUE,      -- Indique si le role est actif
+   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+   PRIMARY KEY(id_role)
 );
 
 -- ============================================================
--- PARTIE 4 : INDEX POUR LES PERFORMANCES
+-- TABLE : Status (Statuts de projet)
+-- Description : Liste des statuts possibles pour un projet
+--               (ex: En cours, Termine, En attente).
 -- ============================================================
-
-CREATE INDEX idx_projet_owner ON projet(owner_id);
-CREATE INDEX idx_tache_projet ON tache(projet_id);
-CREATE INDEX idx_tache_statut ON tache(statut_id);
-CREATE INDEX idx_tache_created_by ON tache(created_by);
-CREATE INDEX idx_piece_jointe_tache ON piece_jointe(tache_id);
-CREATE INDEX idx_affectation_tache ON affectation(tache_id);
-CREATE INDEX idx_affectation_user ON affectation(user_id);
-CREATE INDEX idx_affectation_role ON affectation(role_id);
-CREATE INDEX idx_utilisateur_role ON utilisateur(role_id);
-CREATE INDEX idx_projet_role_projet ON projet_role(projet_id);
-CREATE INDEX idx_projet_role_role ON projet_role(role_id);
+CREATE TABLE Status(
+   id_status SERIAL,                    -- Identifiant auto-incremente du statut (PK)
+   name VARCHAR(256) NOT NULL,          -- Libelle du statut
+   is_active BOOLEAN DEFAULT TRUE,      -- Indique si le statut est actif
+   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+   PRIMARY KEY(id_status)
+);
 
 -- ============================================================
--- PARTIE 5 : FONCTIONS ET TRIGGERS
+-- TABLE : File_type (Types de fichiers)
+-- Description : Categorisation des fichiers uploades
+--               (ex: Image, Document, PDF).
 -- ============================================================
+CREATE TABLE File_type(
+   id_file_type SERIAL,                 -- Identifiant auto-incremente du type (PK)
+   type VARCHAR(50) NOT NULL,           -- Nom du type de fichier
+   is_active BOOLEAN DEFAULT TRUE,      -- Indique si le type est actif
+   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+   PRIMARY KEY(id_file_type)
+);
 
--- 5.1 Fonction pour mettre à jour updated_at automatiquement
-CREATE OR REPLACE FUNCTION update_updated_at()
+-- ============================================================
+-- TABLE : Priority (Priorites de tache)
+-- Description : Niveaux de priorite pour les taches
+--               (ex: Basse, Moyenne, Haute, Urgente).
+-- ============================================================
+CREATE TABLE Priority(
+   id_priority SERIAL,                  -- Identifiant auto-incremente de la priorite (PK)
+   name VARCHAR(256) NOT NULL,          -- Nom de la priorite
+   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+   PRIMARY KEY(id_priority)
+);
+
+-- ============================================================
+-- TABLE : Users (Utilisateurs)
+-- Description : Table centrale des utilisateurs de l'application.
+-- Relation : 1-N avec Role (un role peut avoir plusieurs users).
+-- ============================================================
+CREATE TABLE Users(
+   id_user SERIAL,                      -- Identifiant auto-incremente de l'utilisateur (PK)
+   first_name VARCHAR(256),             -- Prenom
+   last_name VARCHAR(256),              -- Nom de famille
+   email VARCHAR(256) NOT NULL,         -- Adresse email (obligatoire, unique)
+   password_hash VARCHAR(256),          -- Mot de passe hashe (jamais en clair!)
+   gender VARCHAR(50) NOT NULL,         -- Genre (obligatoire)
+   date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- Date de creation du compte
+   status BOOLEAN DEFAULT TRUE,         -- Statut general de l'utilisateur (actif/inactif)
+   phone_number VARCHAR(20),          -- Numero de telephone (renomme pour plus de clarte)
+   is_active BOOLEAN DEFAULT TRUE,      -- Indique si le compte est actif
+   id_role INT NOT NULL,                -- Reference vers le role (FK obligatoire)
+   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+   PRIMARY KEY(id_user),
+   UNIQUE(email),                       -- Contrainte d'unicite sur l'email
+   FOREIGN KEY(id_role) REFERENCES Role(id_role)
+);
+
+-- Index sur l'email pour accelerer les recherches par email
+CREATE INDEX idx_users_email ON Users(email);
+
+-- ============================================================
+-- TABLE : File (Fichiers)
+-- Description : Fichiers uploades par les utilisateurs.
+-- Relation : 1-N avec Users, 1-N avec File_type.
+-- ============================================================
+CREATE TABLE File(
+   id_file UUID DEFAULT gen_random_uuid(),  -- Identifiant unique UUID du fichier (PK)
+   url VARCHAR(256) NOT NULL,           -- URL d'acces au fichier stocke
+   size_bytes BIGINT,                   -- Taille du fichier en octets (BIGINT pour les gros fichiers)
+   original_name VARCHAR(256) NOT NULL, -- Nom original du fichier uploade
+   stored_name VARCHAR(256) NOT NULL,   -- Nom interne apres stockage
+   mime_type VARCHAR(100),              -- Type MIME du fichier (ex: image/png)
+   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- Date de creation/upload
+   is_active BOOLEAN DEFAULT TRUE,      -- Indique si le fichier est actif
+   id_user INT NOT NULL,                -- Utilisateur ayant uploade le fichier (FK)
+   id_file_type INT NOT NULL,           -- Type de fichier (FK)
+   PRIMARY KEY(id_file),
+   FOREIGN KEY(id_user) REFERENCES Users(id_user) ON DELETE CASCADE,
+   FOREIGN KEY(id_file_type) REFERENCES File_type(id_file_type)
+);
+
+-- Index sur l'utilisateur pour lister rapidement les fichiers d'un user
+CREATE INDEX idx_file_user ON File(id_user);
+
+-- ============================================================
+-- TABLE : Users_history (Historique des actions utilisateurs)
+-- Description : Journal des actions realisees par un utilisateur.
+-- Relation : N-1 avec Users.
+-- ============================================================
+CREATE TABLE Users_history(
+   id_history SERIAL,                   -- Identifiant auto-incremente de l'entree (PK)
+   action VARCHAR(255) NOT NULL,        -- Type d'action realisee
+   description TEXT,                    -- Description detaillee de l'action (TEXT pour longueur illimitee)
+   ip_address INET,                     -- Adresse IP de l'utilisateur lors de l'action
+   date_action TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- Date et heure de l'action
+   id_user INT NOT NULL,                -- Utilisateur concerne (FK)
+   PRIMARY KEY(id_history),
+   FOREIGN KEY(id_user) REFERENCES Users(id_user) ON DELETE CASCADE
+);
+
+-- Index sur l'utilisateur pour l'historique
+CREATE INDEX idx_users_history_user ON Users_history(id_user);
+CREATE INDEX idx_users_history_date ON Users_history(date_action);
+
+-- ============================================================
+-- TABLE : Project (Projets)
+-- Description : Projets crees et geres par les utilisateurs.
+-- Relation : N-1 avec Users (createur), N-1 avec File (optionnel).
+-- ============================================================
+CREATE TABLE Project(
+   id_project VARCHAR(50),              -- Identifiant unique du projet (PK)
+   title VARCHAR(256) NOT NULL,         -- Titre du projet
+   description TEXT,                    -- Description detaillee (TEXT pour longueur illimitee)
+   start_date DATE,                     -- Date de debut prevue
+   end_date DATE,                       -- Date de fin prevue
+   is_active BOOLEAN DEFAULT TRUE,      -- Indique si le projet est actif
+   id_file UUID,                        -- Fichier associe au projet (FK, optionnel)
+   id_user INT NOT NULL,                -- Createur/proprietaire du projet (FK)
+   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+   PRIMARY KEY(id_project),
+   FOREIGN KEY(id_file) REFERENCES File(id_file) ON DELETE SET NULL,
+   FOREIGN KEY(id_user) REFERENCES Users(id_user),
+   -- Contrainte : la date de fin doit etre posterieure a la date de debut
+   CONSTRAINT chk_project_dates CHECK (end_date IS NULL OR end_date >= start_date)
+);
+
+-- Index sur le createur pour lister les projets d'un utilisateur
+CREATE INDEX idx_project_user ON Project(id_user);
+
+-- ============================================================
+-- TABLE : Task (Taches)
+-- Description : Taches rattachees a un projet avec priorite et echeance.
+-- Relation : N-1 avec Project, N-1 avec Priority, N-1 avec File (optionnel).
+-- ============================================================
+CREATE TABLE Task(
+   id_task SERIAL,                      -- Identifiant auto-incremente de la tache (PK)
+   title VARCHAR(256) NOT NULL,         -- Titre de la tache
+   description TEXT,                    -- Description detaillee
+   date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- Date de creation
+   start_date DATE,                     -- Date de debut de la tache
+   deadline DATE,                       -- Date d'echeance (deadline)
+   is_active BOOLEAN DEFAULT TRUE,      -- Indique si la tache est active
+   id_file UUID,                        -- Fichier joint a la tache (FK, optionnel)
+   id_project VARCHAR(50) NOT NULL,     -- Projet parent (FK, obligatoire)
+   id_priority INT NOT NULL,            -- Niveau de priorite (FK, obligatoire)
+   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+   PRIMARY KEY(id_task),
+   FOREIGN KEY(id_file) REFERENCES File(id_file) ON DELETE SET NULL,
+   FOREIGN KEY(id_project) REFERENCES Project(id_project) ON DELETE CASCADE,
+   FOREIGN KEY(id_priority) REFERENCES Priority(id_priority),
+   -- Contrainte : la deadline doit etre posterieure a la date de debut
+   CONSTRAINT chk_task_dates CHECK (deadline IS NULL OR deadline >= start_date)
+);
+
+-- Index sur le projet pour lister rapidement les taches
+CREATE INDEX idx_task_project ON Task(id_project);
+CREATE INDEX idx_task_priority ON Task(id_priority);
+
+-- ============================================================
+-- TABLE : Comment (Commentaires)
+-- Description : Commentaires laisses par les utilisateurs sur les projets/taches.
+-- Relation : N-1 avec Project, N-1 avec Users, N-1 avec Task.
+-- ============================================================
+CREATE TABLE Comment(
+   id_comment SERIAL,                   -- Identifiant auto-incremente du commentaire (PK)
+   content TEXT NOT NULL,               -- Contenu du commentaire (renomme de 'description' a 'content')
+   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- Date de creation
+   id_project VARCHAR(50) NOT NULL,     -- Projet concerne (FK)
+   id_user INT NOT NULL,                -- Auteur du commentaire (FK)
+   id_task INT NOT NULL,                -- Tache concernee (FK)
+   PRIMARY KEY(id_comment),
+   FOREIGN KEY(id_project) REFERENCES Project(id_project) ON DELETE CASCADE,
+   FOREIGN KEY(id_user) REFERENCES Users(id_user),
+   FOREIGN KEY(id_task) REFERENCES Task(id_task) ON DELETE CASCADE
+);
+
+-- Index pour accelerer les recherches de commentaires
+CREATE INDEX idx_comment_project ON Comment(id_project);
+CREATE INDEX idx_comment_task ON Comment(id_task);
+CREATE INDEX idx_comment_user ON Comment(id_user);
+
+-- ============================================================
+-- TABLE : Activity_history (Historique des activites de projet)
+-- Description : Journal des changements de statut et actions sur un projet.
+-- Relation : N-1 avec Project.
+-- ============================================================
+CREATE TABLE Activity_history(
+   id_history_activity SERIAL,          -- Identifiant auto-incremente de l'entree (PK)
+   action VARCHAR(256) NOT NULL,        -- Action realisee (obligatoire)
+   description TEXT,                    -- Description detaillee
+   last_status INT,                     -- Statut precedent (FK vers Status)
+   recent_status INT,                   -- Nouveau statut (FK vers Status)
+   user_members INT,                    -- Membres impliques dans l'action
+   user_change_status INT,              -- Utilisateur ayant change le statut
+   user_owner INT,                      -- Proprietaire du projet concerne
+   date_action TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- Date et heure de l'action
+   id_project VARCHAR(50) NOT NULL,     -- Projet concerne (FK, obligatoire)
+   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+   PRIMARY KEY(id_history_activity),
+   FOREIGN KEY(id_project) REFERENCES Project(id_project) ON DELETE CASCADE,
+   -- Ajout des FK manquantes vers Status
+   FOREIGN KEY(last_status) REFERENCES Status(id_status) ON DELETE SET NULL,
+   FOREIGN KEY(recent_status) REFERENCES Status(id_status) ON DELETE SET NULL,
+   FOREIGN KEY(user_change_status) REFERENCES Users(id_user) ON DELETE SET NULL,
+   FOREIGN KEY(user_owner) REFERENCES Users(id_user) ON DELETE SET NULL
+);
+
+-- Index pour accelerer les recherches d'historique
+CREATE INDEX idx_activity_project ON Activity_history(id_project);
+CREATE INDEX idx_activity_date ON Activity_history(date_action);
+
+-- ============================================================
+-- TABLE : has_address (Association Utilisateurs-Adresses)
+-- Description : Table de liaison N-N entre Users et Address.
+-- Un utilisateur peut avoir plusieurs adresses, une adresse peut
+-- appartenir a plusieurs utilisateurs.
+-- ============================================================
+CREATE TABLE has_address(
+   id_user INT,                         -- Reference vers l'utilisateur (FK, partie de PK)
+   id_address INT,                      -- Reference vers l'adresse (FK, partie de PK)
+   id_users_address SERIAL,             -- Identifiant unique auto-incremente de la liaison
+   address_type VARCHAR(50) DEFAULT 'principal',  -- Type d'adresse (principal, secondaire, travail...)
+   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+   PRIMARY KEY(id_user, id_address),
+   UNIQUE(id_users_address),            -- Contrainte d'unicite sur l'ID de liaison
+   FOREIGN KEY(id_user) REFERENCES Users(id_user) ON DELETE CASCADE,
+   FOREIGN KEY(id_address) REFERENCES Address(id_address) ON DELETE CASCADE
+);
+
+-- ============================================================
+-- TABLE : contributors (Contributeurs aux projets)
+-- Description : Table de liaison N-N entre Users et Project.
+-- Associe les utilisateurs aux projets auxquels ils contribuent.
+-- ============================================================
+CREATE TABLE contributors(
+   id_user INT,                         -- Reference vers l'utilisateur (FK, partie de PK)
+   id_project VARCHAR(50),              -- Reference vers le projet (FK, partie de PK)
+   id_contributor SERIAL,               -- Identifiant auto-incremente du contributeur
+   role_in_project VARCHAR(100),        -- Role specifique dans le projet
+   joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- Date d'adhesion au projet
+   is_active BOOLEAN DEFAULT TRUE,      -- Indique si la contribution est active
+   PRIMARY KEY(id_user, id_project),
+   UNIQUE(id_contributor),              -- Chaque contributeur a un ID unique
+   FOREIGN KEY(id_user) REFERENCES Users(id_user) ON DELETE CASCADE,
+   FOREIGN KEY(id_project) REFERENCES Project(id_project) ON DELETE CASCADE
+);
+
+-- Index pour lister les contributeurs d'un projet
+CREATE INDEX idx_contributors_project ON contributors(id_project);
+
+-- ============================================================
+-- TABLE : receives (Assignation des taches)
+-- Description : Table de liaison N-N entre Users et Task.
+-- Definit quels utilisateurs sont assignes a quelles taches.
+-- ============================================================
+CREATE TABLE receives(
+   id_user INT,                         -- Reference vers l'utilisateur assigne (FK, partie de PK)
+   id_task INT,                         -- Reference vers la tache (FK, partie de PK)
+   id_users_task SERIAL,                -- Identifiant auto-incremente de l'assignation
+   assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- Date d'assignation
+   assigned_by INT,                     -- Utilisateur ayant fait l'assignation
+   PRIMARY KEY(id_user, id_task),
+   UNIQUE(id_users_task),               -- Contrainte d'unicite sur l'ID d'assignation
+   FOREIGN KEY(id_user) REFERENCES Users(id_user) ON DELETE CASCADE,
+   FOREIGN KEY(id_task) REFERENCES Task(id_task) ON DELETE CASCADE,
+   FOREIGN KEY(assigned_by) REFERENCES Users(id_user) ON DELETE SET NULL
+);
+
+-- Index pour lister les taches assignees a un utilisateur
+CREATE INDEX idx_receives_user ON receives(id_user);
+CREATE INDEX idx_receives_task ON receives(id_task);
+
+-- ============================================================
+-- TABLE : has_status (Suivi des statuts de projet)
+-- Description : Table de liaison N-N entre Project et Status.
+-- Historise les changements de statut d'un projet dans le temps.
+-- ============================================================
+CREATE TABLE has_status(
+   id_project VARCHAR(50),              -- Reference vers le projet (FK, partie de PK)
+   id_status INT,                       -- Reference vers le statut (FK, partie de PK)
+   id_project_status SERIAL,            -- Identifiant auto-incremente de l'entree statut
+   date_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- Date de mise a jour du statut
+   updated_by INT,                      -- Utilisateur ayant fait la mise a jour
+   notes TEXT,                          -- Notes explicatives du changement
+   PRIMARY KEY(id_project, id_status),
+   UNIQUE(id_project_status),           -- Contrainte d'unicite sur l'ID d'entree
+   FOREIGN KEY(id_project) REFERENCES Project(id_project) ON DELETE CASCADE,
+   FOREIGN KEY(id_status) REFERENCES Status(id_status),
+   FOREIGN KEY(updated_by) REFERENCES Users(id_user) ON DELETE SET NULL
+);
+
+-- Index pour l'historique des statuts d'un projet
+CREATE INDEX idx_has_status_project ON has_status(id_project);
+CREATE INDEX idx_has_status_date ON has_status(date_update);
+
+-- ============================================================
+-- FONCTION : Mise a jour automatique de updated_at
+-- Description : Trigger pour mettre a jour automatiquement
+-- la colonne updated_at a chaque modification.
+-- ============================================================
+CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
+   NEW.updated_at = CURRENT_TIMESTAMP;
+   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ language 'plpgsql';
 
--- 5.2 Triggers updated_at
-CREATE TRIGGER trigger_projet_updated_at
-    BEFORE UPDATE ON projet
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+-- Application du trigger sur toutes les tables avec updated_at
+CREATE TRIGGER trg_address_updated_at BEFORE UPDATE ON Address
+   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER trigger_tache_updated_at
-    BEFORE UPDATE ON tache
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER trg_role_updated_at BEFORE UPDATE ON Role
+   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- 5.3 Fonction pour empêcher la suppression des rôles par défaut
-CREATE OR REPLACE FUNCTION prevent_default_role_delete()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF OLD.is_default = true THEN
-        RAISE EXCEPTION 'Les rôles par défaut (super_admin, admin, user) ne peuvent pas être supprimés.';
-    END IF;
-    RETURN OLD;
-END;
-$$ LANGUAGE plpgsql;
+CREATE TRIGGER trg_status_updated_at BEFORE UPDATE ON Status
+   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER trigger_prevent_default_role_delete
-    BEFORE DELETE ON role
-    FOR EACH ROW EXECUTE FUNCTION prevent_default_role_delete();
+CREATE TRIGGER trg_file_type_updated_at BEFORE UPDATE ON File_type
+   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- 5.4 Fonction pour vérifier qu'un rôle de projet est bien associé au projet
-CREATE OR REPLACE FUNCTION check_projet_role_validity()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF NEW.role_id IS NOT NULL THEN
-        IF NOT EXISTS (
-            SELECT 1 FROM projet_role pr
-            JOIN tache t ON t.projet_id = pr.projet_id
-            WHERE t.id = NEW.tache_id AND pr.role_id = NEW.role_id
-        ) AND EXISTS (
-            SELECT 1 FROM role WHERE id = NEW.role_id AND is_default = false
-        ) THEN
-            RAISE EXCEPTION 'Ce rôle n''est pas disponible pour ce projet.';
-        END IF;
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+CREATE TRIGGER trg_priority_updated_at BEFORE UPDATE ON Priority
+   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER trigger_check_projet_role
-    BEFORE INSERT OR UPDATE ON affectation
-    FOR EACH ROW EXECUTE FUNCTION check_projet_role_validity();
+CREATE TRIGGER trg_users_updated_at BEFORE UPDATE ON Users
+   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER trg_project_updated_at BEFORE UPDATE ON Project
+   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER trg_task_updated_at BEFORE UPDATE ON Task
+   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================
--- PARTIE 6 : DONNÉES DE BASE
+-- DONNEES INITIALES (SEED)
+-- Description : Insertion des donnees de base necessaires.
 -- ============================================================
 
--- 6.1 Rôles par défaut (protégés)
-INSERT INTO role (name, description, is_default) VALUES
-    ('super_admin', 'Super administrateur - accès total au système', true),
-    ('admin', 'Administrateur - gestion des utilisateurs et projets', true),
-    ('user', 'Utilisateur standard - accès limité', true);
+-- Roles par defaut
+INSERT INTO Role (name, is_active) VALUES
+   ('Super Administrateur', TRUE),
+   ('Administrateur', TRUE),
+   ('Utilisateur', TRUE),
 
--- 6.2 Statuts par défaut
-INSERT INTO statut (label, "order") VALUES
-    ('À faire', 1),
-    ('En cours', 2),
-    ('En révision', 3),
-    ('Terminé', 4),
-    ('Annulé', 5);
+-- Statuts par defaut
+INSERT INTO Status (name, is_active) VALUES
+   ('En attente', TRUE),
+   ('En cours', TRUE),
+   ('En revision', TRUE),
+   ('Termine', TRUE),
+   ('Annule', TRUE);
 
--- ============================================================
--- PARTIE 7 : VUES UTILES
--- ============================================================
+-- Types de fichiers par defaut
+INSERT INTO File_type (type, is_active) VALUES
+   ('Image', TRUE),
+   ('Document', TRUE),
+   ('PDF', TRUE),
+   ('Video', TRUE),
+   ('Audio', TRUE),
+   ('Archive', TRUE);
 
--- 7.1 Vue : utilisateurs avec leur rôle global
-CREATE OR REPLACE VIEW v_utilisateurs AS
-SELECT 
-    u.id, u.name, u.email, u.is_active, u.created_at,
-    r.name AS role_global
-FROM utilisateur u
-JOIN role r ON u.role_id = r.id;
-
--- 7.2 Vue : projets avec propriétaire
-CREATE OR REPLACE VIEW v_projets AS
-SELECT 
-    p.id, p.title, p.description, p.created_at, p.updated_at,
-    u.name AS proprietaire,
-    u.email AS proprietaire_email
-FROM projet p
-JOIN utilisateur u ON p.owner_id = u.id;
-
--- 7.3 Vue : tâches avec détails
-CREATE OR REPLACE VIEW v_taches AS
-SELECT 
-    t.id, t.title, t.description, t.priority, t.due_date,
-    t.created_at, t.updated_at,
-    p.title AS projet,
-    s.label AS statut,
-    u.name AS cree_par
-FROM tache t
-JOIN projet p ON t.projet_id = p.id
-LEFT JOIN statut s ON t.statut_id = s.id
-JOIN utilisateur u ON t.created_by = u.id;
-
--- 7.4 Vue : affectations complètes
-CREATE OR REPLACE VIEW v_affectations AS
-SELECT 
-    a.id,
-    t.title AS tache,
-    p.title AS projet,
-    u.name AS assigne_a,
-    assigneur.name AS assigne_par,
-    COALESCE(r.name, 'Membre') AS role_projet,
-    a.assigned_at
-FROM affectation a
-JOIN tache t ON a.tache_id = t.id
-JOIN projet p ON t.projet_id = p.id
-JOIN utilisateur u ON a.user_id = u.id
-JOIN utilisateur assigneur ON a.assigned_by = assigneur.id
-LEFT JOIN role r ON a.role_id = r.id;
-
--- 7.5 Vue : rôles disponibles par projet
-CREATE OR REPLACE VIEW v_projet_roles AS
-SELECT 
-    p.title AS projet,
-    r.name AS role,
-    r.description,
-    r.is_default
-FROM projet_role pr
-JOIN projet p ON pr.projet_id = p.id
-JOIN role r ON pr.role_id = r.id;
-
--- ============================================================
--- PARTIE 8 : SÉCURITÉ (ROW LEVEL SECURITY)
--- ============================================================
-
--- 8.1 Activer RLS sur les tables sensibles
-ALTER TABLE projet ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tache ENABLE ROW LEVEL SECURITY;
-ALTER TABLE affectation ENABLE ROW LEVEL SECURITY;
-ALTER TABLE piece_jointe ENABLE ROW LEVEL SECURITY;
-ALTER TABLE projet_role ENABLE ROW LEVEL SECURITY;
-
--- 8.2 Fonction utilitaire pour récupérer le rôle global de l'utilisateur courant
-CREATE OR REPLACE FUNCTION get_current_user_role()
-RETURNS TEXT AS $$
-DECLARE
-    user_role TEXT;
-BEGIN
-    SELECT r.name INTO user_role
-    FROM utilisateur u
-    JOIN role r ON u.role_id = r.id
-    WHERE u.id = current_setting('app.current_user_id')::UUID;
-    RETURN user_role;
-EXCEPTION WHEN OTHERS THEN
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- 8.3 Fonction utilitaire pour vérifier si l'utilisateur est membre d'un projet
-CREATE OR REPLACE FUNCTION is_project_member(p_project_id UUID)
-RETURNS BOOLEAN AS $$
-BEGIN
-    RETURN EXISTS (
-        SELECT 1 FROM projet p
-        WHERE p.id = p_project_id AND p.owner_id = current_setting('app.current_user_id')::UUID
-    ) OR EXISTS (
-        SELECT 1 FROM affectation a
-        JOIN tache t ON a.tache_id = t.id
-        WHERE t.projet_id = p_project_id
-        AND a.user_id = current_setting('app.current_user_id')::UUID
-    );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- 8.4 Politique PROJET
--- Super admin : tout voir
--- Admin : tout voir
--- User : voir ses propres projets + projets où il est affecté
-CREATE POLICY projet_select ON projet
-    FOR SELECT
-    USING (
-        get_current_user_role() IN ('super_admin', 'admin')
-        OR owner_id = current_setting('app.current_user_id')::UUID
-        OR EXISTS (
-            SELECT 1 FROM affectation a
-            JOIN tache t ON a.tache_id = t.id
-            WHERE t.projet_id = projet.id
-            AND a.user_id = current_setting('app.current_user_id')::UUID
-        )
-    );
-
-CREATE POLICY projet_insert ON projet
-    FOR INSERT
-    WITH CHECK (
-        get_current_user_role() IN ('super_admin', 'admin', 'user')
-    );
-
-CREATE POLICY projet_update ON projet
-    FOR UPDATE
-    USING (
-        get_current_user_role() IN ('super_admin', 'admin')
-        OR owner_id = current_setting('app.current_user_id')::UUID
-    );
-
-CREATE POLICY projet_delete ON projet
-    FOR DELETE
-    USING (
-        get_current_user_role() = 'super_admin'
-        OR owner_id = current_setting('app.current_user_id')::UUID
-    );
-
--- 8.5 Politique TÂCHE
-CREATE POLICY tache_select ON tache
-    FOR SELECT
-    USING (
-        get_current_user_role() IN ('super_admin', 'admin')
-        OR created_by = current_setting('app.current_user_id')::UUID
-        OR is_project_member(projet_id)
-    );
-
-CREATE POLICY tache_insert ON tache
-    FOR INSERT
-    WITH CHECK (
-        get_current_user_role() IN ('super_admin', 'admin')
-        OR is_project_member(projet_id)
-    );
-
-CREATE POLICY tache_update ON tache
-    FOR UPDATE
-    USING (
-        get_current_user_role() IN ('super_admin', 'admin')
-        OR created_by = current_setting('app.current_user_id')::UUID
-        OR is_project_member(projet_id)
-    );
-
-CREATE POLICY tache_delete ON tache
-    FOR DELETE
-    USING (
-        get_current_user_role() IN ('super_admin', 'admin')
-        OR created_by = current_setting('app.current_user_id')::UUID
-    );
-
--- 8.6 Politique AFFECTATION
-CREATE POLICY affectation_select ON affectation
-    FOR SELECT
-    USING (
-        get_current_user_role() IN ('super_admin', 'admin')
-        OR user_id = current_setting('app.current_user_id')::UUID
-        OR assigned_by = current_setting('app.current_user_id')::UUID
-        OR EXISTS (
-            SELECT 1 FROM tache t
-            WHERE t.id = affectation.tache_id
-            AND is_project_member(t.projet_id)
-        )
-    );
-
-CREATE POLICY affectation_insert ON affectation
-    FOR INSERT
-    WITH CHECK (
-        get_current_user_role() IN ('super_admin', 'admin')
-        OR EXISTS (
-            SELECT 1 FROM tache t
-            WHERE t.id = affectation.tache_id
-            AND (t.created_by = current_setting('app.current_user_id')::UUID
-                 OR is_project_member(t.projet_id))
-        )
-    );
-
-CREATE POLICY affectation_update ON affectation
-    FOR UPDATE
-    USING (
-        get_current_user_role() IN ('super_admin', 'admin')
-        OR assigned_by = current_setting('app.current_user_id')::UUID
-    );
-
-CREATE POLICY affectation_delete ON affectation
-    FOR DELETE
-    USING (
-        get_current_user_role() IN ('super_admin', 'admin')
-        OR assigned_by = current_setting('app.current_user_id')::UUID
-    );
-
--- 8.7 Politique PIÈCE_JOINTE
-CREATE POLICY piece_jointe_select ON piece_jointe
-    FOR SELECT
-    USING (
-        get_current_user_role() IN ('super_admin', 'admin')
-        OR uploaded_by = current_setting('app.current_user_id')::UUID
-        OR EXISTS (
-            SELECT 1 FROM tache t
-            WHERE t.id = piece_jointe.tache_id
-            AND is_project_member(t.projet_id)
-        )
-    );
-
-CREATE POLICY piece_jointe_insert ON piece_jointe
-    FOR INSERT
-    WITH CHECK (
-        get_current_user_role() IN ('super_admin', 'admin')
-        OR EXISTS (
-            SELECT 1 FROM tache t
-            WHERE t.id = piece_jointe.tache_id
-            AND is_project_member(t.projet_id)
-        )
-    );
-
-CREATE POLICY piece_jointe_delete ON piece_jointe
-    FOR DELETE
-    USING (
-        get_current_user_role() IN ('super_admin', 'admin')
-        OR uploaded_by = current_setting('app.current_user_id')::UUID
-    );
-
--- 8.8 Politique PROJET_ROLE
-CREATE POLICY projet_role_select ON projet_role
-    FOR SELECT
-    USING (
-        get_current_user_role() IN ('super_admin', 'admin')
-        OR is_project_member(projet_id)
-    );
-
-CREATE POLICY projet_role_insert ON projet_role
-    FOR INSERT
-    WITH CHECK (
-        get_current_user_role() IN ('super_admin', 'admin')
-        OR EXISTS (
-            SELECT 1 FROM projet p
-            WHERE p.id = projet_role.projet_id
-            AND p.owner_id = current_setting('app.current_user_id')::UUID
-        )
-    );
-
-CREATE POLICY projet_role_delete ON projet_role
-    FOR DELETE
-    USING (
-        get_current_user_role() IN ('super_admin', 'admin')
-        OR EXISTS (
-            SELECT 1 FROM projet p
-            WHERE p.id = projet_role.projet_id
-            AND p.owner_id = current_setting('app.current_user_id')::UUID
-        )
-    );
-
--- ============================================================
--- PARTIE 9 : FONCTIONS STOCKÉES POUR LA GESTION DES RÔLES
--- ============================================================
-
--- 9.1 Créer un rôle dynamique pour un projet (en une seule commande)
-CREATE OR REPLACE FUNCTION create_projet_role(
-    p_projet_id UUID,
-    p_role_name VARCHAR(100),
-    p_description TEXT DEFAULT NULL
-)
-RETURNS UUID AS $$
-DECLARE
-    new_role_id UUID;
-BEGIN
-    -- Créer le rôle
-    INSERT INTO role (name, description, is_default)
-    VALUES (p_role_name, p_description, false)
-    RETURNING id INTO new_role_id;
-
-    -- L'associer au projet
-    INSERT INTO projet_role (projet_id, role_id)
-    VALUES (p_projet_id, new_role_id);
-
-    RETURN new_role_id;
-END;
-$$ LANGUAGE plpgsql;
-
--- 9.2 Affecter un utilisateur à une tâche avec un rôle de projet
-CREATE OR REPLACE FUNCTION assign_user_to_tache(
-    p_tache_id UUID,
-    p_user_id UUID,
-    p_role_id UUID,
-    p_assigned_by UUID
-)
-RETURNS UUID AS $$
-DECLARE
-    new_affectation_id UUID;
-BEGIN
-    INSERT INTO affectation (tache_id, user_id, role_id, assigned_by)
-    VALUES (p_tache_id, p_user_id, p_role_id, p_assigned_by)
-    RETURNING id INTO new_affectation_id;
-
-    RETURN new_affectation_id;
-END;
-$$ LANGUAGE plpgsql;
-
--- 9.3 Récupérer les rôles disponibles pour un projet
-CREATE OR REPLACE FUNCTION get_projet_roles(p_projet_id UUID)
-RETURNS TABLE(role_id UUID, role_name VARCHAR, role_description TEXT, is_default_role BOOLEAN) AS $$
-BEGIN
-    RETURN QUERY
-    SELECT r.id, r.name, r.description, r.is_default
-    FROM projet_role pr
-    JOIN role r ON pr.role_id = r.id
-    WHERE pr.projet_id = p_projet_id;
-END;
-$$ LANGUAGE plpgsql;
-
--- ============================================================
--- PARTIE 10 : UTILISATION DANS L'APPLICATION
--- ============================================================
-
-/*
-
--- Avant chaque requête dans l'application, définir l'ID utilisateur :
-SET app.current_user_id = 'uuid-de-l-utilisateur-connecte';
-
--- Exemple : Créer un super admin
-INSERT INTO utilisateur (name, email, role_id, password_hash)
-VALUES (
-    'Admin Principal',
-    'admin@gestion-projets.com',
-    (SELECT id FROM role WHERE name = 'super_admin'),
-    '$2b$10$...'  -- hash bcrypt
-);
-
--- Exemple : Créer un projet
-INSERT INTO projet (title, description, owner_id)
-VALUES (
-    'Mon Premier Projet',
-    'Description du projet',
-    'uuid-du-proprietaire'
-);
-
--- Exemple : Créer un rôle dynamique pour un projet
-SELECT create_projet_role(
-    'uuid-du-projet',
-    'chef_equipe',
-    'Chef d'équipe technique'
-);
-
--- Exemple : Affecter un utilisateur avec ce rôle
-SELECT assign_user_to_tache(
-    'uuid-de-la-tache',
-    'uuid-de-l-utilisateur',
-    (SELECT id FROM role WHERE name = 'chef_equipe'),
-    'uuid-de-qui-assigne'
-);
-
--- Exemple : Requête sécurisée (RLS filtre automatiquement)
-SELECT * FROM v_projets;
-SELECT * FROM v_taches;
-SELECT * FROM v_affectations;
-
-*/
-
--- ============================================================
--- FIN DU SCRIPT
--- ============================================================
+-- Priorites par defaut
+INSERT INTO Priority (name) VALUES
+   ('Basse'),
+   ('Moyenne'),
+   ('Haute'),
+   ('Urgente');

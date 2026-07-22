@@ -3,6 +3,7 @@ package com.school.security.entities;
 import com.school.security.enums.Gender;
 import jakarta.persistence.*;
 import java.io.Serializable;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -30,11 +31,17 @@ public class User implements Serializable, UserDetails {
 
     private String lastname;
 
+    private String number;
+
     private String email;
 
     private String pwd;
 
     private Boolean status = false;
+
+    private LocalDate createdAt ;
+
+    private Boolean isActive = true ;
 
     @Enumerated(EnumType.STRING)
     private Gender gender;
@@ -92,6 +99,6 @@ public class User implements Serializable, UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return true;
+        return isActive;
     }
 }

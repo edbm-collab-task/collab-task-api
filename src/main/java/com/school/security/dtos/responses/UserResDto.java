@@ -1,6 +1,9 @@
 package com.school.security.dtos.responses;
 
 import com.school.security.enums.Gender;
+import com.school.security.enums.RoleType;
+
+import java.time.LocalDate;
 import java.util.List;
 
 public record UserResDto(
@@ -8,6 +11,8 @@ public record UserResDto(
         String firstname,
         String lastname,
         String email,
+        String number,
         Gender gender,
         Boolean status,
-        List<RoleResDto> roleResDto) {}
+        LocalDate createdAt,
+        RoleType role) {}

@@ -5,17 +5,14 @@ import com.school.security.dtos.requests.PwdReqDto;
 import com.school.security.dtos.responses.UserResDto;
 import com.school.security.services.contracts.UserService;
 import java.util.List;
+import java.util.Map;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/users")
-@CrossOrigin(
-        origins = {
-            "http://localhost:3000",
-            "https://mfamaintenance.netlify.app/",
-            "http://192.168.1.133:3000/"
-        })
+
 public class UserController {
 
     private final UserService userService;
@@ -63,8 +60,18 @@ public class UserController {
         return ResponseEntity.ok(userResDto);
     }
 
-    @GetMapping("/invitation")
-    public Long getInvitationCount() {
-        return this.userService.getAccountNoRole();
+    // Pour activer et désactiver une compte
+
+    @PutMapping("/account")
+    public ResponseEntity<?> updateAccountStatus(
+            @RequestParam String email,
+            @RequestParam Boolean isActive
+    ) {
+
+        userService.updateAccount(email, isActive);
+
+        return ResponseEntity.ok(
+                Map.of("message", "Account  updated successfully")
+        );
     }
 }

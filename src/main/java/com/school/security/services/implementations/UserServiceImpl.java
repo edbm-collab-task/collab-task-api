@@ -9,6 +9,8 @@ import com.school.security.exceptions.EntityException;
 import com.school.security.mappers.UserMapper;
 import com.school.security.repositories.*;
 import com.school.security.services.contracts.UserService;
+
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
@@ -37,15 +39,12 @@ public class UserServiceImpl implements UserService {
             user.setFirstname(toSave.firstname());
             user.setLastname(toSave.lastname());
             user.setGender(toSave.gender());
+            user.setStatus(userOptional.get().getStatus());
 
             if (toSave.password() != null && !toSave.password().isBlank()) {
                 user.setPwd(passwordEncoder.encode(toSave.password()));
             }
             var userToSave = userRepository.save(user);
-            userRepository.findAll().stream()
-                    .filter(users -> users.getRoles().isEmpty())
-                    .map(userMapper::toDto)
-                    .collect(Collectors.toList());
             return userMapper.toDto(userToSave);
 
         } else {
@@ -55,12 +54,9 @@ public class UserServiceImpl implements UserService {
                 user.setPwd(passwordEncoder.encode(toSave.password()));
             }
             user.setStatus(false);
+            user.setCreatedAt(LocalDate.now());
             var userToSave = userRepository.save(user);
             attachRole(toSave.email(),RoleType.USER);
-            userRepository.findAll().stream()
-                    .filter(users -> users.getRoles().isEmpty())
-                    .map(userMapper::toDto)
-                    .collect(Collectors.toList());
             return userMapper.toDto(userToSave);
         }
     }
@@ -168,6 +164,26 @@ public class UserServiceImpl implements UserService {
         return this.userRepository.findAll().stream()
                 .filter((user -> user.getRoles().isEmpty()))
                 .count();
+    }
+
+    @Override
+    public void updateStatus(String email, Boolean status) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        user.setStatus(status);
+        userRepository.save(user);
+    }
+
+    @Override
+    public void updateAccount(String email, Boolean isActive) {
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        user.setIsActive(isActive);
+
+        userRepository.save(user);
     }
 
 }

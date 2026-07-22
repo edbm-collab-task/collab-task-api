@@ -1,6 +1,7 @@
 package com.school.security.securities.config;
 
 import com.school.security.services.contracts.UserService;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,53 +34,41 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .authorizeHttpRequests(
-                        auth ->
-                                auth.requestMatchers(HttpMethod.POST, "/auth/login")
-                                        .permitAll()
-                                        .requestMatchers(HttpMethod.POST, "/auth/register")
-                                        .permitAll()
-                                        .requestMatchers(HttpMethod.POST, "/auth/code")
-                                        .permitAll()
-                                        .requestMatchers(HttpMethod.POST,"/auth/logout")
-                                        .permitAll()
-                                        .requestMatchers(
-                                                HttpMethod.GET,
-                                                "/users",
-                                                "/users/{id}",
-                                                "/users/email")
-                                        .permitAll()
-                                        .anyRequest()
-                                        .authenticated())
-                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())
-                .addFilterBefore(
-                        jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/register", "/auth/logout", "/auth/refresh", "/auth/code").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/users", "/users/*", "/users/email").permitAll()
+                        .requestMatchers(HttpMethod.PUT, "/users/account")
+                        .hasAuthority("SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.PUT,"/auth/status").permitAll()
+                        .anyRequest().authenticated())
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
     @Bean
     public AuthenticationProvider authenticationProvider() {
-        var authenticationProvider = new DaoAuthenticationProvider();
-        authenticationProvider.setUserDetailsService(userService.userDetailsService());
-        authenticationProvider.setPasswordEncoder(passwordEncoder);
-        return authenticationProvider;
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userService.userDetailsService());
+        provider.setPasswordEncoder(passwordEncoder);
+        return provider;
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration)
-            throws Exception {
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
         return configuration.getAuthenticationManager();
     }
 
     @Bean
-    CorsConfigurationSource corsConfigurationSource() {
-        var configuration = new CorsConfiguration();
-        configuration.addAllowedOrigin("*");
-        configuration.addAllowedMethod("*");
-        configuration.addAllowedHeader("*");
-        var source = new UrlBasedCorsConfigurationSource();
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowCredentials(true);
+        configuration.setAllowedOrigins(List.of("http://localhost:5173"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setExposedHeaders(List.of("Set-Cookie"));
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }

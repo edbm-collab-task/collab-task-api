@@ -5,6 +5,9 @@
 --               utilisateurs, fichiers et suivi d'activites.
 -- ============================================================
 
+-- Assure la disponibilite de gen_random_uuid() meme sur PostgreSQL < 13
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- ============================================================
 -- TABLE : Address (Adresses)
 -- Description : Stocke les adresses physiques des utilisateurs.
@@ -377,6 +380,7 @@ CREATE TRIGGER trg_project_updated_at BEFORE UPDATE ON Project
 CREATE TRIGGER trg_task_updated_at BEFORE UPDATE ON Task
    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+
 -- ============================================================
 -- DONNEES INITIALES (SEED)
 -- Description : Insertion des donnees de base necessaires.
@@ -386,7 +390,7 @@ CREATE TRIGGER trg_task_updated_at BEFORE UPDATE ON Task
 INSERT INTO Role (name, is_active) VALUES
    ('Super Administrateur', TRUE),
    ('Administrateur', TRUE),
-   ('Utilisateur', TRUE),
+   ('Utilisateur', TRUE);
 
 -- Statuts par defaut
 INSERT INTO Status (name, is_active) VALUES

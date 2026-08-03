@@ -2,4 +2,4 @@ package com.school.security.dtos.responses;
 
 import com.school.security.enums.RoleType;
 
-public record LoginResDto(String accessToken, String refreshToken, RoleType roles) {}
+public record LoginResDto( RoleType role,String firstname, String lastname, String email) {}

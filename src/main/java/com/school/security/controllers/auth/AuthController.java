@@ -4,26 +4,21 @@ package com.school.security.controllers.auth;
 import com.school.security.dtos.requests.LoginReqDto;
 import com.school.security.dtos.requests.UserReqDto;
 import com.school.security.dtos.responses.CodeResDto;
+import com.school.security.dtos.responses.LoginResDto;
 import com.school.security.dtos.responses.UserResDto;
 import com.school.security.mappers.UserMapper;
 import com.school.security.securities.services.JwtService;
+import com.school.security.securities.utils.CookieUtils;
 import com.school.security.services.contracts.UserService;
-
-
+import org.springframework.security.core.Authentication;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-
-
 import lombok.extern.slf4j.Slf4j;
-
-
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
-
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -55,38 +50,43 @@ public class AuthController {
         this.userMapper = userMapper;
     }
 
-
-
-
-
     /**
      * LOGIN
      */
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginReqDto credential, HttpServletResponse response) {
+    public ResponseEntity<LoginResDto> login(
+            @RequestBody LoginReqDto credential,
+            HttpServletResponse response
+    ) {
 
-        authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(credential.email(), credential.password()));
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        credential.email(),
+                        credential.password()
+                )
+        );
+
         var user = userService.findByEmail(credential.email());
 
-        var jwt = jwtService.generateToken(user);
-        var refreshToken = jwtService.generateRefreshToken(new HashMap<>(), user);
+        String accessToken = jwtService.generateToken(user);
+        String refreshToken = jwtService.generateRefreshToken(new HashMap<>(), user);
 
-        Cookie accessCookie = new Cookie("accessToken", jwt);
-        accessCookie.setHttpOnly(true);
-        accessCookie.setSecure(false);
-        accessCookie.setPath("/");
-        accessCookie.setMaxAge(15 * 60);
+        response.addCookie(
+                CookieUtils.createAccessTokenCookie(accessToken)
+        );
 
-        Cookie refreshCookie = new Cookie("refreshToken", refreshToken);
-        refreshCookie.setHttpOnly(true);
-        refreshCookie.setSecure(false);
-        refreshCookie.setPath("/");
-        refreshCookie.setMaxAge(7 * 24 * 60 * 60);
+        response.addCookie(
+                CookieUtils.createRefreshTokenCookie(refreshToken)
+        );
 
-        response.addCookie(accessCookie);
-        response.addCookie(refreshCookie);
-
-        return ResponseEntity.ok(Map.of("roles", user.getRoles().getFirst().getName()));
+        return ResponseEntity.ok(
+                new LoginResDto(
+                        user.getRoles().getFirst().getName(),
+                        user.getFirstname(),
+                        user.getLastname(),
+                        user.getEmail()
+                )
+        );
     }
 
     /**
@@ -102,34 +102,87 @@ public class AuthController {
      * REFRESH TOKEN
      */
     @PostMapping("/refresh")
-    public ResponseEntity<?> refreshToken(HttpServletRequest request, HttpServletResponse response) {
+    public ResponseEntity<?> refreshToken(
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) {
 
         String refreshToken = getCookie(request, "refreshToken");
 
-        if(refreshToken == null){
-            return ResponseEntity.badRequest().body(Map.of("message", "Refresh token missing"));
+        if (refreshToken == null || refreshToken.isBlank()) {
+
+            return ResponseEntity.status(401).body(
+                    Map.of(
+                            "message",
+                            "Refresh token missing"
+                    )
+            );
         }
 
-        String username = jwtService.extractUsername(refreshToken);
+        try {
 
-        var user = userService.findByEmail(username);
+            String email = jwtService.extractUsername(refreshToken);
 
-        if(jwtService.isTokenValid(refreshToken, user)){
+            var user = userService.findByEmail(email);
 
-            var newAccessToken = jwtService.generateToken(user);
-            Cookie accessCookie = new Cookie("accessToken", newAccessToken);
+            if (user == null) {
 
-            accessCookie.setHttpOnly(true);
-            accessCookie.setSecure(false);
-            accessCookie.setPath("/");
-            accessCookie.setMaxAge(15 * 60);
+                return ResponseEntity.status(401).body(
+                        Map.of(
+                                "message",
+                                "User not found"
+                        )
+                );
+            }
 
-            response.addCookie(accessCookie);
+            if (!jwtService.isTokenValid(refreshToken, user)) {
 
-            return ResponseEntity.ok(Map.of("roles", user.getRoles().getFirst().getName()));
+                return ResponseEntity.status(401).body(
+                        Map.of(
+                                "message",
+                                "Invalid refresh token"
+                        )
+                );
+            }
+
+            /*
+             * Rotation du Refresh Token
+             */
+
+            String newAccessToken = jwtService.generateToken(user);
+
+            String newRefreshToken =
+                    jwtService.generateRefreshToken(new HashMap<>(), user);
+
+            response.addCookie(
+                    CookieUtils.createAccessTokenCookie(newAccessToken)
+            );
+
+            response.addCookie(
+                    CookieUtils.createRefreshTokenCookie(newRefreshToken)
+            );
+
+            return ResponseEntity.ok(
+                    new LoginResDto(
+                            user.getRoles().getFirst().getName(),
+                            user.getFirstname(),
+                            user.getLastname(),
+                            user.getEmail()
+                    )
+            );
+
+        } catch (Exception e) {
+
+            response.addCookie(CookieUtils.deleteAccessTokenCookie());
+            response.addCookie(CookieUtils.deleteRefreshTokenCookie());
+
+            return ResponseEntity.status(401).body(
+                    Map.of(
+                            "message",
+                            "Refresh token expired"
+                    )
+            );
         }
-
-        return ResponseEntity.status(401).body(Map.of("message", "Invalid refresh token"));
     }
 
     /**
@@ -158,35 +211,22 @@ public class AuthController {
     /**
      * LOGOUT
      */
-    /**
-     * LOGOUT
-     */
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response) {
+    public ResponseEntity<?> logout(HttpServletResponse response) {
 
-        String token = getCookie(request, "accessToken");
+        response.addCookie(
+                CookieUtils.deleteAccessTokenCookie()
+        );
 
-
-        Cookie accessCookie = new Cookie("accessToken", null);
-        accessCookie.setHttpOnly(true);
-        accessCookie.setSecure(false);
-        accessCookie.setPath("/");
-        accessCookie.setMaxAge(0);
-
-
-        Cookie refreshCookie = new Cookie("refreshToken", null);
-        refreshCookie.setHttpOnly(true);
-        refreshCookie.setSecure(false);
-        refreshCookie.setPath("/");
-        refreshCookie.setMaxAge(0);
-
-
-        response.addCookie(accessCookie);
-        response.addCookie(refreshCookie);
-
+        response.addCookie(
+                CookieUtils.deleteRefreshTokenCookie()
+        );
 
         return ResponseEntity.ok(
-                Map.of("message", "Logout successful")
+                Map.of(
+                        "message",
+                        "Logout successful"
+                )
         );
     }
 
@@ -195,16 +235,17 @@ public class AuthController {
      */
     private String getCookie(HttpServletRequest request, String name) {
 
-        Cookie[] cookies = request.getCookies();
+        if (request.getCookies() == null) {
+            return null;
+        }
 
-        if(cookies != null){
-            for(Cookie cookie : cookies){
-                if(cookie.getName()
-                        .equals(name)){
-                    return cookie.getValue();
-                }
+        for (Cookie cookie : request.getCookies()) {
+
+            if (cookie.getName().equals(name)) {
+                return cookie.getValue();
             }
         }
+
         return null;
     }
 
@@ -217,6 +258,27 @@ public class AuthController {
 
         return ResponseEntity.ok(
                 Map.of("message", "Status updated successfully")
+        );
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<LoginResDto> me(Authentication authentication) {
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(401).build();
+        }
+
+        String email = authentication.getName();
+
+        var user = userService.findByEmail(email);
+
+        return ResponseEntity.ok(
+                new LoginResDto(
+                        user.getRoles().getFirst().getName(),
+                        user.getFirstname(),
+                        user.getLastname(),
+                        user.getEmail()
+                )
         );
     }
 

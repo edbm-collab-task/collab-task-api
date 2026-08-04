@@ -1,5 +1,6 @@
 package com.school.security.securities.services;
 
+import com.school.security.entities.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
@@ -7,6 +8,7 @@ import io.jsonwebtoken.security.Keys;
 import java.security.Key;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Function;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.GrantedAuthority;
@@ -75,4 +77,22 @@ public class JwtServiceImp implements JwtService {
     private boolean isTokenExpired(String token) {
         return extractClaim(token, Claims::getExpiration).before(new Date());
     }
+
+    @Override
+    public String generateRecoveryToken(User user, int code) {
+
+        Map<String, Object> claims = new HashMap<>();
+
+        claims.put("code", code);
+        claims.put("type", "RECOVERY");
+
+        return Jwts.builder()
+                .claims(claims)
+                .subject(user.getEmail())
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration(new Date(System.currentTimeMillis() + 10 * 60 * 1000))
+                .signWith(getSiginKey())
+                .compact();
+    }
+
 }

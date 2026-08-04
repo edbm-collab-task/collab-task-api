@@ -53,4 +53,28 @@ public class CookieUtils {
 
         return cookie;
     }
+
+    public static Cookie createRecoveryTokenCookie(String token) {
+
+        Cookie cookie = new Cookie("recoveryToken", token);
+
+        cookie.setHttpOnly(true);
+        cookie.setSecure(false); // true en production HTTPS
+        cookie.setPath("/");
+        cookie.setMaxAge(10 * 60); // 10 minutes
+
+        return cookie;
+    }
+
+    public static Cookie deleteRecoveryTokenCookie() {
+
+        Cookie cookie = new Cookie("recoveryToken", "");
+
+        cookie.setHttpOnly(true);
+        cookie.setSecure(false);
+        cookie.setPath("/");
+        cookie.setMaxAge(0);
+
+        return cookie;
+    }
 }

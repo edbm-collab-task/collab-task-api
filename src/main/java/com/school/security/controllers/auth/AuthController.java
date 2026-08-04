@@ -1,6 +1,7 @@
 package com.school.security.controllers.auth;
 
 
+import com.school.security.core.email.EmailService;
 import com.school.security.dtos.requests.LoginReqDto;
 import com.school.security.dtos.requests.UserReqDto;
 import com.school.security.dtos.responses.CodeResDto;
@@ -35,19 +36,21 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final UserMapper userMapper;
+    private final EmailService emailService;
 
 
 
     public AuthController(
             UserService userService,
             AuthenticationManager authenticationManager,
-            JwtService jwtService, UserMapper userMapper
+            JwtService jwtService, UserMapper userMapper, EmailService emailService
     ) {
 
         this.userService = userService;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.userMapper = userMapper;
+        this.emailService = emailService;
     }
 
     /**
@@ -189,23 +192,34 @@ public class AuthController {
      * GENERATE CODE
      */
     @PostMapping("/code")
-    public CodeResDto generateCode(@RequestBody String email) {
+    public ResponseEntity<?> generateCode(
+            @RequestBody String email,
+            HttpServletResponse response
+    ) {
 
         var user = userService.findByEmail(email);
 
-        if(user == null)
-        {
-            throw new RuntimeException("User not defined");
-        }
+        int code = (int) (Math.random() * 900000) + 100000;
 
-        var jwt = jwtService.generateToken(user);
-        var refreshToken = jwtService.generateRefreshToken(new HashMap<>(), user);
+        String recoveryToken =
+                jwtService.generateRecoveryToken(user, code);
 
-        int code = (int)(Math.random() * 900000) + 100000;
+        response.addCookie(
+                CookieUtils.createRecoveryTokenCookie(recoveryToken)
+        );
 
-        System.out.println("Code : " + code);
+        emailService.sendRecoveryCodeEmail(
+                user.getEmail(),
+                user.getFirstname(),
+                code
+        );
 
-        return new CodeResDto(code, jwt, refreshToken);
+        return ResponseEntity.ok(
+                Map.of(
+                        "message",
+                        "Le code de récupération a été envoyé à votre adresse email."
+                )
+        );
     }
 
     /**

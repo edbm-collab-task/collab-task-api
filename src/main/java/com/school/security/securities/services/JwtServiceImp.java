@@ -95,4 +95,29 @@ public class JwtServiceImp implements JwtService {
                 .compact();
     }
 
+    @Override
+    public int extractRecoveryCode(String token) {
+        return extractAllClaims(token)
+                .get("code", Integer.class);
+    }
+
+    @Override
+    public boolean isRecoveryTokenValid(String token) {
+
+        try {
+
+            Claims claims = extractAllClaims(token);
+
+            String type = claims.get("type", String.class);
+
+            return "RECOVERY".equals(type)
+                    && !isTokenExpired(token);
+
+        } catch (Exception e) {
+
+            return false;
+
+        }
+    }
+
 }

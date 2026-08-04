@@ -39,9 +39,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/register", "/auth/logout", "/auth/refresh", "/auth/code").permitAll()
                         .requestMatchers(HttpMethod.GET, "/users", "/users/*", "/users/email").permitAll()
+                        .requestMatchers(HttpMethod.PUT,"/users/pwd").permitAll()
                         .requestMatchers(HttpMethod.PUT, "/users/account").hasAuthority("ADMIN")
                         .requestMatchers(HttpMethod.PUT,"/auth/status").permitAll()
-                        .requestMatchers(HttpMethod.GET,"/auth/me").permitAll()
+                        .requestMatchers(HttpMethod.GET,"/auth/me","/auth/verification-code","/auth/recovery/me").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

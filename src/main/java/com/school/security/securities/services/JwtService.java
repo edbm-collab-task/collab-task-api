@@ -16,4 +16,8 @@ public interface JwtService {
             HashMap<String, Object> objectObjectHashMap, UserDetails userDetails);
 
     String generateRecoveryToken(User user, int code);
+
+    int extractRecoveryCode(String token);
+
+    boolean isRecoveryTokenValid(String token);
 }

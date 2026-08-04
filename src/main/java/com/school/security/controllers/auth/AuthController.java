@@ -2,15 +2,16 @@ package com.school.security.controllers.auth;
 
 
 import com.school.security.core.email.EmailService;
+import com.school.security.dtos.requests.EmailReq;
 import com.school.security.dtos.requests.LoginReqDto;
 import com.school.security.dtos.requests.UserReqDto;
-import com.school.security.dtos.responses.CodeResDto;
 import com.school.security.dtos.responses.LoginResDto;
 import com.school.security.dtos.responses.UserResDto;
 import com.school.security.mappers.UserMapper;
 import com.school.security.securities.services.JwtService;
 import com.school.security.securities.utils.CookieUtils;
 import com.school.security.services.contracts.UserService;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -35,7 +36,6 @@ public class AuthController {
     private final UserService userService;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
-    private final UserMapper userMapper;
     private final EmailService emailService;
 
 
@@ -49,7 +49,6 @@ public class AuthController {
         this.userService = userService;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
-        this.userMapper = userMapper;
         this.emailService = emailService;
     }
 
@@ -193,19 +192,26 @@ public class AuthController {
      */
     @PostMapping("/code")
     public ResponseEntity<?> generateCode(
-            @RequestBody String email,
+            @RequestBody EmailReq emailReq,
             HttpServletResponse response
     ) {
 
-        var user = userService.findByEmail(email);
+        var user = userService.findByEmail(emailReq.email());
 
         int code = (int) (Math.random() * 900000) + 100000;
 
         String recoveryToken =
                 jwtService.generateRecoveryToken(user, code);
 
+        String email = user.getEmail();
+
         response.addCookie(
                 CookieUtils.createRecoveryTokenCookie(recoveryToken)
+
+        );
+
+        response.addCookie(
+                CookieUtils.createEmail(email)
         );
 
         emailService.sendRecoveryCodeEmail(
@@ -220,6 +226,43 @@ public class AuthController {
                         "Le code de récupération a été envoyé à votre adresse email."
                 )
         );
+    }
+
+    @GetMapping("/verification-code")
+    public ResponseEntity<?> verification(
+            @RequestParam int code,
+            HttpServletRequest request
+    ) {
+
+        String recoveryToken = getCookie(request, "recoveryToken");
+
+        if (recoveryToken == null) {
+            return ResponseEntity.status(401)
+                    .body(Map.of("message", "Token introuvable"));
+        }
+
+        try {
+
+            int tokenCode = jwtService.extractRecoveryCode(recoveryToken);
+
+            if (tokenCode != code) {
+
+                return ResponseEntity.badRequest()
+                        .body(Map.of("message", "Code incorrect"));
+            }
+
+            return ResponseEntity.ok(
+                    Map.of(
+                            "message", "Code valide",
+                            "valid", true
+                    )
+            );
+
+        } catch (Exception e) {
+
+            return ResponseEntity.status(401)
+                    .body(Map.of("message", "Code expiré"));
+        }
     }
 
     /**
@@ -292,6 +335,31 @@ public class AuthController {
                         user.getFirstname(),
                         user.getLastname(),
                         user.getEmail()
+                )
+        );
+    }
+
+    @GetMapping("/recovery/me")
+    public ResponseEntity<?> recoveryMe(
+            @CookieValue(value = "recoveryToken", required = false) String recoveryToken
+    ) {
+
+        if (recoveryToken == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("message", "Recovery token missing"));
+        }
+
+        if (!jwtService.isRecoveryTokenValid(recoveryToken)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("message", "Recovery token invalid"));
+        }
+
+        String email = jwtService.extractUsername(recoveryToken);
+
+        return ResponseEntity.ok(
+                Map.of(
+                        "email", email,
+                        "recovery", true
                 )
         );
     }

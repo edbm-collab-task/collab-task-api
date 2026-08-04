@@ -6,6 +6,18 @@ public class CookieUtils {
     private CookieUtils() {
     }
 
+    public static Cookie createEmail(String email) {
+
+        Cookie cookie = new Cookie("email", email);
+
+        cookie.setHttpOnly(true);
+        cookie.setSecure(false); // true en production HTTPS
+        cookie.setPath("/");
+        cookie.setMaxAge(15 * 60);
+
+        return cookie;
+    }
+
     public static Cookie createAccessTokenCookie(String token) {
 
         Cookie cookie = new Cookie("accessToken", token);

@@ -31,6 +31,12 @@ public class User implements Serializable, UserDetails {
 
     private String lastname;
 
+    private String job;
+
+    @ManyToOne
+    @JoinColumn(name = "direction_id", nullable = false)
+    private Direction direction;
+
     private String number;
 
     private String email;

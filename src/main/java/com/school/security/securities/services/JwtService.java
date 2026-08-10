@@ -1,6 +1,8 @@
 package com.school.security.securities.services;
 
 import java.util.HashMap;
+
+import com.school.security.entities.User;
 import org.springframework.security.core.userdetails.UserDetails;
 
 public interface JwtService {
@@ -12,4 +14,10 @@ public interface JwtService {
 
     String generateRefreshToken(
             HashMap<String, Object> objectObjectHashMap, UserDetails userDetails);
+
+    String generateRecoveryToken(User user, int code);
+
+    int extractRecoveryCode(String token);
+
+    boolean isRecoveryTokenValid(String token);
 }

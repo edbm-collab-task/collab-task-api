@@ -70,6 +70,29 @@ public class EmailService implements ISendMail{
 
     }
 
+    public void createPwdForUser(
+            String email,
+            String username,
+            String code
+    ){
+
+        String html =
+                templateEmailService.createPwd(
+                        username,
+                        code
+                );
+
+
+        sendHtmlEmail(
+                email,
+                "Voici le mot de passe  de votre compte Collab Task",
+                html
+        );
+
+    }
+
+
+
     @Override
     public void senderSimpleEmail(String to, String subject, String emailContent) {
         if (isValidEmailAddress(to)){

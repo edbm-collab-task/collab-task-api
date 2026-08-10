@@ -7,9 +7,13 @@ import com.school.security.dtos.requests.LoginReqDto;
 import com.school.security.dtos.requests.UserReqDto;
 import com.school.security.dtos.responses.LoginResDto;
 import com.school.security.dtos.responses.UserResDto;
+import com.school.security.entities.User;
+import com.school.security.mappers.DirectionMapper;
 import com.school.security.mappers.UserMapper;
+import com.school.security.repositories.DirectionRepository;
 import com.school.security.securities.services.JwtService;
 import com.school.security.securities.utils.CookieUtils;
+import com.school.security.services.contracts.DirectionService;
 import com.school.security.services.contracts.UserService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -21,6 +25,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
+
+import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -37,19 +43,26 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final EmailService emailService;
+    private static final String LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    private static final SecureRandom RANDOM = new SecureRandom();
+    private final UserMapper userMapper;
+    private final DirectionRepository directionRepository;
+
 
 
 
     public AuthController(
             UserService userService,
             AuthenticationManager authenticationManager,
-            JwtService jwtService, UserMapper userMapper, EmailService emailService
+            JwtService jwtService, UserMapper userMapper, EmailService emailService, UserMapper userMapper1, DirectionRepository directionRepository
     ) {
 
         this.userService = userService;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.emailService = emailService;
+        this.userMapper = userMapper;
+        this.directionRepository = directionRepository;
     }
 
     /**
@@ -69,6 +82,7 @@ public class AuthController {
         );
 
         var user = userService.findByEmail(credential.email());
+        updateStatus(user.getEmail(),true);
 
         String accessToken = jwtService.generateToken(user);
         String refreshToken = jwtService.generateRefreshToken(new HashMap<>(), user);
@@ -80,6 +94,11 @@ public class AuthController {
         response.addCookie(
                 CookieUtils.createRefreshTokenCookie(refreshToken)
         );
+
+        response.addCookie(
+                CookieUtils.createEmail(credential.email())
+        );
+
 
         return ResponseEntity.ok(
                 new LoginResDto(
@@ -99,6 +118,44 @@ public class AuthController {
     {
         return userService.createOrUpdate(userReqDto);
     }
+
+    /**
+     * CREATE
+     */
+    @PostMapping("/create")
+    public UserResDto create(@RequestBody UserReqDto userReqDto)
+    {
+
+        String code = generateRandomString(12);
+        emailService.createPwdForUser(
+                userReqDto.email(),
+                userReqDto.firstname(),
+                code
+        );
+
+
+
+        User user = new User();
+        user.setEmail(userReqDto.email());
+        user.setPwd(code);
+        user.setDirection(directionRepository.getReferenceById(userReqDto.directionId()));
+        user.setFirstname(userReqDto.firstname());
+        user.setLastname(userReqDto.lastname());
+
+        return userService.createOrUpdate(userMapper.toUserReq(user));
+    }
+
+    public static String generateRandomString(int length) {
+
+        StringBuilder sb = new StringBuilder(length);
+
+        for (int i = 0; i < length; i++) {
+            sb.append(LETTERS.charAt(RANDOM.nextInt(LETTERS.length())));
+        }
+
+        return sb.toString();
+    }
+
 
     /**
      * REFRESH TOKEN
@@ -269,7 +326,10 @@ public class AuthController {
      * LOGOUT
      */
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(HttpServletResponse response) {
+    public ResponseEntity<?> logout(HttpServletRequest request,HttpServletResponse response) {
+
+        String email = getCookie(request,"email");
+        updateStatus(email,false);
 
         response.addCookie(
                 CookieUtils.deleteAccessTokenCookie()
@@ -277,6 +337,10 @@ public class AuthController {
 
         response.addCookie(
                 CookieUtils.deleteRefreshTokenCookie()
+        );
+
+        response.addCookie(
+                CookieUtils.deleteEmail()
         );
 
         return ResponseEntity.ok(

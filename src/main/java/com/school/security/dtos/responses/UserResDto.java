@@ -12,6 +12,8 @@ public record UserResDto(
         String lastname,
         String email,
         String number,
+        String direction,
+        String job,
         Gender gender,
         Boolean status,
         LocalDate createdAt,

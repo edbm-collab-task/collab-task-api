@@ -33,4 +33,21 @@ public class TemplateEmailService {
         );
     }
 
+    public String createPwd(
+            String username,
+            String code
+    ){
+
+        Context context = new Context();
+
+        context.setVariable("username", username);
+        context.setVariable("code", code);
+
+
+        return templateEngine.process(
+                "pwd",
+                context
+        );
+    }
+
 }

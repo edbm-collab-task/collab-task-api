@@ -28,6 +28,7 @@ public class UserServiceImpl implements UserService {
     private BCryptPasswordEncoder passwordEncoder;
     private RoleRepository roleRepository;
     private UserRepository userRepository;
+    private DirectionRepository directionRepository;
 
     @Override
     public UserResDto createOrUpdate(UserReqDto toSave) {
@@ -40,10 +41,12 @@ public class UserServiceImpl implements UserService {
             user.setLastname(toSave.lastname());
             user.setGender(toSave.gender());
             user.setStatus(userOptional.get().getStatus());
+            user.setJob(toSave.job());
 
             if (toSave.password() != null && !toSave.password().isBlank()) {
                 user.setPwd(passwordEncoder.encode(toSave.password()));
             }
+            user.setDirection(directionRepository.getReferenceById(toSave.directionId()));
             var userToSave = userRepository.save(user);
             return userMapper.toDto(userToSave);
 

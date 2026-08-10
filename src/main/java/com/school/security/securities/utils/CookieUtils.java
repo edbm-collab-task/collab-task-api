@@ -18,6 +18,17 @@ public class CookieUtils {
         return cookie;
     }
 
+    public static  Cookie deleteEmail(){
+        Cookie cookie = new Cookie("email", "");
+
+        cookie.setHttpOnly(true);
+        cookie.setSecure(false); // true en production HTTPS
+        cookie.setPath("/");
+        cookie.setMaxAge(15 * 60);
+
+        return cookie;
+    }
+
     public static Cookie createAccessTokenCookie(String token) {
 
         Cookie cookie = new Cookie("accessToken", token);

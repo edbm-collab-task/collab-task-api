@@ -37,12 +37,17 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/register", "/auth/logout", "/auth/refresh", "/auth/code").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/auth/login","/auth/create", "/auth/register", "/auth/logout", "/auth/refresh", "/auth/code").permitAll()
                         .requestMatchers(HttpMethod.GET, "/users", "/users/*", "/users/email").permitAll()
                         .requestMatchers(HttpMethod.PUT,"/users/pwd").permitAll()
                         .requestMatchers(HttpMethod.PUT, "/users/account").hasAuthority("ADMIN")
                         .requestMatchers(HttpMethod.PUT,"/auth/status").permitAll()
                         .requestMatchers(HttpMethod.GET,"/auth/me","/auth/verification-code","/auth/recovery/me").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/directions", "/directions/{id}").permitAll()
+                        .requestMatchers(HttpMethod.PUT, "/directions/{id}").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/directions").permitAll()
+                        .requestMatchers(HttpMethod.DELETE, "/directions/{id}")
+                        .permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

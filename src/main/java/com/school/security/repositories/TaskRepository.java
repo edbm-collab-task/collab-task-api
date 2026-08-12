@@ -9,6 +9,8 @@ import org.springframework.stereotype.Repository;
 public interface TaskRepository extends JpaRepository<Task, Long> {
     List<Task> findByProjectProjectId(Long projectId);
 
+    List<Task> findByProjectProjectIdAndIsActiveTrue(Long projectId);
+
     List<Task> findByIsActiveTrue();
 
     List<Task> findByParentIsNull();

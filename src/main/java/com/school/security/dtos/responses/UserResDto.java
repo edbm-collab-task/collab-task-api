@@ -16,5 +16,6 @@ public record UserResDto(
         String job,
         Gender gender,
         Boolean status,
+        Boolean isActive,
         LocalDate createdAt,
         RoleType role) {}

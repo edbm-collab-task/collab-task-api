@@ -1,5 +1,6 @@
 package com.school.security.services.implementations;
 
+import com.school.security.core.email.EmailService;
 import com.school.security.dtos.requests.UserReqDto;
 import com.school.security.dtos.responses.UserResDto;
 import com.school.security.entities.Role;
@@ -20,6 +21,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import static com.school.security.controllers.auth.AuthController.generateRandomString;
+
 @Service
 @Transactional
 @AllArgsConstructor
@@ -29,6 +32,7 @@ public class UserServiceImpl implements UserService {
     private RoleRepository roleRepository;
     private UserRepository userRepository;
     private DirectionRepository directionRepository;
+    private EmailService emailService;
 
     @Override
     public UserResDto createOrUpdate(UserReqDto toSave) {
@@ -36,19 +40,9 @@ public class UserServiceImpl implements UserService {
 
         if (userOptional.isPresent()) {
             User user = userOptional.get();
-
-            user.setFirstname(toSave.firstname());
-            user.setLastname(toSave.lastname());
-            user.setGender(toSave.gender());
-            user.setStatus(userOptional.get().getStatus());
-            user.setJob(toSave.job());
-
-            if (toSave.password() != null && !toSave.password().isBlank()) {
-                user.setPwd(passwordEncoder.encode(toSave.password()));
-            }
-            user.setDirection(directionRepository.getReferenceById(toSave.directionId()));
-            var userToSave = userRepository.save(user);
-            return userMapper.toDto(userToSave);
+            User toUpdate = userMapper.toUpdate(toSave,user);
+            userRepository.save(toUpdate);
+            return userMapper.toDto(toUpdate);
 
         } else {
             User user = userMapper.fromDto(toSave);
@@ -64,12 +58,51 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+
+
+    @Override
+    public UserResDto create(UserReqDto toSave) {
+        Optional<User> userOptional = userRepository.findByEmail(toSave.email());
+
+        if(userOptional.isEmpty()){
+
+            String code = generateRandomString(12);
+
+            User user = new User();
+            user.setEmail(toSave.email());
+            user.setPwd(code);
+            user.setDirection(directionRepository.getReferenceById(toSave.directionId()));
+            user.setFirstname(toSave.firstname());
+            user.setLastname(toSave.lastname());
+
+            User savedUser = userRepository.save(user);
+            attachRole(savedUser.getEmail(), RoleType.USER);
+            emailService.createPwdForUser(
+                    savedUser.getEmail(),
+                    savedUser.getFirstname(),
+                    code
+            );
+
+            return userMapper.toDto(user);
+
+        }else {
+
+            User user = userOptional.get();
+            User toUpdate = userMapper.toUpdate(toSave,user);
+            userRepository.save(toUpdate);
+
+            return userMapper.toDto(toUpdate);
+        }
+    }
+
     @Override
     public List<UserResDto> findAll() {
         return this.userRepository.findAll().stream()
                 .map(this.userMapper::toDto)
                 .collect(Collectors.toList());
     }
+
+
 
     @Override
     public UserResDto findById(Long id) {
@@ -140,6 +173,22 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() ->
                         new IllegalArgumentException("Invalid email or password")
                 );
+    }
+
+    @Override
+    public List<UserResDto> findAllUserActive() {
+        return userRepository.findByIsActiveTrue()
+                .stream()
+                .map(userMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<UserResDto> findAllUserDisable() {
+        return userRepository.findByIsActiveFalse()
+                .stream()
+                .map(userMapper::toDto)
+                .collect(Collectors.toList());
     }
 
     @Override

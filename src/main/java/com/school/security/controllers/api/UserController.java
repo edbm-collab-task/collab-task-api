@@ -74,4 +74,14 @@ public class UserController {
                 Map.of("message", "Account  updated successfully")
         );
     }
+
+    @GetMapping("/active")
+    public ResponseEntity<List<UserResDto>> findAllUserActive() {
+        return ResponseEntity.ok(userService.findAllUserActive());
+    }
+
+    @GetMapping("/disable")
+    public ResponseEntity<List<UserResDto>> findAllUsersDisable() {
+        return ResponseEntity.ok(userService.findAllUserDisable());
+    }
 }

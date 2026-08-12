@@ -123,27 +123,7 @@ public class AuthController {
      * CREATE
      */
     @PostMapping("/create")
-    public UserResDto create(@RequestBody UserReqDto userReqDto)
-    {
-
-        String code = generateRandomString(12);
-        emailService.createPwdForUser(
-                userReqDto.email(),
-                userReqDto.firstname(),
-                code
-        );
-
-
-
-        User user = new User();
-        user.setEmail(userReqDto.email());
-        user.setPwd(code);
-        user.setDirection(directionRepository.getReferenceById(userReqDto.directionId()));
-        user.setFirstname(userReqDto.firstname());
-        user.setLastname(userReqDto.lastname());
-
-        return userService.createOrUpdate(userMapper.toUserReq(user));
-    }
+    public UserResDto create(@RequestBody UserReqDto userReqDto) {return userService.create(userReqDto);}
 
     public static String generateRandomString(int length) {
 

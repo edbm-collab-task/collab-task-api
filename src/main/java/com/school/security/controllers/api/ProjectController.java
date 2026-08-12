@@ -3,6 +3,7 @@ package com.school.security.controllers.api;
 import com.school.security.dtos.requests.ProjectReqDto;
 import com.school.security.dtos.responses.ProjectResDto;
 import com.school.security.services.contracts.ProjectService;
+import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,13 +28,13 @@ public class ProjectController {
     }
 
     @PostMapping
-    public ProjectResDto createProject(@RequestBody ProjectReqDto projectReqDto) {
+    public ProjectResDto createProject(@Valid @RequestBody ProjectReqDto projectReqDto) {
         return this.projectService.createOrUpdate(projectReqDto);
     }
 
     @PutMapping("/{id}")
     public ProjectResDto updateProject(
-            @RequestBody ProjectReqDto toSave, @PathVariable Long id) {
+            @Valid @RequestBody ProjectReqDto toSave, @PathVariable Long id) {
         return this.projectService.save(toSave, id);
     }
 

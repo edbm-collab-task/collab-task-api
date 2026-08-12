@@ -3,6 +3,7 @@ package com.school.security.controllers.api;
 import com.school.security.dtos.requests.TaskReqDto;
 import com.school.security.dtos.responses.TaskResDto;
 import com.school.security.services.contracts.TaskService;
+import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,12 +33,12 @@ public class TaskController {
     }
 
     @PostMapping
-    public TaskResDto createTask(@RequestBody TaskReqDto taskReqDto) {
+    public TaskResDto createTask(@Valid @RequestBody TaskReqDto taskReqDto) {
         return this.taskService.createOrUpdate(taskReqDto);
     }
 
     @PutMapping("/{id}")
-    public TaskResDto updateTask(@RequestBody TaskReqDto toSave, @PathVariable Long id) {
+    public TaskResDto updateTask(@Valid @RequestBody TaskReqDto toSave, @PathVariable Long id) {
         return this.taskService.save(toSave, id);
     }
 

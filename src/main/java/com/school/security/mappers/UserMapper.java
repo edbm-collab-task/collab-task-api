@@ -7,19 +7,20 @@ import com.school.security.entities.Role;
 import com.school.security.entities.User;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import com.school.security.enums.Gender;
 import com.school.security.repositories.DirectionRepository;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 
 @Component
 public class UserMapper implements Mapper<UserReqDto, User, UserResDto> {
     private final RoleMapper roleMapper;
     private final DirectionRepository directionRepository;
+    private final BCryptPasswordEncoder passwordEncoder;
 
-    public UserMapper(RoleMapper roleMapper,  DirectionRepository directionRepository) {
+    public UserMapper(RoleMapper roleMapper,  DirectionRepository directionRepository, BCryptPasswordEncoder passwordEncoder) {
         this.roleMapper = roleMapper;
         this.directionRepository = directionRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
@@ -49,8 +50,10 @@ public class UserMapper implements Mapper<UserReqDto, User, UserResDto> {
                 entity.getJob(),
                 entity.getGender(),
                 entity.getStatus(),
+                entity.getIsActive(),
                 entity.getCreatedAt(),
-                entity.getRoles().getFirst().getName());
+                entity.getRoles().getFirst().getName(),
+                entity.getImagePath());
     }
 
     public UserReqDto toUserReq(User entity){
@@ -65,6 +68,34 @@ public class UserMapper implements Mapper<UserReqDto, User, UserResDto> {
              entity.getPassword(),
              entity.getGender()
      );
+    }
+
+    public User toUpdate(UserReqDto toUpdate , User user){
+
+        if (toUpdate.firstname() != null && !toUpdate.firstname().isBlank()){
+            user.setFirstname(toUpdate.firstname());
+        }
+        if (toUpdate.lastname() != null && !toUpdate.lastname().isBlank()){
+            user.setLastname(toUpdate.lastname());
+        }
+        if (toUpdate.gender() != null && !toUpdate.gender().name().isBlank()){
+            user.setGender(toUpdate.gender());
+        }
+        if (toUpdate.number() != null && !toUpdate.number().isBlank()){
+            user.setNumber(toUpdate.number());
+        }
+        if (toUpdate.job() != null && !toUpdate.job().isBlank()){
+            user.setJob(toUpdate.job());
+        }
+        if (toUpdate.password() != null && !toUpdate.password().isBlank()) {
+            user.setPwd(passwordEncoder.encode(toUpdate.password()));
+        }
+        if ((toUpdate.directionId() != null )){
+            user.setDirection(directionRepository.getReferenceById(toUpdate.directionId()));
+        }
+
+
+        return user;
     }
 
     private List<RoleResDto> toRoleResDto(List<Role> roles) {

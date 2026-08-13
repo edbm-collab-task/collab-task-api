@@ -38,8 +38,10 @@ public class SecurityConfig {
                 .authenticationProvider(authenticationProvider())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/auth/login","/auth/create", "/auth/register", "/auth/logout", "/auth/refresh", "/auth/code").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/users", "/users/*", "/users/email").permitAll()
-                        .requestMatchers(HttpMethod.PUT,"/users/pwd").permitAll()
+                        .requestMatchers(HttpMethod.POST,"/users/{id}/image").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/users", "/users/*", "/users/email","/users/active","/users/disable").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/users/{id}/image").permitAll()
+                        .requestMatchers(HttpMethod.PUT,"/users/pwd","/users/role").permitAll()
                         .requestMatchers(HttpMethod.PUT, "/users/account").hasAuthority("ADMIN")
                         .requestMatchers(HttpMethod.PUT,"/auth/status").permitAll()
                         .requestMatchers(HttpMethod.GET,"/auth/me","/auth/verification-code","/auth/recovery/me").permitAll()

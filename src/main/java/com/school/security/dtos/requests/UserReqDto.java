@@ -1,6 +1,7 @@
 package com.school.security.dtos.requests;
 
 import com.school.security.enums.Gender;
+import org.springframework.web.multipart.MultipartFile;
 
 public record UserReqDto(
         String firstname,

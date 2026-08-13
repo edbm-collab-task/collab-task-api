@@ -52,7 +52,8 @@ public class UserMapper implements Mapper<UserReqDto, User, UserResDto> {
                 entity.getStatus(),
                 entity.getIsActive(),
                 entity.getCreatedAt(),
-                entity.getRoles().getFirst().getName());
+                entity.getRoles().getFirst().getName(),
+                entity.getImagePath());
     }
 
     public UserReqDto toUserReq(User entity){
@@ -92,6 +93,7 @@ public class UserMapper implements Mapper<UserReqDto, User, UserResDto> {
         if ((toUpdate.directionId() != null )){
             user.setDirection(directionRepository.getReferenceById(toUpdate.directionId()));
         }
+
 
         return user;
     }

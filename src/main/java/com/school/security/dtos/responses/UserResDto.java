@@ -18,4 +18,5 @@ public record UserResDto(
         Boolean status,
         Boolean isActive,
         LocalDate createdAt,
-        RoleType role) {}
+        RoleType role,
+        String imagePath) {}

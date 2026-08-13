@@ -49,6 +49,8 @@ public class User implements Serializable, UserDetails {
 
     private Boolean isActive = true ;
 
+    private String imagePath;
+
     @Enumerated(EnumType.STRING)
     private Gender gender;
 

@@ -31,7 +31,6 @@ WHERE NOT EXISTS (
     WHERE roles.name = roles_to_insert.role_name
 );
 
-<<<<<<< HEAD
 INSERT INTO priorities (name)
 SELECT priority_name
 FROM (
@@ -60,7 +59,6 @@ WHERE NOT EXISTS (
     FROM statuses
     WHERE statuses.name = statuses_to_insert.status_name
 );
-=======
 
 -- =========================================================
 -- 3. Créer l'utilisateur ADMIN
@@ -146,4 +144,3 @@ LEFT JOIN users_roles ur
 LEFT JOIN roles r
     ON r.roles_id = ur.roles_roles_id
 WHERE u.email = 'admin@edbm.com';
->>>>>>> 288a636 (feat: CRUD for message)

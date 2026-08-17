@@ -50,6 +50,18 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/directions").permitAll()
                         .requestMatchers(HttpMethod.DELETE, "/directions/{id}")
                         .permitAll()
+                        .requestMatchers(HttpMethod.GET, "/projects", "/projects/{id}").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/projects").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/projects/{id}").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/projects/{id}").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/tasks", "/tasks/{id}", "/tasks/project/{projectId}").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/tasks").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/tasks/{id}").authenticated()
+                        .requestMatchers(HttpMethod.PATCH, "/tasks/{id}/status").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/tasks/{id}").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/statuses").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/statuses").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/statuses/{id}").authenticated()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

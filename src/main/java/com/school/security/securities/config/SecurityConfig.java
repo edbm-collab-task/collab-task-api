@@ -57,6 +57,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/tasks/{id}").authenticated()
                         .requestMatchers(HttpMethod.PATCH, "/tasks/{id}/status").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/tasks/{id}").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/statuses").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/statuses").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/statuses/{id}").authenticated()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

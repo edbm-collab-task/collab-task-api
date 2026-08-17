@@ -23,4 +23,8 @@ public class Status implements Serializable {
     private String name;
 
     private Integer sortOrder;
+
+    @ManyToOne
+    @JoinColumn(name = "project_id")
+    private Project project;
 }

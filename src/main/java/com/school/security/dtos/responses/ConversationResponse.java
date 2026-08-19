@@ -11,8 +11,9 @@ public record ConversationResponse(
         List<Long> memberIds,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
-        Boolean archived,
-        Boolean pinned,
-        Integer unreadCount
+        boolean archived,
+        boolean pinned,
+        int unreadCount,
+        MessageResponse lastMessage
 ) {
 }

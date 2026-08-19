@@ -26,15 +26,24 @@ public class MessageAttachment implements Serializable {
     )
     private Message message;
 
-    @Column(nullable = false)
+    @Column(
+            nullable = false,
+            length = 255
+    )
     private String name;
 
-    @Column(nullable = false)
+    @Column(
+            nullable = false,
+            length = 100
+    )
     private String type;
 
     @Column(nullable = false)
     private Long size;
 
-    @Column(nullable = false)
+    @Column(
+            nullable = false,
+            length = 500
+    )
     private String url;
 }

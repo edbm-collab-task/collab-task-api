@@ -3,6 +3,7 @@ package com.school.security.dtos.requests;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
+import java.util.List;
 
 public record TaskReqDto(
         @NotBlank(message = "Title is required") String title,
@@ -11,4 +12,5 @@ public record TaskReqDto(
         @NotNull(message = "Project is required") Long projectId,
         @NotNull(message = "Priority is required") Long priorityId,
         @NotNull(message = "Status is required") Long statusId,
-        Long parentTaskId) {}
+        Long parentTaskId,
+        List<Long> assigneeIds) {}

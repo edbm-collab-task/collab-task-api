@@ -50,4 +50,24 @@ public class TemplateEmailService {
         );
     }
 
+    public String generateContributorAddedEmail(String userName, String projectTitle, String ownerName) {
+        Context context = new Context();
+        context.setVariable("userName", userName);
+        context.setVariable("projectTitle", projectTitle);
+        context.setVariable("ownerName", ownerName);
+        return templateEngine.process("contributor_added", context);
+    }
+
+    public String generateTaskAssignedEmail(String userName, String taskTitle, String projectTitle, String message, String priorityName, String priorityColor) {
+        Context context = new Context();
+        context.setVariable("userName", userName);
+        context.setVariable("taskTitle", taskTitle);
+        context.setVariable("projectTitle", projectTitle);
+        context.setVariable("message", message);
+        context.setVariable("priorityName", priorityName);
+        context.setVariable("priorityColor", priorityColor);
+        context.setVariable("title", message.contains("urgente") ? "Tâche urgente assignée" : "Tâche assignée");
+        return templateEngine.process("task_assigned", context);
+    }
+
 }

@@ -1,0 +1,14 @@
+package com.school.security.enums;
+
+public enum ActivityType {
+    PROJECT_CREATED,
+    CONTRIBUTOR_ADDED,
+    CONTRIBUTOR_REMOVED,
+    TASK_CREATED,
+    TASK_UPDATED,
+    TASK_DELETED,
+    TASK_STATUS_CHANGED,
+    TASK_PRIORITY_CHANGED,
+    TASK_ASSIGNED,
+    TASK_UNASSIGNED
+}

@@ -22,12 +22,19 @@ public class ProjectMapper implements Mapper<ProjectReqDto, Project, ProjectResD
         project.setDescription(d.description());
         project.setStartDate(d.startDate());
         project.setEndDate(d.endDate());
-        project.setOwner(userRepository.getReferenceById(d.ownerId()));
         return project;
+    }
+
+    public void setOwner(Project project, Long ownerId) {
+        project.setOwner(userRepository.getReferenceById(ownerId));
     }
 
     @Override
     public ProjectResDto toDto(Project entity) {
+        return toDto(entity, null);
+    }
+
+    public ProjectResDto toDto(Project entity, Long currentUserId) {
         return new ProjectResDto(
                 entity.getProjectId(),
                 entity.getTitle(),
@@ -36,6 +43,7 @@ public class ProjectMapper implements Mapper<ProjectReqDto, Project, ProjectResD
                 entity.getEndDate(),
                 entity.getIsActive(),
                 entity.getOwner().getUsersId(),
-                entity.getOwner().getFirstname() + " " + entity.getOwner().getLastname());
+                entity.getOwner().getFirstname() + " " + entity.getOwner().getLastname(),
+                currentUserId != null && currentUserId.equals(entity.getOwner().getUsersId()));
     }
 }

@@ -146,4 +146,87 @@ public class FileStorageService {
             );
         }
     }
+
+    public String saveTaskAttachment(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return null;
+        }
+
+        if (file.getSize() > MAX_FILE_SIZE) {
+            throw new IllegalArgumentException(
+                    "Le fichier ne doit pas dépasser 10 MB"
+            );
+        }
+
+        String originalName = file.getOriginalFilename();
+        String extension = "";
+        if (originalName != null && originalName.contains(".")) {
+            extension = originalName.substring(originalName.lastIndexOf("."));
+        }
+
+        String fileName = UUID.randomUUID() + extension;
+
+        Path targetPath = uploadPath
+                .resolve("tasks")
+                .resolve(fileName)
+                .normalize();
+
+        try {
+            Files.createDirectories(targetPath.getParent());
+            Files.copy(
+                    file.getInputStream(),
+                    targetPath,
+                    StandardCopyOption.REPLACE_EXISTING
+            );
+            return "uploads/tasks/" + fileName;
+        } catch (IOException e) {
+            throw new RuntimeException(
+                    "Erreur lors de la sauvegarde du fichier",
+                    e
+            );
+        }
+    }
+
+    public void deleteTaskAttachment(String filePath) {
+        if (filePath == null || filePath.isBlank()) {
+            return;
+        }
+        try {
+            String fileName = Paths.get(filePath)
+                    .getFileName()
+                    .toString();
+            Path file = uploadPath
+                    .resolve("tasks")
+                    .resolve(fileName)
+                    .normalize();
+            Files.deleteIfExists(file);
+        } catch (IOException e) {
+            throw new RuntimeException(
+                    "Erreur lors de la suppression du fichier",
+                    e
+            );
+        }
+    }
+
+    public Resource loadTaskAttachment(String filePath) {
+        try {
+            String fileName = Paths.get(filePath)
+                    .getFileName()
+                    .toString();
+            Path path = uploadPath
+                    .resolve("tasks")
+                    .resolve(fileName)
+                    .normalize();
+            Resource resource = new UrlResource(path.toUri());
+            if (!resource.exists() || !resource.isReadable()) {
+                throw new RuntimeException("File not found");
+            }
+            return resource;
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    "Impossible de charger le fichier",
+                    e
+            );
+        }
+    }
 }

@@ -49,4 +49,12 @@ public class Task implements Serializable {
     private List<Task> subTasks = new ArrayList<>();
 
     private Boolean isActive = true;
+
+    @ManyToMany
+    @JoinTable(
+        name = "task_assignees",
+        joinColumns = @JoinColumn(name = "task_id"),
+        inverseJoinColumns = @JoinColumn(name = "user_id")
+    )
+    private List<User> assignees = new ArrayList<>();
 }

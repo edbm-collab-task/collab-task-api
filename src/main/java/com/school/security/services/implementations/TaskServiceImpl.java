@@ -2,14 +2,20 @@ package com.school.security.services.implementations;
 
 import com.school.security.dtos.requests.TaskReqDto;
 import com.school.security.dtos.responses.TaskResDto;
+import com.school.security.entities.Priority;
 import com.school.security.entities.Status;
 import com.school.security.entities.Task;
+import com.school.security.entities.User;
+import com.school.security.enums.NotificationType;
 import com.school.security.exceptions.EntityException;
 import com.school.security.mappers.TaskMapper;
 import com.school.security.repositories.PriorityRepository;
 import com.school.security.repositories.StatusRepository;
 import com.school.security.repositories.TaskRepository;
+import com.school.security.repositories.UserRepository;
+import com.school.security.services.contracts.NotificationService;
 import com.school.security.services.contracts.TaskService;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -25,7 +31,10 @@ public class TaskServiceImpl implements TaskService {
     private TaskRepository taskRepository;
     private PriorityRepository priorityRepository;
     private StatusRepository statusRepository;
+    private UserRepository userRepository;
     private TaskMapper taskMapper;
+    private NotificationService notificationService;
+    private com.school.security.services.contracts.ActivityService activityService;
 
     @Override
     public TaskResDto createOrUpdate(TaskReqDto toSave) {
@@ -38,6 +47,11 @@ public class TaskServiceImpl implements TaskService {
             Optional<Task> taskOptional = this.taskRepository.findById(id);
             if (taskOptional.isPresent()) {
                 Task taskToUpdate = taskOptional.get();
+
+                Long oldPriorityId = taskToUpdate.getPriority().getPriorityId();
+                List<Long> oldAssigneeIds = taskToUpdate.getAssignees().stream()
+                        .map(User::getUsersId).collect(Collectors.toList());
+
                 taskToUpdate.setTitle(toSave.title());
                 taskToUpdate.setDescription(toSave.description());
                 taskToUpdate.setDueDate(toSave.dueDate());
@@ -49,14 +63,58 @@ public class TaskServiceImpl implements TaskService {
                 } else {
                     taskToUpdate.setParent(null);
                 }
-                return this.taskMapper.toDto(this.taskRepository.save(taskToUpdate));
+                updateAssignees(taskToUpdate, toSave.assigneeIds());
+                Task saved = this.taskRepository.save(taskToUpdate);
+
+                Long currentUserId = getCurrentUserId();
+                Long projId = saved.getProject().getProjectId();
+
+                activityService.logActivity(projId, currentUserId,
+                        com.school.security.enums.ActivityType.TASK_UPDATED,
+                        "La tâche \"" + saved.getTitle() + "\" a été mise à jour", saved.getTaskId());
+
+                if (toSave.assigneeIds() != null) {
+                    for (Long userId : toSave.assigneeIds()) {
+                        if (!oldAssigneeIds.contains(userId)) {
+                            notifyAssignee(userId, saved, "Vous avez été assigné(e) à la tâche");
+                            activityService.logActivity(projId, userId,
+                                    com.school.security.enums.ActivityType.TASK_ASSIGNED,
+                                    "Assigné(e) à la tâche \"" + saved.getTitle() + "\"", saved.getTaskId());
+                        }
+                    }
+                }
+
+                if (!oldPriorityId.equals(toSave.priorityId())) {
+                    notifyPriorityChange(saved, oldPriorityId);
+                    activityService.logActivity(projId, currentUserId,
+                            com.school.security.enums.ActivityType.TASK_PRIORITY_CHANGED,
+                            "Priorité changée pour la tâche \"" + saved.getTitle() + "\"", saved.getTaskId());
+                }
+
+                return this.taskMapper.toDto(saved);
             }
         }
         Task taskToSave = this.taskMapper.fromDto(toSave);
         if (toSave.parentTaskId() != null) {
             checkParentRules(taskToSave, toSave.parentTaskId());
         }
-        return this.taskMapper.toDto(this.taskRepository.save(taskToSave));
+        Task saved = this.taskRepository.save(taskToSave);
+
+        Long currentUserId = getCurrentUserId();
+        activityService.logActivity(saved.getProject().getProjectId(), currentUserId,
+                com.school.security.enums.ActivityType.TASK_CREATED,
+                "La tâche \"" + saved.getTitle() + "\" a été créée", saved.getTaskId());
+
+        if (toSave.assigneeIds() != null) {
+            for (Long userId : toSave.assigneeIds()) {
+                notifyAssignee(userId, saved, "Vous avez été assigné(e) à la tâche");
+                activityService.logActivity(saved.getProject().getProjectId(), userId,
+                        com.school.security.enums.ActivityType.TASK_ASSIGNED,
+                        "Assigné(e) à la tâche \"" + saved.getTitle() + "\"", saved.getTaskId());
+            }
+        }
+
+        return this.taskMapper.toDto(saved);
     }
 
     @Override
@@ -93,6 +151,10 @@ public class TaskServiceImpl implements TaskService {
         if (taskOptional.isPresent()) {
             Task task = taskOptional.get();
             task.setIsActive(false);
+            Long currentUserId = getCurrentUserId();
+            activityService.logActivity(task.getProject().getProjectId(), currentUserId,
+                    com.school.security.enums.ActivityType.TASK_DELETED,
+                    "La tâche \"" + task.getTitle() + "\" a été supprimée", task.getTaskId());
             return this.taskMapper.toDto(this.taskRepository.save(task));
         }
         throw new EntityException("Task not found");
@@ -105,12 +167,50 @@ public class TaskServiceImpl implements TaskService {
             Optional<Status> statusOptional = this.statusRepository.findById(statusId);
             if (statusOptional.isPresent()) {
                 Task task = taskOptional.get();
+                String oldStatus = task.getStatus().getName();
                 task.setStatus(statusOptional.get());
+                Long currentUserId = getCurrentUserId();
+                activityService.logActivity(task.getProject().getProjectId(), currentUserId,
+                        com.school.security.enums.ActivityType.TASK_STATUS_CHANGED,
+                        "Statut changé de \"" + oldStatus + "\" à \"" + statusOptional.get().getName() + "\" pour la tâche \"" + task.getTitle() + "\"",
+                        task.getTaskId());
                 return this.taskMapper.toDto(this.taskRepository.save(task));
             }
             throw new EntityException("Status not found");
         }
         throw new EntityException("Task not found");
+    }
+
+    private Long getCurrentUserId() {
+        try {
+            String email = com.school.security.securities.utils.SecurityUtils.getCurrentUsername();
+            return userRepository.findByEmail(email).map(User::getUsersId).orElse(null);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void notifyAssignee(Long userId, Task task, String message) {
+        String notifMessage = message + " \"" + task.getTitle() + "\" dans le projet \"" + task.getProject().getTitle() + "\"";
+        notificationService.createNotification(userId, notifMessage, NotificationType.TASK_ASSIGNED, task.getProject().getProjectId(), task.getTaskId());
+    }
+
+    private void notifyPriorityChange(Task task, Long oldPriorityId) {
+        Priority newPriority = task.getPriority();
+        Priority oldPriority = priorityRepository.findById(oldPriorityId).orElse(null);
+        if (oldPriority == null) return;
+
+        String notifMessage = "La priorité de la tâche \"" + task.getTitle() + "\" est passée de " + oldPriority.getName() + " à " + newPriority.getName();
+
+        for (User assignee : task.getAssignees()) {
+            notificationService.createNotification(
+                    assignee.getUsersId(),
+                    notifMessage,
+                    NotificationType.PRIORITY_CHANGED,
+                    task.getProject().getProjectId(),
+                    task.getTaskId()
+            );
+        }
     }
 
     private void checkParentRules(Task task, Long parentTaskId) {
@@ -129,5 +229,16 @@ public class TaskServiceImpl implements TaskService {
         } else {
             throw new EntityException("Parent task not found");
         }
+    }
+
+    private void updateAssignees(Task task, List<Long> assigneeIds) {
+        if (assigneeIds == null) {
+            return;
+        }
+        List<User> assignees = new ArrayList<>();
+        for (Long userId : assigneeIds) {
+            this.userRepository.findById(userId).ifPresent(assignees::add);
+        }
+        task.setAssignees(assignees);
     }
 }

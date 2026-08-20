@@ -1,6 +1,7 @@
 package com.school.security.dtos.responses;
 
 import java.time.LocalDate;
+import java.util.List;
 
 public record TaskResDto(
         Long taskId,
@@ -14,4 +15,14 @@ public record TaskResDto(
         String priorityName,
         Long statusId,
         String statusName,
-        Long parentTaskId) {}
+        Long parentTaskId,
+        List<AssigneeResDto> assignees) {
+
+    public record AssigneeResDto(
+            Long userId,
+            String firstname,
+            String lastname,
+            String email,
+            String imagePath
+    ) {}
+}

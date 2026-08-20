@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f5f7fb; padding: 30px; color: #333; }
+        .container { max-width: 600px; margin: auto; background: white; border-radius: 12px; padding: 30px; box-shadow: 0 5px 20px rgba(0,0,0,0.08); }
+        .header { text-align: center; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        .logo { font-size: 28px; font-weight: bold; color: #2563eb; }
+        .title { font-size: 20px; margin-top: 20px; color: #111827; }
+        .message { font-size: 15px; line-height: 1.6; margin-top: 20px; }
+        .highlight { background: #eff6ff; border-radius: 8px; padding: 15px; margin: 20px 0; border-left: 4px solid #2563eb; }
+        .footer { margin-top: 30px; text-align: center; color: #6b7280; font-size: 13px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div class="logo">Collab Task</div>
+        <div class="title">Nouveau contributeur ajouté</div>
+    </div>
+    <div class="message">
+        <p>Bonjour <strong th:text="${userName}"></strong>,</p>
+        <p>Vous avez été ajouté(e) en tant que <strong>contributeur</strong> au projet :</p>
+        <div class="highlight">
+            <strong th:text="${projectTitle}"></strong>
+        </div>
+        <p>Vous pouvez dès maintenant accéder au projet et collaborer avec l'équipe.</p>
+        <p>Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet email.</p>
+    </div>
+    <div class="footer">
+        © Collab Task - Gestion collaborative des tâches<br>
+        Ceci est un email automatique, merci de ne pas répondre.
+    </div>
+</div>
+</body>
+</html>

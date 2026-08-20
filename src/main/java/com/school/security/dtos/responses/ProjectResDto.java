@@ -10,4 +10,5 @@ public record ProjectResDto(
         LocalDate endDate,
         Boolean isActive,
         Long ownerId,
-        String ownerName) {}
+        String ownerName,
+        boolean isOwner) {}

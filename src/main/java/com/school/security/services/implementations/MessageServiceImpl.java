@@ -1,17 +1,25 @@
 package com.school.security.services.implementations;
 
-import com.school.security.dtos.requests.SendMessageRequest;
 import com.school.security.dtos.responses.MessageResponse;
-import com.school.security.entities.*;
+import com.school.security.entities.Conversation;
+import com.school.security.entities.ConversationMember;
+import com.school.security.entities.Message;
+import com.school.security.entities.MessageAttachment;
+import com.school.security.entities.User;
 import com.school.security.exceptions.BadRequestException;
 import com.school.security.exceptions.ResourceNotFoundException;
 import com.school.security.mappers.MessageMapper;
-import com.school.security.repositories.*;
+import com.school.security.repositories.ConversationMemberRepository;
+import com.school.security.repositories.ConversationRepository;
+import com.school.security.repositories.MessageRepository;
+import com.school.security.repositories.UserRepository;
 import com.school.security.services.contracts.MessageService;
+import com.school.security.securities.services.FileStorageService;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -23,35 +31,44 @@ public class MessageServiceImpl
         implements MessageService {
 
     private final MessageRepository messageRepository;
-    private final MessageAttachmentRepository
-            attachmentRepository;
+
     private final ConversationRepository
             conversationRepository;
+
     private final ConversationMemberRepository
             memberRepository;
+
     private final UserRepository userRepository;
+
     private final MessageMapper messageMapper;
+
+    private final FileStorageService fileStorageService;
 
     public MessageServiceImpl(
             MessageRepository messageRepository,
-            MessageAttachmentRepository attachmentRepository,
             ConversationRepository conversationRepository,
             ConversationMemberRepository memberRepository,
             UserRepository userRepository,
-            MessageMapper messageMapper
+            MessageMapper messageMapper,
+            FileStorageService fileStorageService
     ) {
         this.messageRepository =
                 messageRepository;
-        this.attachmentRepository =
-                attachmentRepository;
+
         this.conversationRepository =
                 conversationRepository;
+
         this.memberRepository =
                 memberRepository;
+
         this.userRepository =
                 userRepository;
+
         this.messageMapper =
                 messageMapper;
+
+        this.fileStorageService =
+                fileStorageService;
     }
 
     private Long currentUserId() {
@@ -61,7 +78,9 @@ public class MessageServiceImpl
                         .getContext()
                         .getAuthentication();
 
-        if (authentication == null) {
+        if (authentication == null ||
+                authentication.getName() == null) {
+
             throw new BadRequestException(
                     "Utilisateur non authentifié."
             );
@@ -90,7 +109,9 @@ public class MessageServiceImpl
 
         Conversation conversation =
                 conversationRepository
-                        .findById(conversationId)
+                        .findById(
+                                conversationId
+                        )
                         .orElseThrow(() ->
                                 new ResourceNotFoundException(
                                         "Conversation introuvable."
@@ -139,7 +160,9 @@ public class MessageServiceImpl
     @Override
     public MessageResponse sendMessage(
             Long conversationId,
-            SendMessageRequest request
+            String content,
+            Long replyToId,
+            List<MultipartFile> attachments
     ) {
 
         Long currentUserId =
@@ -147,7 +170,9 @@ public class MessageServiceImpl
 
         User sender =
                 userRepository
-                        .findById(currentUserId)
+                        .findById(
+                                currentUserId
+                        )
                         .orElseThrow(() ->
                                 new ResourceNotFoundException(
                                         "Utilisateur introuvable."
@@ -156,7 +181,9 @@ public class MessageServiceImpl
 
         Conversation conversation =
                 conversationRepository
-                        .findById(conversationId)
+                        .findById(
+                                conversationId
+                        )
                         .orElseThrow(() ->
                                 new ResourceNotFoundException(
                                         "Conversation introuvable."
@@ -168,18 +195,22 @@ public class MessageServiceImpl
                 currentUserId
         );
 
-        String content =
-                request.content() == null
+        String messageContent =
+                content == null
                         ? ""
-                        : request.content().trim();
+                        : content.trim();
 
         boolean hasAttachments =
-                request.attachments() != null
-                        && !request.attachments()
-                        .isEmpty();
+                attachments != null
+                        && attachments.stream()
+                        .anyMatch(file ->
+                                file != null
+                                        && !file.isEmpty()
+                        );
 
-        if (content.isEmpty()
+        if (messageContent.isEmpty()
                 && !hasAttachments) {
+
             throw new BadRequestException(
                     "Le message ne peut pas être vide."
             );
@@ -187,12 +218,12 @@ public class MessageServiceImpl
 
         Message replyTo = null;
 
-        if (request.replyToId() != null) {
+        if (replyToId != null) {
 
             replyTo =
                     messageRepository
                             .findById(
-                                    request.replyToId()
+                                    replyToId
                             )
                             .orElseThrow(() ->
                                     new ResourceNotFoundException(
@@ -200,9 +231,11 @@ public class MessageServiceImpl
                                     )
                             );
 
-            if (!replyTo.getConversation()
+            if (!replyTo
+                    .getConversation()
                     .getConversationId()
                     .equals(conversationId)) {
+
                 throw new BadRequestException(
                         "Le message cité n'appartient pas à cette conversation."
                 );
@@ -213,7 +246,7 @@ public class MessageServiceImpl
                 Message.builder()
                         .conversation(conversation)
                         .sender(sender)
-                        .content(content)
+                        .content(messageContent)
                         .createdAt(
                                 LocalDateTime.now()
                         )
@@ -226,29 +259,44 @@ public class MessageServiceImpl
                         .deleted(false)
                         .build();
 
-        if (request.attachments() != null) {
+        /*
+         * Sauvegarde des pièces jointes
+         */
+        if (attachments != null) {
 
-            for (
-                    SendMessageRequest.AttachmentRequest
-                            requestAttachment
-                    : request.attachments()
-            ) {
+            for (MultipartFile file :
+                    attachments) {
+
+                if (file == null ||
+                        file.isEmpty()) {
+                    continue;
+                }
+
+                String url =
+                        fileStorageService
+                                .saveMessageAttachment(
+                                        file
+                                );
 
                 MessageAttachment attachment =
                         MessageAttachment.builder()
                                 .message(message)
                                 .name(
-                                        requestAttachment.name()
+                                        file.getOriginalFilename()
+                                                != null
+                                                ? file.getOriginalFilename()
+                                                : "fichier"
                                 )
                                 .type(
-                                        requestAttachment.type()
+                                        file.getContentType()
+                                                != null
+                                                ? file.getContentType()
+                                                : "application/octet-stream"
                                 )
                                 .size(
-                                        requestAttachment.size()
+                                        file.getSize()
                                 )
-                                .url(
-                                        requestAttachment.url()
-                                )
+                                .url(url)
                                 .build();
 
                 message.getAttachments()
@@ -261,17 +309,25 @@ public class MessageServiceImpl
                         message
                 );
 
-        for (
-                ConversationMember member
-                : conversation.getMembers()
-        ) {
+        /*
+         * Incrémentation des messages
+         * non lus pour les autres membres
+         */
+        for (ConversationMember member :
+                conversation.getMembers()) {
 
-            if (!member.getUser()
+            if (!member
+                    .getUser()
                     .getUsersId()
                     .equals(currentUserId)) {
 
+                Integer unreadCount =
+                        member.getUnreadCount();
+
                 member.setUnreadCount(
-                        member.getUnreadCount() + 1
+                        unreadCount == null
+                                ? 1
+                                : unreadCount + 1
                 );
             }
         }
@@ -299,26 +355,48 @@ public class MessageServiceImpl
 
         Message message =
                 messageRepository
-                        .findById(messageId)
+                        .findById(
+                                messageId
+                        )
                         .orElseThrow(() ->
                                 new ResourceNotFoundException(
                                         "Message introuvable."
                                 )
                         );
 
-        if (!message.getSender()
+        if (!message
+                .getSender()
                 .getUsersId()
                 .equals(currentUserId)) {
+
             throw new BadRequestException(
                     "Vous ne pouvez supprimer que vos propres messages."
             );
+        }
+
+        /*
+         * Suppression physique des fichiers
+         * avant de supprimer les références.
+         */
+        if (message.getAttachments() != null) {
+
+            for (MessageAttachment attachment :
+                    message.getAttachments()) {
+
+                fileStorageService
+                        .deleteMessageAttachment(
+                                attachment.getUrl()
+                        );
+            }
         }
 
         message.setDeleted(true);
         message.setContent("");
         message.getAttachments().clear();
 
-        messageRepository.save(message);
+        messageRepository.save(
+                message
+        );
     }
 
     private void verifyMember(
@@ -327,7 +405,8 @@ public class MessageServiceImpl
     ) {
 
         boolean member =
-                conversation.getMembers()
+                conversation
+                        .getMembers()
                         .stream()
                         .anyMatch(item ->
                                 item.getUser()
@@ -336,6 +415,7 @@ public class MessageServiceImpl
                         );
 
         if (!member) {
+
             throw new BadRequestException(
                     "Vous ne faites pas partie de cette conversation."
             );

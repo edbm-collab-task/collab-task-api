@@ -48,7 +48,8 @@ public class MessageMapper {
 
                 message.getReadBy()
                         .stream()
-                        .map(User::getUsersId
+                        .map(
+                                User::getUsersId
                         )
                         .toList(),
 

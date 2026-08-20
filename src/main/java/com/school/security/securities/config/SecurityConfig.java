@@ -37,6 +37,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/ws").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/login","/auth/create", "/auth/register", "/auth/logout", "/auth/refresh", "/auth/code").permitAll()
                         .requestMatchers(HttpMethod.POST,"/users/{id}/image").permitAll()
                         .requestMatchers(HttpMethod.GET, "/users", "/users/*", "/users/email","/users/active","/users/disable").permitAll()
@@ -50,6 +51,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/directions").permitAll()
                         .requestMatchers(HttpMethod.DELETE, "/directions/{id}")
                         .permitAll()
+                        .requestMatchers(HttpMethod.GET, "/uploads/messages/{filename}").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

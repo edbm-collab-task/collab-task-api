@@ -1,6 +1,7 @@
 package com.school.security.services.contracts;
-import com.school.security.dtos.requests.SendMessageRequest;
+
 import com.school.security.dtos.responses.MessageResponse;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -16,7 +17,9 @@ public interface MessageService {
 
     MessageResponse sendMessage(
             Long conversationId,
-            SendMessageRequest request
+            String content,
+            Long replyToId,
+            List<MultipartFile> attachments
     );
 
     void deleteMessage(

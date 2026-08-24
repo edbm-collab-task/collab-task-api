@@ -28,7 +28,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.security.SecureRandom;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 
 
@@ -102,10 +104,12 @@ public class AuthController {
 
         return ResponseEntity.ok(
                 new LoginResDto(
+                        user.getUsersId(),
                         user.getRoles().getFirst().getName(),
                         user.getFirstname(),
                         user.getLastname(),
-                        user.getEmail()
+                        user.getEmail(),
+                        extractPermissions(user)
                 )
         );
     }
@@ -203,10 +207,12 @@ public class AuthController {
 
             return ResponseEntity.ok(
                     new LoginResDto(
+                            user.getUsersId(),
                             user.getRoles().getFirst().getName(),
                             user.getFirstname(),
                             user.getLastname(),
-                            user.getEmail()
+                            user.getEmail(),
+                            extractPermissions(user)
                     )
             );
 
@@ -362,6 +368,14 @@ public class AuthController {
         );
     }
 
+    private List<String> extractPermissions(User user) {
+        return user.getRoles().stream()
+                .flatMap(role -> role.getPermissions().stream())
+                .map(permission -> permission.getName().name())
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
     @GetMapping("/me")
     public ResponseEntity<LoginResDto> me(Authentication authentication) {
 
@@ -375,10 +389,12 @@ public class AuthController {
 
         return ResponseEntity.ok(
                 new LoginResDto(
+                        user.getUsersId(),
                         user.getRoles().getFirst().getName(),
                         user.getFirstname(),
                         user.getLastname(),
-                        user.getEmail()
+                        user.getEmail(),
+                        extractPermissions(user)
                 )
         );
     }

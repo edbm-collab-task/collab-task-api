@@ -27,4 +27,12 @@ public class Role implements Serializable {
 
     @ManyToMany(mappedBy = "roles")
     private List<User> users = new ArrayList<>();
+
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+        name = "roles_permissions",
+        joinColumns = @JoinColumn(name = "roles_id"),
+        inverseJoinColumns = @JoinColumn(name = "permission_id")
+    )
+    private List<Permission> permissions = new ArrayList<>();
 }

@@ -14,6 +14,7 @@ import java.util.Map;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -29,11 +30,13 @@ public class UserController {
     }
 
     @GetMapping
+    @PreAuthorize("@permissionEvaluator.hasPermission('VIEW_USERS')")
     public List<UserResDto> getAllUsers() {
         return this.userService.findAll();
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_USERS')")
     public UserResDto deleteById(@PathVariable Long id) {
         return this.userService.deleteById(id);
     }
@@ -54,6 +57,7 @@ public class UserController {
     }
 
     @PutMapping("/role")
+    @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_USERS')")
     public ResponseEntity<UserResDto> updateRole(@RequestBody AttachRoleReqDto attachRoleRegDto) {
         UserResDto userResDto =
                 userService.attachRole(attachRoleRegDto.email(), attachRoleRegDto.role());
@@ -90,6 +94,11 @@ public class UserController {
     @GetMapping("/disable")
     public ResponseEntity<List<UserResDto>> findAllUsersDisable() {
         return ResponseEntity.ok(userService.findAllUserDisable());
+    }
+
+    @GetMapping("/admins")
+    public ResponseEntity<List<UserResDto>> findAllAdmins() {
+        return ResponseEntity.ok(userService.findAllByRole(com.school.security.enums.RoleType.ADMIN));
     }
 
     @PostMapping(value = "/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

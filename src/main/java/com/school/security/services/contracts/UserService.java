@@ -39,4 +39,6 @@ public interface UserService extends Service<UserReqDto, UserResDto, Long> {
     void updateStatus(String email, Boolean status);
 
     void updateAccount(String email, Boolean isActive);
+
+    List<UserResDto> findAllByRole(RoleType roleType);
 }

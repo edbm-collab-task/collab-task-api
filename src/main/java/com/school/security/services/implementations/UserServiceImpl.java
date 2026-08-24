@@ -299,4 +299,13 @@ public class UserServiceImpl implements UserService {
         userRepository.save(user);
     }
 
+    @Override
+    public List<UserResDto> findAllByRole(RoleType roleType) {
+        return userRepository.findAll().stream()
+                .filter(user -> user.getRoles().stream()
+                        .anyMatch(role -> role.getName() == roleType))
+                .map(userMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
 }

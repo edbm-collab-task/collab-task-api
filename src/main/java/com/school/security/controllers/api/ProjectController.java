@@ -9,6 +9,7 @@ import com.school.security.securities.utils.SecurityUtils;
 import com.school.security.services.contracts.ProjectService;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -32,30 +33,35 @@ public class ProjectController {
     }
 
     @GetMapping
+    @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_PROJECTS')")
     public List<ProjectResDto> findAllProjects() {
         Long currentUserId = getCurrentUserId();
         return this.projectService.findAllWithUser(currentUserId);
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_PROJECTS')")
     public ProjectResDto getProjectById(@PathVariable Long id) {
         Long currentUserId = getCurrentUserId();
         return this.projectService.findByIdWithUser(id, currentUserId);
     }
 
     @PostMapping
+    @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_PROJECTS')")
     public ProjectResDto createProject(@Valid @RequestBody ProjectReqDto projectReqDto) {
         Long currentUserId = getCurrentUserId();
         return this.projectService.createWithOwner(projectReqDto, currentUserId);
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_PROJECTS')")
     public ProjectResDto updateProject(
             @Valid @RequestBody ProjectReqDto toSave, @PathVariable Long id) {
         return this.projectService.save(toSave, id);
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_PROJECTS')")
     public ProjectResDto archiveProject(@PathVariable Long id) {
         return this.projectService.deleteById(id);
     }

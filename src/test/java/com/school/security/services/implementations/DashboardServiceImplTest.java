@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.school.security.dtos.responses.DashboardDataResDto;
@@ -65,6 +66,7 @@ class DashboardServiceImplTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(adminUser));
         when(projectRepository.findByIsActiveTrue()).thenReturn(adminProjects);
         when(taskRepository.countByIsActiveTrueAndProjectProjectIdIn(anyList())).thenReturn(25L);
+        when(taskRepository.countCompletedBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(12L);
         when(taskRepository.countOverdue(anyList(), any(LocalDate.class), eq("Termine"))).thenReturn(3L);
         when(taskRepository.countByStatusGrouped(anyList())).thenReturn(List.of(
                 new Object[]{"A faire", 10L},
@@ -92,7 +94,7 @@ class DashboardServiceImplTest {
         assertEquals("LAST_30_DAYS", result.period());
         assertEquals(2, result.stats().projects());
         assertEquals(25, result.stats().tasks());
-        assertEquals(7, result.stats().completedTasks());
+        assertEquals(12, result.stats().completedTasks());
         assertEquals(3, result.stats().overdueTasks());
         assertNotNull(result.evolution());
         assertNotNull(result.distribution());
@@ -107,6 +109,7 @@ class DashboardServiceImplTest {
         when(userRepository.findById(2L)).thenReturn(Optional.of(regularUser));
         when(projectRepository.findAccessibleProjectsByUserId(2L)).thenReturn(userProjects);
         when(taskRepository.countByIsActiveTrueAndProjectProjectIdIn(anyList())).thenReturn(10L);
+        when(taskRepository.countCompletedBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(5L);
         when(taskRepository.countOverdue(anyList(), any(LocalDate.class), eq("Termine"))).thenReturn(1L);
         when(taskRepository.countByStatusGrouped(anyList())).thenReturn(List.of(
                 new Object[]{"A faire", 4L},
@@ -127,7 +130,7 @@ class DashboardServiceImplTest {
         assertEquals("LAST_7_DAYS", result.period());
         assertEquals(1, result.stats().projects());
         assertEquals(10, result.stats().tasks());
-        assertEquals(3, result.stats().completedTasks());
+        assertEquals(5, result.stats().completedTasks());
         assertEquals(1, result.stats().overdueTasks());
     }
 
@@ -154,6 +157,7 @@ class DashboardServiceImplTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(adminUser));
         when(projectRepository.findByIsActiveTrue()).thenReturn(adminProjects);
         when(taskRepository.countByIsActiveTrueAndProjectProjectIdIn(anyList())).thenReturn(5L);
+        when(taskRepository.countCompletedBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(2L);
         when(taskRepository.countOverdue(anyList(), any(LocalDate.class), eq("Termine"))).thenReturn(0L);
         when(taskRepository.countByStatusGrouped(anyList())).thenReturn(List.of(
                 new Object[]{"A faire", 2L},
@@ -172,6 +176,8 @@ class DashboardServiceImplTest {
         assertNotNull(result);
         assertEquals("TODAY", result.period());
         assertEquals(5, result.stats().tasks());
+        assertEquals(2, result.stats().completedTasks());
+        assertEquals(0, result.stats().overdueTasks());
     }
 
     @Test
@@ -179,6 +185,7 @@ class DashboardServiceImplTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(adminUser));
         when(projectRepository.findByIsActiveTrue()).thenReturn(adminProjects);
         when(taskRepository.countByIsActiveTrueAndProjectProjectIdIn(anyList())).thenReturn(0L);
+        when(taskRepository.countCompletedBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(0L);
         when(taskRepository.countOverdue(anyList(), any(LocalDate.class), eq("Termine"))).thenReturn(0L);
         when(taskRepository.countByStatusGrouped(anyList())).thenReturn(List.<Object[]>of());
         when(taskRepository.findCreatedDatesBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of());
@@ -193,6 +200,7 @@ class DashboardServiceImplTest {
 
         assertNotNull(result);
         assertEquals("CUSTOM", result.period());
+        assertEquals(0, result.stats().completedTasks());
     }
 
     @Test
@@ -210,6 +218,7 @@ class DashboardServiceImplTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(adminUser));
         when(projectRepository.findByIsActiveTrue()).thenReturn(adminProjects);
         when(taskRepository.countByIsActiveTrueAndProjectProjectIdIn(anyList())).thenReturn(0L);
+        when(taskRepository.countCompletedBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(0L);
         when(taskRepository.countOverdue(anyList(), any(LocalDate.class), eq("Termine"))).thenReturn(0L);
         when(taskRepository.countByStatusGrouped(anyList())).thenReturn(List.<Object[]>of());
         when(taskRepository.findCreatedDatesBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of());
@@ -248,6 +257,7 @@ class DashboardServiceImplTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
         when(projectRepository.findByIsActiveTrue()).thenReturn(manyProjects);
         when(taskRepository.countByIsActiveTrueAndProjectProjectIdIn(anyList())).thenReturn(0L);
+        when(taskRepository.countCompletedBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(0L);
         when(taskRepository.countOverdue(anyList(), any(LocalDate.class), eq("Termine"))).thenReturn(0L);
         when(taskRepository.countByStatusGrouped(anyList())).thenReturn(List.<Object[]>of());
         when(taskRepository.findCreatedDatesBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of());
@@ -261,6 +271,112 @@ class DashboardServiceImplTest {
 
         assertNotNull(result);
         assertEquals(5, result.recentProjects().size());
+    }
+
+    @Test
+    void getDashboardStatsShouldReturnDataForSuperAdmin() {
+        User superAdmin = buildUser(3L, "Super", "Admin", RoleType.SUPER_ADMIN);
+        when(userRepository.findById(3L)).thenReturn(Optional.of(superAdmin));
+        when(projectRepository.findByIsActiveTrue()).thenReturn(adminProjects);
+        when(taskRepository.countByIsActiveTrueAndProjectProjectIdIn(anyList())).thenReturn(20L);
+        when(taskRepository.countCompletedBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(8L);
+        when(taskRepository.countOverdue(anyList(), any(LocalDate.class), eq("Termine"))).thenReturn(2L);
+        when(taskRepository.countByStatusGrouped(anyList())).thenReturn(List.of(
+                new Object[]{"A faire", 6L},
+                new Object[]{"En cours", 6L},
+                new Object[]{"Termine", 8L}));
+        when(taskRepository.findCreatedDatesBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of());
+        when(taskRepository.findCompletedDatesBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of());
+        when(activityRepository.findRecentByProjectIdsAndPeriod(anyList(), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of());
+        when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.of());
+        when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
+
+        DashboardDataResDto result = dashboardService.getDashboardStats(3L, "LAST_30_DAYS", null, null);
+
+        assertNotNull(result);
+        assertEquals("LAST_30_DAYS", result.period());
+        assertEquals(2, result.stats().projects());
+        assertEquals(20, result.stats().tasks());
+        assertEquals(8, result.stats().completedTasks());
+        assertEquals(2, result.stats().overdueTasks());
+        verify(projectRepository).findByIsActiveTrue();
+    }
+
+    @Test
+    void getDashboardStatsShouldUsePeriodSpecificCompletedTasks() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(adminUser));
+        when(projectRepository.findByIsActiveTrue()).thenReturn(adminProjects);
+        when(taskRepository.countByIsActiveTrueAndProjectProjectIdIn(anyList())).thenReturn(15L);
+        when(taskRepository.countOverdue(anyList(), any(LocalDate.class), eq("Termine"))).thenReturn(0L);
+        when(taskRepository.countByStatusGrouped(anyList())).thenReturn(List.of(
+                new Object[]{"A faire", 5L},
+                new Object[]{"En cours", 4L},
+                new Object[]{"Termine", 6L}));
+        when(taskRepository.findCreatedDatesBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of());
+        when(taskRepository.findCompletedDatesBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of());
+        when(activityRepository.findRecentByProjectIdsAndPeriod(anyList(), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of());
+        when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.<Object[]>of());
+        when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
+        when(taskRepository.countCompletedBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(3L);
+
+        DashboardDataResDto result = dashboardService.getDashboardStats(1L, "TODAY", null, null);
+
+        assertNotNull(result);
+        assertEquals(3, result.stats().completedTasks());
+        assertEquals(15, result.stats().tasks());
+    }
+
+    @Test
+    void getDashboardStatsShouldHandleEmptyEvolution() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(adminUser));
+        when(projectRepository.findByIsActiveTrue()).thenReturn(adminProjects);
+        when(taskRepository.countByIsActiveTrueAndProjectProjectIdIn(anyList())).thenReturn(5L);
+        when(taskRepository.countCompletedBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(1L);
+        when(taskRepository.countOverdue(anyList(), any(LocalDate.class), eq("Termine"))).thenReturn(0L);
+        when(taskRepository.countByStatusGrouped(anyList())).thenReturn(List.of(
+                new Object[]{"A faire", 4L},
+                new Object[]{"Termine", 1L}));
+        when(taskRepository.findCreatedDatesBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of());
+        when(taskRepository.findCompletedDatesBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of());
+        when(activityRepository.findRecentByProjectIdsAndPeriod(anyList(), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of());
+        when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.<Object[]>of());
+        when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
+
+        DashboardDataResDto result = dashboardService.getDashboardStats(1L, "LAST_7_DAYS", null, null);
+
+        assertNotNull(result);
+        assertEquals(0, result.evolution().points().size());
+        assertEquals(1, result.stats().completedTasks());
+    }
+
+    @Test
+    void getDashboardStatsShouldCalculateProgressCorrectly() {
+        User owner = buildUser(1L, "Owner", "User", RoleType.ADMIN);
+        List<Project> projects = List.of(buildProject(1L, "Project A", owner));
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(projectRepository.findByIsActiveTrue()).thenReturn(projects);
+        when(taskRepository.countByIsActiveTrueAndProjectProjectIdIn(anyList())).thenReturn(10L);
+        when(taskRepository.countCompletedBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(0L);
+        when(taskRepository.countOverdue(anyList(), any(LocalDate.class), eq("Termine"))).thenReturn(0L);
+        when(taskRepository.countByStatusGrouped(anyList())).thenReturn(List.<Object[]>of());
+        when(taskRepository.findCreatedDatesBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of());
+        when(taskRepository.findCompletedDatesBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of());
+        when(activityRepository.findRecentByProjectIdsAndPeriod(anyList(), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of());
+        when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.<Object[]>of(
+                new Object[]{1L, 10L}));
+        when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of(
+                new Object[]{1L, 6L}));
+
+        DashboardDataResDto result = dashboardService.getDashboardStats(1L, "LAST_30_DAYS", null, null);
+
+        assertNotNull(result);
+        assertEquals(1, result.recentProjects().size());
+        assertEquals(60, result.recentProjects().get(0).progress());
     }
 
     private User buildUser(Long id, String firstname, String lastname, RoleType roleType) {

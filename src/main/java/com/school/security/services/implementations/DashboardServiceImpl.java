@@ -19,8 +19,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.TemporalAdjusters;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,7 +57,7 @@ public class DashboardServiceImpl implements DashboardService {
         LocalDate today = LocalDate.now();
         LocalDateTime[] dates = resolvePeriodDates(period, startDate, endDate, today);
 
-        DashboardStatsResDto stats = computeStats(projectIds, today);
+        DashboardStatsResDto stats = computeStats(projectIds, today, dates[0], dates[1]);
         DashboardEvolutionResDto evolution = computeEvolution(projectIds, dates[0], dates[1]);
         DashboardDistributionResDto distribution = computeDistribution(projectIds);
         List<DashboardActivityItemResDto> recentActivity = computeRecentActivity(projectIds, dates[0], dates[1]);
@@ -123,15 +121,11 @@ public class DashboardServiceImpl implements DashboardService {
         return new LocalDateTime[]{start, end};
     }
 
-    private DashboardStatsResDto computeStats(List<Long> projectIds, LocalDate today) {
+    private DashboardStatsResDto computeStats(
+            List<Long> projectIds, LocalDate today, LocalDateTime start, LocalDateTime end) {
         long totalTasks = taskRepository.countByIsActiveTrueAndProjectProjectIdIn(projectIds);
+        long completedTasks = taskRepository.countCompletedBetween(projectIds, start, end);
         long overdueTasks = taskRepository.countOverdue(projectIds, today, COMPLETED_STATUS_NAME);
-
-        List<Object[]> statusCounts = taskRepository.countByStatusGrouped(projectIds);
-        long completedTasks = statusCounts.stream()
-                .filter(row -> COMPLETED_STATUS_NAME.equals(row[0]))
-                .mapToLong(row -> (Long) row[1])
-                .sum();
 
         return new DashboardStatsResDto(
                 projectIds.size(),

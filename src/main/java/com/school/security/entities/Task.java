@@ -3,6 +3,7 @@ package com.school.security.entities;
 import jakarta.persistence.*;
 import java.io.Serializable;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.*;
@@ -50,6 +51,10 @@ public class Task implements Serializable {
 
     private Boolean isActive = true;
 
+    private LocalDateTime createdAt;
+
+    private LocalDateTime completedAt;
+
     @ManyToMany
     @JoinTable(
         name = "task_assignees",
@@ -57,4 +62,9 @@ public class Task implements Serializable {
         inverseJoinColumns = @JoinColumn(name = "user_id")
     )
     private List<User> assignees = new ArrayList<>();
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+    }
 }

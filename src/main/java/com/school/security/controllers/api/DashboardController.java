@@ -42,10 +42,15 @@ public class DashboardController {
             if (startDate == null || startDate.isBlank() || endDate == null || endDate.isBlank()) {
                 return ResponseEntity.badRequest().build();
             }
+            java.time.LocalDate start;
+            java.time.LocalDate end;
             try {
-                java.time.LocalDate.parse(startDate);
-                java.time.LocalDate.parse(endDate);
+                start = java.time.LocalDate.parse(startDate);
+                end = java.time.LocalDate.parse(endDate);
             } catch (java.time.format.DateTimeParseException e) {
+                return ResponseEntity.badRequest().build();
+            }
+            if (start.isAfter(end)) {
                 return ResponseEntity.badRequest().build();
             }
         }

@@ -3,6 +3,7 @@ package com.school.security.entities;
 import jakarta.persistence.*;
 import java.io.Serializable;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import lombok.*;
 
 @Entity
@@ -34,4 +35,11 @@ public class Project implements Serializable {
     private User owner;
 
     private Boolean isActive = true;
+
+    private LocalDateTime createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+    }
 }

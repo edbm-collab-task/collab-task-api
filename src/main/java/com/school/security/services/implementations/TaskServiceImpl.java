@@ -17,6 +17,7 @@ import com.school.security.repositories.TaskRepository;
 import com.school.security.repositories.UserRepository;
 import com.school.security.services.contracts.NotificationService;
 import com.school.security.services.contracts.TaskService;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -59,7 +60,15 @@ public class TaskServiceImpl implements TaskService {
                 taskToUpdate.setDescription(toSave.description());
                 taskToUpdate.setDueDate(toSave.dueDate());
                 taskToUpdate.setPriority(this.priorityRepository.getReferenceById(toSave.priorityId()));
-                taskToUpdate.setStatus(this.statusRepository.getReferenceById(toSave.statusId()));
+                Status newStatus = this.statusRepository.getReferenceById(toSave.statusId());
+                taskToUpdate.setStatus(newStatus);
+
+                if ("Termine".equals(newStatus.getName()) && taskToUpdate.getCompletedAt() == null) {
+                    taskToUpdate.setCompletedAt(LocalDateTime.now());
+                } else if (!"Termine".equals(newStatus.getName())) {
+                    taskToUpdate.setCompletedAt(null);
+                }
+
                 if (toSave.parentTaskId() != null) {
                     checkParentRules(taskToUpdate, toSave.parentTaskId());
                     taskToUpdate.setParent(this.taskRepository.getReferenceById(toSave.parentTaskId()));
@@ -175,7 +184,15 @@ public class TaskServiceImpl implements TaskService {
             if (statusOptional.isPresent()) {
                 Task task = taskOptional.get();
                 String oldStatus = task.getStatus().getName();
-                task.setStatus(statusOptional.get());
+                Status newStatus = statusOptional.get();
+                task.setStatus(newStatus);
+
+                if ("Termine".equals(newStatus.getName()) && task.getCompletedAt() == null) {
+                    task.setCompletedAt(LocalDateTime.now());
+                } else if (!"Termine".equals(newStatus.getName())) {
+                    task.setCompletedAt(null);
+                }
+
                 Long currentUserId = getCurrentUserId();
                 activityService.logActivity(task.getProject().getProjectId(), currentUserId,
                         com.school.security.enums.ActivityType.TASK_STATUS_CHANGED,

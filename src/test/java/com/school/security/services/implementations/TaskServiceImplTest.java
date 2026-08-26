@@ -72,7 +72,8 @@ class TaskServiceImplTest {
                         "High",
                         2L,
                         "In progress",
-                        null);
+                        null,
+                        List.of());
         taskTwoDto =
                 new TaskResDto(
                         2L,
@@ -86,7 +87,8 @@ class TaskServiceImplTest {
                         "High",
                         2L,
                         "In progress",
-                        null);
+                        null,
+                        List.of());
         createTaskReqDto =
                 new TaskReqDto(
                         "New Task",
@@ -95,7 +97,8 @@ class TaskServiceImplTest {
                         10L,
                         3L,
                         2L,
-                        null);
+                        null,
+                        List.of());
     }
 
     @Test
@@ -167,7 +170,8 @@ class TaskServiceImplTest {
                         "High",
                         2L,
                         "In progress",
-                        null);
+                        null,
+                        List.of());
         when(taskMapper.fromDto(createTaskReqDto)).thenReturn(taskToCreate);
         when(taskRepository.save(taskToCreate)).thenReturn(taskToCreate);
         when(taskMapper.toDto(taskToCreate)).thenReturn(createdDto);
@@ -191,7 +195,8 @@ class TaskServiceImplTest {
                         10L,
                         3L,
                         2L,
-                        null);
+                        null,
+                        List.of());
         TaskResDto updatedDto =
                 new TaskResDto(
                         1L,
@@ -205,7 +210,8 @@ class TaskServiceImplTest {
                         "High",
                         2L,
                         "In progress",
-                        null);
+                        null,
+                        List.of());
         when(taskRepository.findById(1L)).thenReturn(Optional.of(taskOne));
         when(priorityRepository.getReferenceById(3L)).thenReturn(priority);
         when(statusRepository.getReferenceById(2L)).thenReturn(status);
@@ -236,7 +242,8 @@ class TaskServiceImplTest {
                         10L,
                         3L,
                         2L,
-                        null);
+                        null,
+                        List.of());
         TaskResDto createdDto =
                 new TaskResDto(
                         4L,
@@ -250,7 +257,8 @@ class TaskServiceImplTest {
                         "High",
                         2L,
                         "In progress",
-                        null);
+                        null,
+                        List.of());
         when(taskRepository.findById(404L)).thenReturn(Optional.empty());
         when(taskMapper.fromDto(fallbackRequest)).thenReturn(taskToCreate);
         when(taskRepository.save(taskToCreate)).thenReturn(taskToCreate);
@@ -268,7 +276,7 @@ class TaskServiceImplTest {
     @Test
     void saveShouldThrowWhenParentIsSelf() {
         TaskReqDto invalidRequest =
-                new TaskReqDto("Task", "Desc", LocalDate.of(2026, 9, 1), 10L, 3L, 2L, 1L);
+                new TaskReqDto("Task", "Desc", LocalDate.of(2026, 9, 1), 10L, 3L, 2L, 1L, List.of());
         Task existingTask = buildTask(1L, "Task One", project, priority, status, null, true);
         when(taskRepository.findById(1L)).thenReturn(Optional.of(existingTask));
 
@@ -285,7 +293,7 @@ class TaskServiceImplTest {
     @Test
     void saveShouldThrowWhenParentTaskDoesNotExist() {
         TaskReqDto invalidRequest =
-                new TaskReqDto("Task", "Desc", LocalDate.of(2026, 9, 1), 10L, 3L, 2L, 99L);
+                new TaskReqDto("Task", "Desc", LocalDate.of(2026, 9, 1), 10L, 3L, 2L, 99L, List.of());
         Task existingTask = buildTask(1L, "Task One", project, priority, status, null, true);
         when(taskRepository.findById(1L)).thenReturn(Optional.of(existingTask));
         when(priorityRepository.getReferenceById(3L)).thenReturn(priority);
@@ -309,7 +317,7 @@ class TaskServiceImplTest {
         Task parentTask = buildTask(99L, "Parent Task", otherProject, priority, status, null, true);
         Task existingTask = buildTask(1L, "Task One", project, priority, status, null, true);
         TaskReqDto invalidRequest =
-                new TaskReqDto("Task", "Desc", LocalDate.of(2026, 9, 1), 10L, 3L, 2L, 99L);
+                new TaskReqDto("Task", "Desc", LocalDate.of(2026, 9, 1), 10L, 3L, 2L, 99L, List.of());
         when(taskRepository.findById(1L)).thenReturn(Optional.of(existingTask));
         when(priorityRepository.getReferenceById(3L)).thenReturn(priority);
         when(statusRepository.getReferenceById(2L)).thenReturn(status);
@@ -342,7 +350,8 @@ class TaskServiceImplTest {
                         "High",
                         2L,
                         "In progress",
-                        null);
+                        null,
+                        List.of());
         when(taskRepository.findById(1L)).thenReturn(Optional.of(taskOne));
         when(taskRepository.save(taskOne)).thenReturn(archivedTask);
         when(taskMapper.toDto(archivedTask)).thenReturn(archivedDto);
@@ -385,7 +394,8 @@ class TaskServiceImplTest {
                         "High",
                         3L,
                         "Done",
-                        null);
+                        null,
+                        List.of());
         when(taskRepository.findById(1L)).thenReturn(Optional.of(taskOne));
         when(statusRepository.findById(3L)).thenReturn(Optional.of(done));
         when(taskRepository.save(taskOne)).thenReturn(updatedTask);

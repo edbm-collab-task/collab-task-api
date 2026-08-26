@@ -3,6 +3,7 @@ package com.school.security.services.implementations;
 import com.school.security.dtos.requests.TaskReqDto;
 import com.school.security.dtos.responses.TaskResDto;
 import com.school.security.entities.Priority;
+import com.school.security.entities.Project;
 import com.school.security.entities.Status;
 import com.school.security.entities.Task;
 import com.school.security.entities.User;
@@ -10,6 +11,7 @@ import com.school.security.enums.NotificationType;
 import com.school.security.exceptions.EntityException;
 import com.school.security.mappers.TaskMapper;
 import com.school.security.repositories.PriorityRepository;
+import com.school.security.repositories.ProjectRepository;
 import com.school.security.repositories.StatusRepository;
 import com.school.security.repositories.TaskRepository;
 import com.school.security.repositories.UserRepository;
@@ -35,6 +37,7 @@ public class TaskServiceImpl implements TaskService {
     private TaskMapper taskMapper;
     private NotificationService notificationService;
     private com.school.security.services.contracts.ActivityService activityService;
+    private ProjectRepository projectRepository;
 
     @Override
     public TaskResDto createOrUpdate(TaskReqDto toSave) {
@@ -65,6 +68,8 @@ public class TaskServiceImpl implements TaskService {
                 }
                 updateAssignees(taskToUpdate, toSave.assigneeIds());
                 Task saved = this.taskRepository.save(taskToUpdate);
+
+                autoUnarchiveProject(saved.getProject());
 
                 Long currentUserId = getCurrentUserId();
                 Long projId = saved.getProject().getProjectId();
@@ -99,6 +104,8 @@ public class TaskServiceImpl implements TaskService {
             checkParentRules(taskToSave, toSave.parentTaskId());
         }
         Task saved = this.taskRepository.save(taskToSave);
+
+        autoUnarchiveProject(saved.getProject());
 
         Long currentUserId = getCurrentUserId();
         activityService.logActivity(saved.getProject().getProjectId(), currentUserId,
@@ -174,7 +181,9 @@ public class TaskServiceImpl implements TaskService {
                         com.school.security.enums.ActivityType.TASK_STATUS_CHANGED,
                         "Statut changé de \"" + oldStatus + "\" à \"" + statusOptional.get().getName() + "\" pour la tâche \"" + task.getTitle() + "\"",
                         task.getTaskId());
-                return this.taskMapper.toDto(this.taskRepository.save(task));
+                Task saved = this.taskRepository.save(task);
+                autoUnarchiveProject(saved.getProject());
+                return this.taskMapper.toDto(saved);
             }
             throw new EntityException("Status not found");
         }
@@ -240,5 +249,12 @@ public class TaskServiceImpl implements TaskService {
             this.userRepository.findById(userId).ifPresent(assignees::add);
         }
         task.setAssignees(assignees);
+    }
+
+    private void autoUnarchiveProject(Project project) {
+        if (Boolean.FALSE.equals(project.getIsActive())) {
+            project.setIsActive(true);
+            projectRepository.save(project);
+        }
     }
 }

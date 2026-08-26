@@ -39,6 +39,13 @@ public class ProjectController {
         return this.projectService.findAllWithUser(currentUserId);
     }
 
+    @GetMapping("/all")
+    @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_PROJECTS')")
+    public List<ProjectResDto> findAllProjectsIncludingArchived() {
+        Long currentUserId = getCurrentUserId();
+        return this.projectService.findAllWithUserIncludingArchived(currentUserId);
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_PROJECTS')")
     public ProjectResDto getProjectById(@PathVariable Long id) {
@@ -64,5 +71,21 @@ public class ProjectController {
     @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_PROJECTS')")
     public ProjectResDto archiveProject(@PathVariable Long id) {
         return this.projectService.deleteById(id);
+    }
+
+    @PatchMapping("/{id}/unarchive")
+    @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_PROJECTS')")
+    public ProjectResDto unarchiveProject(@PathVariable Long id) {
+        return this.projectService.unarchiver(id);
+    }
+
+    @GetMapping("/archived")
+    @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_PROJECTS')")
+    public List<ProjectResDto> findArchivedProjects() {
+        Long currentUserId = getCurrentUserId();
+        return this.projectService.findAllWithUserIncludingArchived(currentUserId)
+                .stream()
+                .filter(p -> !p.isActive())
+                .collect(java.util.stream.Collectors.toList());
     }
 }

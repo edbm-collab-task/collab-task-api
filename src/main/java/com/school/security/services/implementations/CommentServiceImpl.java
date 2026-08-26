@@ -8,6 +8,7 @@ import com.school.security.entities.TaskComment;
 import com.school.security.entities.User;
 import com.school.security.exceptions.EntityException;
 import com.school.security.repositories.CommentReactionRepository;
+import com.school.security.repositories.ProjectRepository;
 import com.school.security.repositories.TaskCommentRepository;
 import com.school.security.repositories.TaskRepository;
 import com.school.security.repositories.UserRepository;
@@ -31,6 +32,7 @@ public class CommentServiceImpl implements CommentService {
     private final CommentReactionRepository reactionRepository;
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
+    private final ProjectRepository projectRepository;
 
     @Override
     public List<CommentResDto> getCommentsByTask(Long taskId) {
@@ -65,6 +67,9 @@ public class CommentServiceImpl implements CommentService {
         }
 
         TaskComment saved = commentRepository.save(comment);
+
+        autoUnarchiveProject(task);
+
         return toDto(saved, author.getUsersId());
     }
 
@@ -180,5 +185,13 @@ public class CommentServiceImpl implements CommentService {
         String email = SecurityUtils.getCurrentUsername();
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new EntityException("User not found"));
+    }
+
+    private void autoUnarchiveProject(Task task) {
+        var project = task.getProject();
+        if (Boolean.FALSE.equals(project.getIsActive())) {
+            project.setIsActive(true);
+            projectRepository.save(project);
+        }
     }
 }

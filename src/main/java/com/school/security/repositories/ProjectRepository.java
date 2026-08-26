@@ -11,8 +11,15 @@ import org.springframework.stereotype.Repository;
 public interface ProjectRepository extends JpaRepository<Project, Long> {
     List<Project> findByIsActiveTrue();
 
+    List<Project> findByIsActiveFalse();
+
     @Query("SELECT DISTINCT p FROM Project p " +
            "LEFT JOIN ProjectContributor pc ON pc.project = p " +
            "WHERE p.isActive = true AND (p.owner.usersId = :userId OR pc.user.usersId = :userId)")
     List<Project> findActiveByOwnerOrContributor(@Param("userId") Long userId);
+
+    @Query("SELECT DISTINCT p FROM Project p " +
+           "LEFT JOIN ProjectContributor pc ON pc.project = p " +
+           "WHERE p.owner.usersId = :userId OR pc.user.usersId = :userId")
+    List<Project> findAllByOwnerOrContributor(@Param("userId") Long userId);
 }

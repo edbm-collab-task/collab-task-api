@@ -95,6 +95,26 @@ public class ProjectServiceImpl implements ProjectService {
     }
 
     @Override
+    public List<ProjectResDto> findAllWithUserIncludingArchived(Long currentUserId) {
+        User user = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        boolean isAdmin = user.getRoles().stream()
+                .anyMatch(role -> role.getName() == RoleType.ADMIN || role.getName() == RoleType.SUPER_ADMIN);
+
+        List<Project> projects;
+        if (isAdmin) {
+            projects = projectRepository.findAll();
+        } else {
+            projects = projectRepository.findAllByOwnerOrContributor(currentUserId);
+        }
+
+        return projects.stream()
+                .map(p -> projectMapper.toDto(p, currentUserId))
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public ProjectResDto findById(Long id) {
         Optional<Project> projectOptional = this.projectRepository.findById(id);
         if (projectOptional.isPresent()) {
@@ -123,6 +143,17 @@ public class ProjectServiceImpl implements ProjectService {
         if (projectOptional.isPresent()) {
             Project project = projectOptional.get();
             project.setIsActive(false);
+            return this.projectMapper.toDto(this.projectRepository.save(project));
+        }
+        throw new EntityException("Project not found");
+    }
+
+    @Override
+    public ProjectResDto unarchiver(Long id) {
+        Optional<Project> projectOptional = this.projectRepository.findById(id);
+        if (projectOptional.isPresent()) {
+            Project project = projectOptional.get();
+            project.setIsActive(true);
             return this.projectMapper.toDto(this.projectRepository.save(project));
         }
         throw new EntityException("Project not found");

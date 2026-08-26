@@ -9,9 +9,13 @@ public interface ProjectService extends Service<ProjectReqDto, ProjectResDto, Lo
 
     ProjectResDto archiver(Long id);
 
+    ProjectResDto unarchiver(Long id);
+
     ProjectResDto createWithOwner(ProjectReqDto toSave, Long ownerId);
 
     ProjectResDto findByIdWithUser(Long id, Long currentUserId);
 
     List<ProjectResDto> findAllWithUser(Long currentUserId);
+
+    List<ProjectResDto> findAllWithUserIncludingArchived(Long currentUserId);
 }

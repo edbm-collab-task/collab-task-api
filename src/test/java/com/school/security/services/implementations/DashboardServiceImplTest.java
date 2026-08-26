@@ -88,6 +88,7 @@ class DashboardServiceImplTest {
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.of(
                 new Object[]{1L, 5L},
                 new Object[]{2L, 2L}));
+        when(userRepository.count()).thenReturn(42L);
 
         DashboardDataResDto result = dashboardService.getDashboardStats(1L, "LAST_30_DAYS", null, null);
 
@@ -97,6 +98,7 @@ class DashboardServiceImplTest {
         assertEquals(25, result.stats().tasks());
         assertEquals(12, result.stats().completedTasks());
         assertEquals(3, result.stats().overdueTasks());
+        assertEquals(42, result.stats().totalUsers());
         assertNotNull(result.evolution());
         assertNotNull(result.distribution());
         assertEquals(3, result.distribution().items().size());
@@ -125,6 +127,7 @@ class DashboardServiceImplTest {
                 new Object[]{1L, 10L}));
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of(
                 new Object[]{1L, 3L}));
+        when(userRepository.count()).thenReturn(15L);
 
         DashboardDataResDto result = dashboardService.getDashboardStats(2L, "LAST_7_DAYS", null, null);
 
@@ -134,6 +137,7 @@ class DashboardServiceImplTest {
         assertEquals(10, result.stats().tasks());
         assertEquals(5, result.stats().completedTasks());
         assertEquals(1, result.stats().overdueTasks());
+        assertEquals(15, result.stats().totalUsers());
     }
 
     @Test
@@ -148,6 +152,7 @@ class DashboardServiceImplTest {
         assertEquals(0, result.stats().tasks());
         assertEquals(0, result.stats().completedTasks());
         assertEquals(0, result.stats().overdueTasks());
+        assertEquals(0, result.stats().totalUsers());
         assertEquals(0, result.evolution().points().size());
         assertEquals(0, result.distribution().items().size());
         assertEquals(0, result.recentActivity().size());
@@ -172,6 +177,7 @@ class DashboardServiceImplTest {
                 .thenReturn(List.of());
         when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.<Object[]>of());
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
+        when(userRepository.count()).thenReturn(42L);
 
         DashboardDataResDto result = dashboardService.getDashboardStats(1L, "TODAY", null, null);
 
@@ -180,6 +186,7 @@ class DashboardServiceImplTest {
         assertEquals(5, result.stats().tasks());
         assertEquals(2, result.stats().completedTasks());
         assertEquals(0, result.stats().overdueTasks());
+        assertEquals(42, result.stats().totalUsers());
     }
 
     @Test
@@ -196,6 +203,7 @@ class DashboardServiceImplTest {
                 .thenReturn(List.of());
         when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.<Object[]>of());
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
+        when(userRepository.count()).thenReturn(10L);
 
         DashboardDataResDto result = dashboardService.getDashboardStats(
                 1L, "CUSTOM", "2026-08-01", "2026-08-25");
@@ -203,6 +211,7 @@ class DashboardServiceImplTest {
         assertNotNull(result);
         assertEquals("CUSTOM", result.period());
         assertEquals(0, result.stats().completedTasks());
+        assertEquals(10, result.stats().totalUsers());
     }
 
     @Test
@@ -227,6 +236,7 @@ class DashboardServiceImplTest {
         when(taskRepository.findCompletedDatesBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of());
         when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.<Object[]>of());
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
+        when(userRepository.count()).thenReturn(5L);
 
         List<Activity> activities = new ArrayList<>();
         for (int i = 0; i < 15; i++) {
@@ -268,11 +278,13 @@ class DashboardServiceImplTest {
                 .thenReturn(List.of());
         when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.<Object[]>of());
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
+        when(userRepository.count()).thenReturn(20L);
 
         DashboardDataResDto result = dashboardService.getDashboardStats(1L, "LAST_30_DAYS", null, null);
 
         assertNotNull(result);
         assertEquals(5, result.recentProjects().size());
+        assertEquals(20, result.stats().totalUsers());
     }
 
     @Test
@@ -293,6 +305,7 @@ class DashboardServiceImplTest {
                 .thenReturn(List.of());
         when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.of());
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
+        when(userRepository.count()).thenReturn(100L);
 
         DashboardDataResDto result = dashboardService.getDashboardStats(3L, "LAST_30_DAYS", null, null);
 
@@ -302,6 +315,7 @@ class DashboardServiceImplTest {
         assertEquals(20, result.stats().tasks());
         assertEquals(8, result.stats().completedTasks());
         assertEquals(2, result.stats().overdueTasks());
+        assertEquals(100, result.stats().totalUsers());
         verify(projectRepository).findByIsActiveTrue();
     }
 
@@ -322,12 +336,14 @@ class DashboardServiceImplTest {
         when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.<Object[]>of());
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
         when(taskRepository.countCompletedBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(3L);
+        when(userRepository.count()).thenReturn(30L);
 
         DashboardDataResDto result = dashboardService.getDashboardStats(1L, "TODAY", null, null);
 
         assertNotNull(result);
         assertEquals(3, result.stats().completedTasks());
         assertEquals(15, result.stats().tasks());
+        assertEquals(30, result.stats().totalUsers());
     }
 
     @Test
@@ -346,12 +362,14 @@ class DashboardServiceImplTest {
                 .thenReturn(List.of());
         when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.<Object[]>of());
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
+        when(userRepository.count()).thenReturn(8L);
 
         DashboardDataResDto result = dashboardService.getDashboardStats(1L, "LAST_7_DAYS", null, null);
 
         assertNotNull(result);
         assertEquals(0, result.evolution().points().size());
         assertEquals(1, result.stats().completedTasks());
+        assertEquals(8, result.stats().totalUsers());
     }
 
     @Test
@@ -373,12 +391,14 @@ class DashboardServiceImplTest {
                 new Object[]{1L, 10L}));
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of(
                 new Object[]{1L, 6L}));
+        when(userRepository.count()).thenReturn(25L);
 
         DashboardDataResDto result = dashboardService.getDashboardStats(1L, "LAST_30_DAYS", null, null);
 
         assertNotNull(result);
         assertEquals(1, result.recentProjects().size());
         assertEquals(60, result.recentProjects().get(0).progress());
+        assertEquals(25, result.stats().totalUsers());
     }
 
     @Test
@@ -396,6 +416,7 @@ class DashboardServiceImplTest {
                 .thenReturn(List.of());
         when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.of());
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
+        when(userRepository.count()).thenReturn(100L);
 
         dashboardService.getDashboardStats(3L, "LAST_30_DAYS", null, null);
 
@@ -417,6 +438,7 @@ class DashboardServiceImplTest {
                 .thenReturn(List.of());
         when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.of());
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
+        when(userRepository.count()).thenReturn(50L);
 
         dashboardService.getDashboardStats(1L, "LAST_30_DAYS", null, null);
 
@@ -443,6 +465,7 @@ class DashboardServiceImplTest {
                 new Object[]{1L, 10L}));
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of(
                 new Object[]{1L, 3L}));
+        when(userRepository.count()).thenReturn(30L);
 
         DashboardDataResDto result = dashboardService.getDashboardStats(2L, "LAST_30_DAYS", null, null);
 
@@ -450,6 +473,7 @@ class DashboardServiceImplTest {
         assertEquals(8, result.stats().tasks());
         assertEquals(3, result.stats().completedTasks());
         assertEquals(1, result.stats().overdueTasks());
+        assertEquals(30, result.stats().totalUsers());
         verify(taskRepository).countByIsActiveTrueAndProjectProjectIdInAndAssigneesContains(anyList(), eq(2L));
         verify(taskRepository, never()).countByIsActiveTrueAndProjectProjectIdIn(anyList());
     }
@@ -466,6 +490,7 @@ class DashboardServiceImplTest {
         when(taskRepository.findCompletedDatesBetweenAndAssignedTo(anyList(), any(LocalDateTime.class), any(LocalDateTime.class), eq(2L))).thenReturn(List.of());
         when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.of());
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
+        when(userRepository.count()).thenReturn(20L);
 
         List<Activity> activities = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
@@ -504,12 +529,14 @@ class DashboardServiceImplTest {
                 new Object[]{1L, 10L}));
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of(
                 new Object[]{1L, 6L}));
+        when(userRepository.count()).thenReturn(15L);
 
         DashboardDataResDto result = dashboardService.getDashboardStats(2L, "LAST_30_DAYS", null, null);
 
         assertNotNull(result);
         assertEquals(1, result.recentProjects().size());
         assertEquals(60, result.recentProjects().get(0).progress());
+        assertEquals(15, result.stats().totalUsers());
         verify(taskRepository).countActiveByProjectGrouped(anyList());
         verify(taskRepository).countByStatusAndProjectGrouped(anyList(), eq("Termine"));
     }
@@ -528,11 +555,13 @@ class DashboardServiceImplTest {
                 .thenReturn(List.of());
         when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.of());
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
+        when(userRepository.count()).thenReturn(40L);
 
         DashboardDataResDto result = dashboardService.getDashboardStats(1L, "LAST_30_DAYS", null, null);
 
         assertNotNull(result);
         assertEquals(25, result.stats().tasks());
+        assertEquals(40, result.stats().totalUsers());
         verify(taskRepository).countByIsActiveTrueAndProjectProjectIdIn(anyList());
         verify(taskRepository, never()).countByIsActiveTrueAndProjectProjectIdInAndAssigneesContains(anyList(), any());
     }
@@ -553,6 +582,7 @@ class DashboardServiceImplTest {
                 new Object[]{1L, 10L}));
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of(
                 new Object[]{1L, 3L}));
+        when(userRepository.count()).thenReturn(5L);
 
         DashboardDataResDto result = dashboardService.getDashboardStats(2L, "LAST_30_DAYS", null, null);
 
@@ -560,6 +590,7 @@ class DashboardServiceImplTest {
         assertEquals(0, result.stats().tasks());
         assertEquals(0, result.stats().completedTasks());
         assertEquals(0, result.stats().overdueTasks());
+        assertEquals(5, result.stats().totalUsers());
         assertEquals(0, result.evolution().points().size());
         assertEquals(0, result.distribution().items().size());
         assertEquals(1, result.stats().projects());

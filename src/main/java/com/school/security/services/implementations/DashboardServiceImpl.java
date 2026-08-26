@@ -73,7 +73,8 @@ public class DashboardServiceImpl implements DashboardService {
 
         Long personalUserId = isPersonal ? userId : null;
 
-        DashboardStatsResDto stats = computeStats(projectIds, personalUserId, today, dates[0], dates[1]);
+        long totalUsers = userRepository.count();
+        DashboardStatsResDto stats = computeStats(projectIds, personalUserId, today, dates[0], dates[1], totalUsers);
         DashboardEvolutionResDto evolution = computeEvolution(projectIds, personalUserId, dates[0], dates[1]);
         DashboardDistributionResDto distribution = computeDistribution(projectIds, personalUserId);
         List<DashboardActivityItemResDto> recentActivity = computeRecentActivity(projectIds, dates[0], dates[1]);
@@ -125,7 +126,8 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     private DashboardStatsResDto computeStats(
-            List<Long> projectIds, Long personalUserId, LocalDate today, LocalDateTime start, LocalDateTime end) {
+            List<Long> projectIds, Long personalUserId, LocalDate today, LocalDateTime start, LocalDateTime end,
+            long totalUsers) {
         long totalTasks = personalUserId == null
                 ? taskRepository.countByIsActiveTrueAndProjectProjectIdIn(projectIds)
                 : taskRepository.countByIsActiveTrueAndProjectProjectIdInAndAssigneesContains(projectIds, personalUserId);
@@ -140,7 +142,8 @@ public class DashboardServiceImpl implements DashboardService {
                 projectIds.size(),
                 totalTasks,
                 completedTasks,
-                overdueTasks);
+                overdueTasks,
+                totalUsers);
     }
 
     private DashboardEvolutionResDto computeEvolution(
@@ -270,7 +273,7 @@ public class DashboardServiceImpl implements DashboardService {
     private DashboardDataResDto buildEmptyDashboard(String period) {
         return new DashboardDataResDto(
                 period,
-                new DashboardStatsResDto(0, 0, 0, 0),
+                new DashboardStatsResDto(0, 0, 0, 0, 0),
                 new DashboardEvolutionResDto(List.of()),
                 new DashboardDistributionResDto(List.of(), 0),
                 List.of(),

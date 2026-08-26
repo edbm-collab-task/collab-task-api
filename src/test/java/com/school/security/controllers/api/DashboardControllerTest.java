@@ -63,6 +63,7 @@ class DashboardControllerTest {
                 .andExpect(jsonPath("$.period").value("TODAY"))
                 .andExpect(jsonPath("$.stats.projects").value(2))
                 .andExpect(jsonPath("$.stats.tasks").value(15))
+                .andExpect(jsonPath("$.stats.totalUsers").value(42))
                 .andExpect(jsonPath("$.evolution.points").isArray())
                 .andExpect(jsonPath("$.distribution.items").isArray())
                 .andExpect(jsonPath("$.distribution.total").value(15));
@@ -187,7 +188,7 @@ class DashboardControllerTest {
     private DashboardDataResDto buildSampleResponse() {
         return new DashboardDataResDto(
                 "TODAY",
-                new DashboardStatsResDto(2, 15, 8, 3),
+                new DashboardStatsResDto(2, 15, 8, 3, 42),
                 new DashboardEvolutionResDto(List.of(
                         new DashboardEvolutionPointResDto("25 ao\u00fbt", 3, 2),
                         new DashboardEvolutionPointResDto("24 ao\u00fbt", 5, 3))),

@@ -45,7 +45,21 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public DashboardDataResDto getDashboardStats(Long userId, String period, String startDate, String endDate) {
-        List<Project> accessibleProjects = findAccessibleProjects(userId);
+        var user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            return buildEmptyDashboard(period);
+        }
+
+        boolean isSuperAdmin = user.getRoles().stream()
+                .anyMatch(role -> role.getName() == RoleType.SUPER_ADMIN);
+        boolean isPersonal = user.getRoles().stream()
+                .noneMatch(role -> role.getName() == RoleType.SUPER_ADMIN
+                                || role.getName() == RoleType.ADMIN);
+
+        List<Project> accessibleProjects = isSuperAdmin
+                ? projectRepository.findByIsActiveTrue()
+                : projectRepository.findAccessibleProjectsByUserId(userId);
+
         List<Long> projectIds = accessibleProjects.stream()
                 .map(Project::getProjectId)
                 .collect(Collectors.toList());
@@ -57,9 +71,12 @@ public class DashboardServiceImpl implements DashboardService {
         LocalDate today = LocalDate.now();
         LocalDateTime[] dates = resolvePeriodDates(period, startDate, endDate, today);
 
-        DashboardStatsResDto stats = computeStats(projectIds, today, dates[0], dates[1]);
-        DashboardEvolutionResDto evolution = computeEvolution(projectIds, dates[0], dates[1]);
-        DashboardDistributionResDto distribution = computeDistribution(projectIds);
+        Long personalUserId = isPersonal ? userId : null;
+
+        long totalUsers = userRepository.count();
+        DashboardStatsResDto stats = computeStats(projectIds, personalUserId, today, dates[0], dates[1], totalUsers);
+        DashboardEvolutionResDto evolution = computeEvolution(projectIds, personalUserId, dates[0], dates[1]);
+        DashboardDistributionResDto distribution = computeDistribution(projectIds, personalUserId);
         List<DashboardActivityItemResDto> recentActivity = computeRecentActivity(projectIds, dates[0], dates[1]);
         List<DashboardRecentProjectResDto> recentProjects = computeRecentProjects(accessibleProjects);
 
@@ -70,19 +87,6 @@ public class DashboardServiceImpl implements DashboardService {
                 distribution,
                 recentActivity,
                 recentProjects);
-    }
-
-    private List<Project> findAccessibleProjects(Long userId) {
-        var user = userRepository.findById(userId).orElse(null);
-        if (user == null) {
-            return List.of();
-        }
-        boolean isAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getName() == RoleType.ADMIN || role.getName() == RoleType.SUPER_ADMIN);
-        if (isAdmin) {
-            return projectRepository.findByIsActiveTrue();
-        }
-        return projectRepository.findAccessibleProjectsByUserId(userId);
     }
 
     private LocalDateTime[] resolvePeriodDates(String period, String startDate, String endDate, LocalDate today) {
@@ -122,21 +126,34 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     private DashboardStatsResDto computeStats(
-            List<Long> projectIds, LocalDate today, LocalDateTime start, LocalDateTime end) {
-        long totalTasks = taskRepository.countByIsActiveTrueAndProjectProjectIdIn(projectIds);
-        long completedTasks = taskRepository.countCompletedBetween(projectIds, start, end);
-        long overdueTasks = taskRepository.countOverdue(projectIds, today, COMPLETED_STATUS_NAME);
+            List<Long> projectIds, Long personalUserId, LocalDate today, LocalDateTime start, LocalDateTime end,
+            long totalUsers) {
+        long totalTasks = personalUserId == null
+                ? taskRepository.countByIsActiveTrueAndProjectProjectIdIn(projectIds)
+                : taskRepository.countByIsActiveTrueAndProjectProjectIdInAndAssigneesContains(projectIds, personalUserId);
+        long completedTasks = personalUserId == null
+                ? taskRepository.countCompletedBetween(projectIds, start, end)
+                : taskRepository.countCompletedBetweenAndAssignedTo(projectIds, start, end, personalUserId);
+        long overdueTasks = personalUserId == null
+                ? taskRepository.countOverdue(projectIds, today, COMPLETED_STATUS_NAME)
+                : taskRepository.countOverdueAndAssignedTo(projectIds, today, COMPLETED_STATUS_NAME, personalUserId);
 
         return new DashboardStatsResDto(
                 projectIds.size(),
                 totalTasks,
                 completedTasks,
-                overdueTasks);
+                overdueTasks,
+                totalUsers);
     }
 
-    private DashboardEvolutionResDto computeEvolution(List<Long> projectIds, LocalDateTime start, LocalDateTime end) {
-        List<LocalDateTime> createdDates = taskRepository.findCreatedDatesBetween(projectIds, start, end);
-        List<LocalDateTime> completedDates = taskRepository.findCompletedDatesBetween(projectIds, start, end);
+    private DashboardEvolutionResDto computeEvolution(
+            List<Long> projectIds, Long personalUserId, LocalDateTime start, LocalDateTime end) {
+        List<LocalDateTime> createdDates = personalUserId == null
+                ? taskRepository.findCreatedDatesBetween(projectIds, start, end)
+                : taskRepository.findCreatedDatesBetweenAndAssignedTo(projectIds, start, end, personalUserId);
+        List<LocalDateTime> completedDates = personalUserId == null
+                ? taskRepository.findCompletedDatesBetween(projectIds, start, end)
+                : taskRepository.findCompletedDatesBetweenAndAssignedTo(projectIds, start, end, personalUserId);
 
         String period = resolvePeriodType(start, end);
         boolean useMonthly = "MONTH".equals(period);
@@ -175,8 +192,10 @@ public class DashboardServiceImpl implements DashboardService {
         return "DAY";
     }
 
-    private DashboardDistributionResDto computeDistribution(List<Long> projectIds) {
-        List<Object[]> statusCounts = taskRepository.countByStatusGrouped(projectIds);
+    private DashboardDistributionResDto computeDistribution(List<Long> projectIds, Long personalUserId) {
+        List<Object[]> statusCounts = personalUserId == null
+                ? taskRepository.countByStatusGrouped(projectIds)
+                : taskRepository.countByStatusGroupedAndAssignedTo(projectIds, personalUserId);
         long total = statusCounts.stream()
                 .mapToLong(row -> (Long) row[1])
                 .sum();
@@ -254,7 +273,7 @@ public class DashboardServiceImpl implements DashboardService {
     private DashboardDataResDto buildEmptyDashboard(String period) {
         return new DashboardDataResDto(
                 period,
-                new DashboardStatsResDto(0, 0, 0, 0),
+                new DashboardStatsResDto(0, 0, 0, 0, 0),
                 new DashboardEvolutionResDto(List.of()),
                 new DashboardDistributionResDto(List.of(), 0),
                 List.of(),

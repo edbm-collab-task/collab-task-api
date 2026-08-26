@@ -2,6 +2,7 @@ package com.school.security.controllers.api;
 
 import com.school.security.dtos.responses.DashboardDataResDto;
 import com.school.security.entities.User;
+import com.school.security.exceptions.ResourceNotFoundException;
 import com.school.security.repositories.UserRepository;
 import com.school.security.securities.utils.SecurityUtils;
 import com.school.security.services.contracts.DashboardService;
@@ -63,7 +64,7 @@ public class DashboardController {
     private Long getCurrentUserId() {
         String email = SecurityUtils.getCurrentUsername();
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         return user.getUsersId();
     }
 }

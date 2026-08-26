@@ -189,24 +189,15 @@ public class DashboardServiceImpl implements DashboardService {
                             statusName,
                             statusName,
                             count,
-                            resolveDotClass(statusName),
-                            resolveColorClass(statusName));
+                            resolveStatusCssClass(statusName),
+                            resolveStatusCssClass(statusName));
                 })
                 .collect(Collectors.toList());
 
         return new DashboardDistributionResDto(items, total);
     }
 
-    private String resolveDotClass(String statusName) {
-        return switch (statusName) {
-            case "A faire" -> "bg-amber-400";
-            case "En cours" -> "bg-blue-500";
-            case "Termine" -> "bg-emerald-500";
-            default -> "bg-gray-400";
-        };
-    }
-
-    private String resolveColorClass(String statusName) {
+    private String resolveStatusCssClass(String statusName) {
         return switch (statusName) {
             case "A faire" -> "bg-amber-400";
             case "En cours" -> "bg-blue-500";

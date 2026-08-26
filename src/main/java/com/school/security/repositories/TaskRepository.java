@@ -84,4 +84,65 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     List<Object[]> countByStatusAndProjectGrouped(
             @Param("projectIds") List<Long> projectIds,
             @Param("statusName") String statusName);
+
+    @Query("SELECT COUNT(t) FROM Task t WHERE t.isActive = true " +
+           "AND t.project.projectId IN :projectIds " +
+           "AND :userId MEMBER OF t.assignees")
+    long countByIsActiveTrueAndProjectProjectIdInAndAssigneesContains(
+            @Param("projectIds") List<Long> projectIds,
+            @Param("userId") Long userId);
+
+    @Query("SELECT COUNT(t) FROM Task t WHERE t.isActive = true " +
+           "AND t.project.projectId IN :projectIds " +
+           "AND t.completedAt IS NOT NULL " +
+           "AND t.completedAt >= :start AND t.completedAt < :end " +
+           "AND :userId MEMBER OF t.assignees")
+    long countCompletedBetweenAndAssignedTo(
+            @Param("projectIds") List<Long> projectIds,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("userId") Long userId);
+
+    @Query("SELECT COUNT(t) FROM Task t WHERE t.isActive = true " +
+           "AND t.project.projectId IN :projectIds " +
+           "AND t.dueDate IS NOT NULL " +
+           "AND t.dueDate < :today " +
+           "AND t.status.name <> :completedStatusName " +
+           "AND :userId MEMBER OF t.assignees")
+    long countOverdueAndAssignedTo(
+            @Param("projectIds") List<Long> projectIds,
+            @Param("today") LocalDate today,
+            @Param("completedStatusName") String completedStatusName,
+            @Param("userId") Long userId);
+
+    @Query("SELECT t.createdAt FROM Task t " +
+           "WHERE t.isActive = true AND t.project.projectId IN :projectIds " +
+           "AND t.createdAt >= :start AND t.createdAt < :end " +
+           "AND :userId MEMBER OF t.assignees " +
+           "ORDER BY t.createdAt")
+    List<LocalDateTime> findCreatedDatesBetweenAndAssignedTo(
+            @Param("projectIds") List<Long> projectIds,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("userId") Long userId);
+
+    @Query("SELECT t.completedAt FROM Task t " +
+           "WHERE t.isActive = true AND t.project.projectId IN :projectIds " +
+           "AND t.completedAt IS NOT NULL " +
+           "AND t.completedAt >= :start AND t.completedAt < :end " +
+           "AND :userId MEMBER OF t.assignees " +
+           "ORDER BY t.completedAt")
+    List<LocalDateTime> findCompletedDatesBetweenAndAssignedTo(
+            @Param("projectIds") List<Long> projectIds,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("userId") Long userId);
+
+    @Query("SELECT t.status.name, COUNT(t) FROM Task t " +
+           "WHERE t.isActive = true AND t.project.projectId IN :projectIds " +
+           "AND :userId MEMBER OF t.assignees " +
+           "GROUP BY t.status.name")
+    List<Object[]> countByStatusGroupedAndAssignedTo(
+            @Param("projectIds") List<Long> projectIds,
+            @Param("userId") Long userId);
 }

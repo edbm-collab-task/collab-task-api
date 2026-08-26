@@ -15,4 +15,9 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
            "LEFT JOIN ProjectContributor pc ON pc.project = p " +
            "WHERE p.isActive = true AND (p.owner.usersId = :userId OR pc.user.usersId = :userId)")
     List<Project> findActiveByOwnerOrContributor(@Param("userId") Long userId);
+
+    @Query("SELECT DISTINCT p FROM Project p " +
+           "LEFT JOIN ProjectContributor pc ON pc.project = p " +
+           "WHERE p.isActive = true AND (p.owner.usersId = :userId OR pc.user.usersId = :userId)")
+    List<Project> findAccessibleProjectsByUserId(@Param("userId") Long userId);
 }

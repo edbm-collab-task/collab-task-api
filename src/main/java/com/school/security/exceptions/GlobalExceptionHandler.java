@@ -35,6 +35,13 @@ public class GlobalExceptionHandler {
                 .body(Map.of("message", exception.getMessage()));
     }
 
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleResourceNotFoundException(
+            ResourceNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("message", exception.getMessage()));
+    }
+
     private Map<String, String> toErrorMap(FieldError fieldError) {
         Map<String, String> error = new LinkedHashMap<>();
         error.put("field", fieldError.getField());

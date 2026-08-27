@@ -9,6 +9,7 @@ import com.school.security.dtos.responses.*;
 import com.school.security.entities.Direction;
 import com.school.security.entities.User;
 import com.school.security.repositories.UserRepository;
+import com.school.security.services.contracts.DashboardReportService;
 import com.school.security.services.contracts.DashboardService;
 import java.util.List;
 import java.util.Optional;
@@ -34,6 +35,7 @@ class DashboardControllerTest {
     private MockMvc mockMvc;
 
     @Mock private DashboardService dashboardService;
+    @Mock private DashboardReportService dashboardReportService;
     @Mock private UserRepository userRepository;
 
     @InjectMocks private DashboardController dashboardController;
@@ -51,6 +53,8 @@ class DashboardControllerTest {
     void tearDown() {
         SecurityContextHolder.clearContext();
     }
+
+    // ─── Stats endpoint tests ─────────────────────────────────────
 
     @Test
     void getDashboardStatsWithTODAYPeriodShouldReturn200() throws Exception {
@@ -160,6 +164,71 @@ class DashboardControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
+    // ─── PDF report endpoint tests ────────────────────────────────
+
+    @Test
+    void generatePdfReportWithValidPeriodShouldReturn200AndPdfContent() throws Exception {
+        mockUserRepository();
+        byte[] fakePdf = "%PDF-1.4 fake content".getBytes();
+        when(dashboardReportService.generateReport(eq(1L), eq("TODAY"), isNull(), isNull()))
+                .thenReturn(fakePdf);
+
+        mockMvc.perform(get("/dashboard/reports/pdf")
+                        .param("period", "TODAY")
+                        .accept(MediaType.APPLICATION_PDF))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "application/pdf"))
+                .andExpect(header().exists("Content-Disposition"))
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                .andExpect(content().bytes(fakePdf));
+    }
+
+    @Test
+    void generatePdfReportWithInvalidPeriodShouldReturn400() throws Exception {
+        mockMvc.perform(get("/dashboard/reports/pdf")
+                        .param("period", "INVALID")
+                        .accept(MediaType.APPLICATION_PDF))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void generatePdfReportWithCUSTOMPeriodMissingDatesShouldReturn400() throws Exception {
+        mockMvc.perform(get("/dashboard/reports/pdf")
+                        .param("period", "CUSTOM")
+                        .accept(MediaType.APPLICATION_PDF))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void generatePdfReportWithCUSTOMPeriodInvertedDatesShouldReturn400() throws Exception {
+        mockMvc.perform(get("/dashboard/reports/pdf")
+                        .param("period", "CUSTOM")
+                        .param("startDate", "2026-08-25")
+                        .param("endDate", "2026-08-01")
+                        .accept(MediaType.APPLICATION_PDF))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void generatePdfReportWithCustomPeriodAndValidDatesShouldReturn200() throws Exception {
+        mockUserRepository();
+        byte[] fakePdf = "%PDF-1.4 fake content".getBytes();
+        when(dashboardReportService.generateReport(
+                        eq(1L), eq("CUSTOM"), eq("2026-08-01"), eq("2026-08-25")))
+                .thenReturn(fakePdf);
+
+        mockMvc.perform(get("/dashboard/reports/pdf")
+                        .param("period", "CUSTOM")
+                        .param("startDate", "2026-08-01")
+                        .param("endDate", "2026-08-25")
+                        .accept(MediaType.APPLICATION_PDF))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "application/pdf"))
+                .andExpect(content().bytes(fakePdf));
+    }
+
+    // ─── Helpers ──────────────────────────────────────────────────
+
     private void authenticateUser() {
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         Authentication auth = new UsernamePasswordAuthenticationToken(
@@ -169,6 +238,12 @@ class DashboardControllerTest {
     }
 
     private void mockService(String period, String startDate, String endDate) {
+        mockUserRepository();
+        when(dashboardService.getDashboardStats(eq(1L), eq(period), eq(startDate), eq(endDate)))
+                .thenReturn(sampleResponse);
+    }
+
+    private void mockUserRepository() {
         Direction direction = new Direction();
         direction.setDirectionId(1L);
         direction.setName("DSI");
@@ -181,8 +256,6 @@ class DashboardControllerTest {
         user.setDirection(direction);
 
         when(userRepository.findByEmail("john.doe@test.com")).thenReturn(Optional.of(user));
-        when(dashboardService.getDashboardStats(eq(1L), eq(period), eq(startDate), eq(endDate)))
-                .thenReturn(sampleResponse);
     }
 
     private DashboardDataResDto buildSampleResponse() {

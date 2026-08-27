@@ -2,6 +2,7 @@ package com.school.security.controllers.api;
 
 import com.school.security.dtos.responses.DashboardDataResDto;
 import com.school.security.entities.User;
+import com.school.security.enums.RoleType;
 import com.school.security.exceptions.ResourceNotFoundException;
 import com.school.security.repositories.UserRepository;
 import com.school.security.securities.utils.SecurityUtils;
@@ -98,14 +99,14 @@ public class DashboardController {
             }
         }
 
-        Long currentUserId = getCurrentUserId();
-        byte[] pdfBytes =
-                dashboardReportService.generateReport(currentUserId, period, startDate, endDate);
+        User user = getCurrentUser();
+        RoleType role = resolvePrimaryRole(user);
 
-        String filename =
-                "rapport-statistiques-"
-                        + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-                        + ".pdf";
+        byte[] pdfBytes =
+                dashboardReportService.generateReport(
+                        user.getUsersId(), role, period, startDate, endDate);
+
+        String filename = resolvePdfFilename(role, LocalDate.now());
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);
@@ -115,10 +116,29 @@ public class DashboardController {
         return ResponseEntity.ok().headers(headers).body(pdfBytes);
     }
 
-    private Long getCurrentUserId() {
+    private User getCurrentUser() {
         String email = SecurityUtils.getCurrentUsername();
-        User user = userRepository.findByEmail(email)
+        return userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        return user.getUsersId();
+    }
+
+    private Long getCurrentUserId() {
+        return getCurrentUser().getUsersId();
+    }
+
+    private RoleType resolvePrimaryRole(User user) {
+        return user.getRoles().stream()
+                .findFirst()
+                .map(role -> role.getName())
+                .orElse(RoleType.USER);
+    }
+
+    private String resolvePdfFilename(RoleType role, LocalDate now) {
+        String datePart = now.format(DateTimeFormatter.ofPattern("yyyy-MM"));
+        return switch (role) {
+            case SUPER_ADMIN -> "rapport-plateforme-" + datePart + ".pdf";
+            case ADMIN -> "rapport-administration-" + datePart + ".pdf";
+            case USER -> "mon-rapport-activite-" + datePart + ".pdf";
+        };
     }
 }

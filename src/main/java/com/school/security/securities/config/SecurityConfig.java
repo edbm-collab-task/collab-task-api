@@ -56,7 +56,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/roles/{id}").hasAuthority("SUPER_ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/roles/{id}").hasAuthority("SUPER_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/users/admins").hasAuthority("SUPER_ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/dashboard/reports/pdf").hasAnyAuthority("ADMIN", "SUPER_ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

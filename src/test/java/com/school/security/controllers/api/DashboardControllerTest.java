@@ -7,7 +7,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.school.security.dtos.responses.*;
 import com.school.security.entities.Direction;
+import com.school.security.entities.Role;
 import com.school.security.entities.User;
+import com.school.security.enums.RoleType;
 import com.school.security.repositories.UserRepository;
 import com.school.security.services.contracts.DashboardReportService;
 import com.school.security.services.contracts.DashboardService;
@@ -46,7 +48,7 @@ class DashboardControllerTest {
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(dashboardController).build();
         sampleResponse = buildSampleResponse();
-        authenticateUser();
+        authenticateUser("ADMIN");
     }
 
     @AfterEach
@@ -164,13 +166,15 @@ class DashboardControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
-    // ─── PDF report endpoint tests ────────────────────────────────
+    // ─── PDF — ADMIN ────────────────────────────────────────────
 
     @Test
-    void generatePdfReportWithValidPeriodShouldReturn200AndPdfContent() throws Exception {
-        mockUserRepository();
-        byte[] fakePdf = "%PDF-1.4 fake content".getBytes();
-        when(dashboardReportService.generateReport(eq(1L), eq("TODAY"), isNull(), isNull()))
+    void adminPdfShouldReturn200WithPdfContent() throws Exception {
+        authenticateUser("ADMIN");
+        mockUserRepository("test@test.com", RoleType.ADMIN);
+        byte[] fakePdf = "%PDF-1.4 admin content".getBytes();
+        when(dashboardReportService.generateReport(
+                        eq(1L), eq(RoleType.ADMIN), eq("TODAY"), isNull(), isNull()))
                 .thenReturn(fakePdf);
 
         mockMvc.perform(get("/dashboard/reports/pdf")
@@ -178,43 +182,17 @@ class DashboardControllerTest {
                         .accept(MediaType.APPLICATION_PDF))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "application/pdf"))
-                .andExpect(header().exists("Content-Disposition"))
-                .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                .andExpect(header().string("Content-Disposition", "form-data; name=\"attachment\"; filename=\"rapport-administration-2026-08.pdf\""))
                 .andExpect(content().bytes(fakePdf));
     }
 
     @Test
-    void generatePdfReportWithInvalidPeriodShouldReturn400() throws Exception {
-        mockMvc.perform(get("/dashboard/reports/pdf")
-                        .param("period", "INVALID")
-                        .accept(MediaType.APPLICATION_PDF))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void generatePdfReportWithCUSTOMPeriodMissingDatesShouldReturn400() throws Exception {
-        mockMvc.perform(get("/dashboard/reports/pdf")
-                        .param("period", "CUSTOM")
-                        .accept(MediaType.APPLICATION_PDF))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void generatePdfReportWithCUSTOMPeriodInvertedDatesShouldReturn400() throws Exception {
-        mockMvc.perform(get("/dashboard/reports/pdf")
-                        .param("period", "CUSTOM")
-                        .param("startDate", "2026-08-25")
-                        .param("endDate", "2026-08-01")
-                        .accept(MediaType.APPLICATION_PDF))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void generatePdfReportWithCustomPeriodAndValidDatesShouldReturn200() throws Exception {
-        mockUserRepository();
-        byte[] fakePdf = "%PDF-1.4 fake content".getBytes();
+    void adminPdfWithCustomPeriodAndValidDatesShouldReturn200() throws Exception {
+        authenticateUser("ADMIN");
+        mockUserRepository("test@test.com", RoleType.ADMIN);
+        byte[] fakePdf = "%PDF-1.4 admin custom".getBytes();
         when(dashboardReportService.generateReport(
-                        eq(1L), eq("CUSTOM"), eq("2026-08-01"), eq("2026-08-25")))
+                        eq(1L), eq(RoleType.ADMIN), eq("CUSTOM"), eq("2026-08-01"), eq("2026-08-25")))
                 .thenReturn(fakePdf);
 
         mockMvc.perform(get("/dashboard/reports/pdf")
@@ -223,39 +201,162 @@ class DashboardControllerTest {
                         .param("endDate", "2026-08-25")
                         .accept(MediaType.APPLICATION_PDF))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Content-Type", "application/pdf"))
                 .andExpect(content().bytes(fakePdf));
+    }
+
+    // ─── PDF — SUPER_ADMIN ──────────────────────────────────────
+
+    @Test
+    void superAdminPdfShouldReturn200WithPdfContent() throws Exception {
+        authenticateUser("SUPER_ADMIN");
+        mockUserRepository("test@test.com", RoleType.SUPER_ADMIN);
+        byte[] fakePdf = "%PDF-1.4 super admin content".getBytes();
+        when(dashboardReportService.generateReport(
+                        eq(2L), eq(RoleType.SUPER_ADMIN), eq("TODAY"), isNull(), isNull()))
+                .thenReturn(fakePdf);
+
+        mockMvc.perform(get("/dashboard/reports/pdf")
+                        .param("period", "TODAY")
+                        .accept(MediaType.APPLICATION_PDF))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "application/pdf"))
+                .andExpect(header().string("Content-Disposition", "form-data; name=\"attachment\"; filename=\"rapport-plateforme-2026-08.pdf\""))
+                .andExpect(content().bytes(fakePdf));
+    }
+
+    // ─── PDF — USER ─────────────────────────────────────────────
+
+    @Test
+    void userPdfShouldReturn200WithPdfContent() throws Exception {
+        authenticateUser("USER");
+        mockUserRepository("test@test.com", RoleType.USER);
+        byte[] fakePdf = "%PDF-1.4 user content".getBytes();
+        when(dashboardReportService.generateReport(
+                        eq(3L), eq(RoleType.USER), eq("TODAY"), isNull(), isNull()))
+                .thenReturn(fakePdf);
+
+        mockMvc.perform(get("/dashboard/reports/pdf")
+                        .param("period", "TODAY")
+                        .accept(MediaType.APPLICATION_PDF))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "application/pdf"))
+                .andExpect(header().string("Content-Disposition", "form-data; name=\"attachment\"; filename=\"mon-rapport-activite-2026-08.pdf\""))
+                .andExpect(content().bytes(fakePdf));
+    }
+
+    @Test
+    void userPdfWithCustomPeriodShouldReturn200() throws Exception {
+        authenticateUser("USER");
+        mockUserRepository("test@test.com", RoleType.USER);
+        byte[] fakePdf = "%PDF-1.4 user custom".getBytes();
+        when(dashboardReportService.generateReport(
+                        eq(3L), eq(RoleType.USER), eq("CUSTOM"), eq("2026-08-01"), eq("2026-08-15")))
+                .thenReturn(fakePdf);
+
+        mockMvc.perform(get("/dashboard/reports/pdf")
+                        .param("period", "CUSTOM")
+                        .param("startDate", "2026-08-01")
+                        .param("endDate", "2026-08-15")
+                        .accept(MediaType.APPLICATION_PDF))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(fakePdf));
+    }
+
+    // ─── PDF — Validation ───────────────────────────────────────
+
+    @Test
+    void pdfWithInvalidPeriodShouldReturn400() throws Exception {
+        mockMvc.perform(get("/dashboard/reports/pdf")
+                        .param("period", "INVALID")
+                        .accept(MediaType.APPLICATION_PDF))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void pdfWithCUSTOMPeriodMissingDatesShouldReturn400() throws Exception {
+        mockMvc.perform(get("/dashboard/reports/pdf")
+                        .param("period", "CUSTOM")
+                        .accept(MediaType.APPLICATION_PDF))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void pdfWithCUSTOMPeriodInvertedDatesShouldReturn400() throws Exception {
+        mockMvc.perform(get("/dashboard/reports/pdf")
+                        .param("period", "CUSTOM")
+                        .param("startDate", "2026-08-25")
+                        .param("endDate", "2026-08-01")
+                        .accept(MediaType.APPLICATION_PDF))
+                .andExpect(status().isBadRequest());
+    }
+
+    // ─── Security — USER isolation ──────────────────────────────
+
+    @Test
+    void userPdfShouldUseOwnUserIdNotArbitraryOne() throws Exception {
+        authenticateUser("USER");
+        mockUserRepository("test@test.com", RoleType.USER);
+        byte[] fakePdf = "%PDF-1.4".getBytes();
+        when(dashboardReportService.generateReport(
+                        eq(3L), eq(RoleType.USER), eq("TODAY"), isNull(), isNull()))
+                .thenReturn(fakePdf);
+
+        mockMvc.perform(get("/dashboard/reports/pdf")
+                        .param("period", "TODAY")
+                        .accept(MediaType.APPLICATION_PDF))
+                .andExpect(status().isOk());
+
+        verify(dashboardReportService).generateReport(eq(3L), eq(RoleType.USER), anyString(), isNull(), isNull());
     }
 
     // ─── Helpers ──────────────────────────────────────────────────
 
-    private void authenticateUser() {
+    private void authenticateUser(String role) {
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         Authentication auth = new UsernamePasswordAuthenticationToken(
-                "john.doe@test.com", null, List.of(new SimpleGrantedAuthority("ADMIN")));
+                "test@test.com", null, List.of(new SimpleGrantedAuthority(role)));
         context.setAuthentication(auth);
         SecurityContextHolder.setContext(context);
     }
 
-    private void mockService(String period, String startDate, String endDate) {
-        mockUserRepository();
-        when(dashboardService.getDashboardStats(eq(1L), eq(period), eq(startDate), eq(endDate)))
-                .thenReturn(sampleResponse);
-    }
-
-    private void mockUserRepository() {
+    private void mockUserRepository(String email, RoleType roleType) {
         Direction direction = new Direction();
         direction.setDirectionId(1L);
         direction.setName("DSI");
+
+        Role role = new Role();
+        role.setName(roleType);
+
+        User user = new User();
+        user.setUsersId(roleType == RoleType.SUPER_ADMIN ? 2L : roleType == RoleType.USER ? 3L : 1L);
+        user.setFirstname("Test");
+        user.setLastname("User");
+        user.setEmail(email);
+        user.setDirection(direction);
+        user.setRoles(List.of(role));
+
+        when(userRepository.findByEmail(email)).thenReturn(Optional.of(user));
+    }
+
+    private void mockService(String period, String startDate, String endDate) {
+        Direction direction = new Direction();
+        direction.setDirectionId(1L);
+        direction.setName("DSI");
+
+        Role role = new Role();
+        role.setName(RoleType.ADMIN);
 
         User user = new User();
         user.setUsersId(1L);
         user.setFirstname("John");
         user.setLastname("Doe");
-        user.setEmail("john.doe@test.com");
+        user.setEmail("test@test.com");
         user.setDirection(direction);
+        user.setRoles(List.of(role));
 
-        when(userRepository.findByEmail("john.doe@test.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+        when(dashboardService.getDashboardStats(eq(1L), eq(period), eq(startDate), eq(endDate)))
+                .thenReturn(sampleResponse);
     }
 
     private DashboardDataResDto buildSampleResponse() {

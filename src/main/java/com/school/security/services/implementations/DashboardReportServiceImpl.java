@@ -23,6 +23,7 @@ import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,19 +36,22 @@ public class DashboardReportServiceImpl implements DashboardReportService {
     private DashboardService dashboardService;
 
     // ─── Colors ─────────────────────────────────────────────────
-    private static final Color COLOR_PRIMARY    = new Color(59, 130, 246);   // blue-500
+    private static final Color COLOR_PRIMARY    = new Color(59, 130, 246);
     private static final Color COLOR_DARK       = new Color(30, 30, 30);
     private static final Color COLOR_HEADER_BG  = new Color(59, 130, 246);
     private static final Color COLOR_HEADER_FG  = Color.WHITE;
-    private static final Color COLOR_LIGHT_BG   = new Color(248, 250, 252); // slate-50
-    private static final Color COLOR_BORDER     = new Color(226, 232, 240); // slate-200
-    private static final Color COLOR_MUTED      = new Color(100, 116, 139); // slate-500
+    private static final Color COLOR_LIGHT_BG   = new Color(248, 250, 252);
+    private static final Color COLOR_BORDER     = new Color(226, 232, 240);
+    private static final Color COLOR_MUTED      = new Color(100, 116, 139);
+    private static final Color COLOR_GRID       = new Color(241, 245, 249);
 
     private static final Color COLOR_AMBER      = new Color(245, 158, 11);
     private static final Color COLOR_BLUE       = new Color(59, 130, 246);
     private static final Color COLOR_EMERALD    = new Color(16, 185, 129);
     private static final Color COLOR_RED        = new Color(239, 68, 68);
     private static final Color COLOR_GRAY       = new Color(148, 163, 184);
+
+    private static final Color COLOR_BAR_BG     = new Color(241, 245, 249);
 
     // ─── Fonts ──────────────────────────────────────────────────
     private static final Font FONT_TITLE       = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 22, Font.BOLD, COLOR_DARK);
@@ -60,11 +64,19 @@ public class DashboardReportServiceImpl implements DashboardReportService {
     private static final Font FONT_TD          = FontFactory.getFont(FontFactory.HELVETICA, 9, Font.NORMAL, COLOR_DARK);
     private static final Font FONT_CHART_LABEL = FontFactory.getFont(FontFactory.HELVETICA, 8, Font.NORMAL, COLOR_DARK);
     private static final Font FONT_CHART_VAL   = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, Font.BOLD, COLOR_DARK);
+    private static final Font FONT_CHART_VAL_SM= FontFactory.getFont(FontFactory.HELVETICA_BOLD, 7, Font.BOLD, COLOR_DARK);
     private static final Font FONT_FOOTER      = FontFactory.getFont(FontFactory.HELVETICA, 8, Font.ITALIC, COLOR_MUTED);
     private static final Font FONT_LEGEND      = FontFactory.getFont(FontFactory.HELVETICA, 8, Font.NORMAL, COLOR_DARK);
     private static final Font FONT_PERIOD      = FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL, COLOR_MUTED);
+    private static final Font FONT_AXIS_LABEL  = FontFactory.getFont(FontFactory.HELVETICA, 7, Font.NORMAL, COLOR_MUTED);
 
-    private static final DateTimeFormatter DISPLAY_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+    // ─── Formatters ─────────────────────────────────────────────
+    private static final DateTimeFormatter PDF_DATE_FORMAT =
+            DateTimeFormatter.ofPattern("d MMMM yyyy — HH:mm", Locale.FRENCH);
+    private static final DateTimeFormatter PDF_GENERATED_FORMAT =
+            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+
+    private static final int CHART_MAX_BAR_HEIGHT = 90;
 
     // ─── Public entry ───────────────────────────────────────────
 
@@ -82,12 +94,12 @@ public class DashboardReportServiceImpl implements DashboardReportService {
 
             addHeader(document, role, period);
             addKpiCards(document, data.stats(), role);
+            addTaskStatusChart(document, data.stats());
             addDistributionChart(document, data);
             addEvolutionChart(document, data);
             addRecentActivityTable(document, data);
             addProjectsTable(document, data);
-            addFooter(document, role);
-            addPageNumberFooter(writer, document);
+            addFooter(document, role, writer);
 
             document.close();
         } catch (DocumentException e) {
@@ -127,7 +139,7 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         rightCell.setBorder(Rectangle.NO_BORDER);
         rightCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
         rightCell.addElement(new Phrase(
-                "Généré le " + LocalDateTime.now().format(DISPLAY_FORMAT), FONT_PERIOD));
+                "Généré le " + LocalDateTime.now().format(PDF_GENERATED_FORMAT), FONT_PERIOD));
 
         metaTable.addCell(leftCell);
         metaTable.addCell(rightCell);
@@ -173,8 +185,7 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         return w;
     }
 
-    private void addKpiCell(PdfPTable table, String label, String value, Color accent)
-            throws DocumentException {
+    private void addKpiCell(PdfPTable table, String label, String value, Color accent) {
         PdfPCell card = new PdfPCell();
         card.setPadding(10);
         card.setBorder(Rectangle.NO_BORDER);
@@ -192,7 +203,64 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         table.addCell(card);
     }
 
-    // ─── Distribution Chart (horizontal bars) ───────────────────
+    // ─── Task Status Chart (horizontal bar chart) ───────────────
+
+    private void addTaskStatusChart(Document document, DashboardStatsResDto stats)
+            throws DocumentException {
+        Paragraph section = new Paragraph("Vue d'ensemble des tâches", FONT_SECTION);
+        section.setSpacingBefore(12);
+        section.setSpacingAfter(8);
+        document.add(section);
+
+        long total = stats.tasks();
+        long completed = stats.completedTasks();
+        long overdue = stats.overdueTasks();
+        long remaining = Math.max(0, total - completed);
+
+        if (total == 0) {
+            document.add(new Paragraph("Aucune tâche à afficher.", FONT_CHART_LABEL));
+            addHorizontalRule(document, COLOR_BORDER, 0.5f);
+            return;
+        }
+
+        long maxVal = Math.max(total, Math.max(completed, Math.max(overdue, remaining)));
+
+        String[] labels = {"Total", "Terminées", "En retard", "Restantes"};
+        long[] values = {total, completed, overdue, remaining};
+        Color[] colors = {COLOR_BLUE, COLOR_EMERALD, COLOR_RED, COLOR_GRAY};
+
+        PdfPTable table = new PdfPTable(new float[]{22f, 50f, 13f, 15f});
+        table.setWidthPercentage(100);
+        table.setTotalWidth(new float[]{110f, 250f, 65f, 75f});
+
+        for (int i = 0; i < labels.length; i++) {
+            PdfPCell labelCell = new PdfPCell(new Phrase(labels[i], FONT_CHART_LABEL));
+            labelCell.setBorder(Rectangle.NO_BORDER);
+            labelCell.setPadding(5);
+            labelCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+            table.addCell(labelCell);
+
+            PdfPCell barCell = buildBarCell(values[i], maxVal, colors[i]);
+            table.addCell(barCell);
+
+            PdfPCell emptyCell = new PdfPCell();
+            emptyCell.setBorder(Rectangle.NO_BORDER);
+            table.addCell(emptyCell);
+
+            PdfPCell valCell = new PdfPCell(new Phrase(String.valueOf(values[i]), FONT_CHART_VAL));
+            valCell.setBorder(Rectangle.NO_BORDER);
+            valCell.setHorizontalAlignment(Element.ALIGN_LEFT);
+            valCell.setPadding(5);
+            valCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+            table.addCell(valCell);
+        }
+
+        table.setSpacingAfter(8);
+        document.add(table);
+        addHorizontalRule(document, COLOR_BORDER, 0.5f);
+    }
+
+    // ─── Distribution Chart (horizontal bar chart) ──────────────
 
     private void addDistributionChart(Document document, DashboardDataResDto data)
             throws DocumentException {
@@ -202,7 +270,7 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         }
 
         Paragraph section = new Paragraph("Répartition des tâches par statut", FONT_SECTION);
-        section.setSpacingBefore(10);
+        section.setSpacingBefore(12);
         section.setSpacingAfter(8);
         document.add(section);
 
@@ -210,45 +278,39 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         long maxCount = items.stream().mapToLong(DashboardDistributionItemResDto::count).max().orElse(1);
         if (maxCount == 0) maxCount = 1;
 
-        PdfPTable table = new PdfPTable(new float[]{30f, 45f, 10f, 15f});
+        PdfPTable table = new PdfPTable(new float[]{22f, 50f, 13f, 15f});
         table.setWidthPercentage(100);
-
-        addChartHeader(table, "Statut");
-        addChartHeader(table, "");
-        addChartHeader(table, "");
-        addChartHeader(table, "Nombre");
+        table.setTotalWidth(new float[]{110f, 250f, 65f, 75f});
 
         for (DashboardDistributionItemResDto item : items) {
             Color barColor = resolveStatusColor(item.name());
 
             PdfPCell labelCell = new PdfPCell(new Phrase(item.name(), FONT_CHART_LABEL));
             labelCell.setBorder(Rectangle.NO_BORDER);
-            labelCell.setPadding(6);
+            labelCell.setPadding(5);
             labelCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
             table.addCell(labelCell);
 
-            PdfPCell barCell = new PdfPCell();
-            barCell.setBorder(Rectangle.NO_BORDER);
-            barCell.setPadding(6);
-            barCell.addElement(createBarParagraph(item.count(), maxCount, barColor));
+            PdfPCell barCell = buildBarCell(item.count(), maxCount, barColor);
             table.addCell(barCell);
 
-            PdfPCell spacerCell = new PdfPCell();
-            spacerCell.setBorder(Rectangle.NO_BORDER);
-            table.addCell(spacerCell);
+            PdfPCell emptyCell = new PdfPCell();
+            emptyCell.setBorder(Rectangle.NO_BORDER);
+            table.addCell(emptyCell);
 
             PdfPCell valCell = new PdfPCell(new Phrase(String.valueOf(item.count()), FONT_CHART_VAL));
             valCell.setBorder(Rectangle.NO_BORDER);
-            valCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
-            valCell.setPadding(6);
+            valCell.setHorizontalAlignment(Element.ALIGN_LEFT);
+            valCell.setPadding(5);
             valCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
             table.addCell(valCell);
         }
 
+        // Total row
         PdfPCell totalLabel = new PdfPCell(new Phrase("Total", FONT_TH));
         totalLabel.setBorder(Rectangle.NO_BORDER);
         totalLabel.setBackgroundColor(COLOR_HEADER_BG);
-        totalLabel.setPadding(6);
+        totalLabel.setPadding(5);
         table.addCell(totalLabel);
 
         PdfPCell totalBar = new PdfPCell();
@@ -262,53 +324,46 @@ public class DashboardReportServiceImpl implements DashboardReportService {
 
         PdfPCell totalVal = new PdfPCell(new Phrase(String.valueOf(data.distribution().total()), FONT_TH));
         totalVal.setBorder(Rectangle.NO_BORDER);
-        totalVal.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        totalVal.setHorizontalAlignment(Element.ALIGN_LEFT);
         totalVal.setBackgroundColor(COLOR_HEADER_BG);
-        totalVal.setPadding(6);
+        totalVal.setPadding(5);
         table.addCell(totalVal);
 
         table.setSpacingAfter(6);
         document.add(table);
 
-        addLegend(document, items, barColor -> true);
+        addStatusLegend(document, items);
         addHorizontalRule(document, COLOR_BORDER, 0.5f);
     }
 
-    private Paragraph createBarParagraph(long count, long maxCount, Color color) {
-        int barWidth = maxCount > 0 ? (int) Math.round((double) count / maxCount * 30) : 0;
-        barWidth = Math.max(1, Math.min(barWidth, 30));
-        String bar = "█".repeat(barWidth);
+    private PdfPCell buildBarCell(long value, long maxVal, Color color) throws DocumentException {
+        float barPct = maxVal > 0 ? (float) value / maxVal : 0;
+        float remainingPct = 1f - barPct;
 
-        Font barFont = FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL, color);
-        Paragraph p = new Paragraph(bar, barFont);
-        p.setSpacingBefore(0);
-        p.setSpacingAfter(0);
-        return p;
+        PdfPTable barWrapper = new PdfPTable(2);
+        barWrapper.setWidthPercentage(100);
+        barWrapper.setWidths(new float[]{barPct * 100f, remainingPct * 100f + 0.01f});
+
+        PdfPCell barFiller = new PdfPCell();
+        barFiller.setBorder(Rectangle.NO_BORDER);
+        barFiller.setBackgroundColor(color);
+        barFiller.setFixedHeight(14);
+        barFiller.setMinimumHeight(14);
+        barWrapper.addCell(barFiller);
+
+        PdfPCell emptyFiller = new PdfPCell();
+        emptyFiller.setBorder(Rectangle.NO_BORDER);
+        emptyFiller.setBackgroundColor(COLOR_BAR_BG);
+        emptyFiller.setFixedHeight(14);
+        barWrapper.addCell(emptyFiller);
+
+        PdfPCell outerCell = new PdfPCell(barWrapper);
+        outerCell.setBorder(Rectangle.NO_BORDER);
+        outerCell.setPadding(4);
+        return outerCell;
     }
 
-    private void addLegend(Document document, List<DashboardDistributionItemResDto> items,
-                           java.util.function.Predicate<DashboardDistributionItemResDto> filter)
-            throws DocumentException {
-        PdfPTable legend = new PdfPTable(items.size());
-        legend.setWidthPercentage(100);
-        for (DashboardDistributionItemResDto item : items) {
-            if (!filter.test(item)) continue;
-            PdfPCell cell = new PdfPCell();
-            cell.setBorder(Rectangle.NO_BORDER);
-            cell.setPadding(2);
-            cell.setHorizontalAlignment(Element.ALIGN_CENTER);
-
-            Paragraph p = new Paragraph();
-            p.add(new Phrase("■ ", FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL, resolveStatusColor(item.name()))));
-            p.add(new Phrase(item.name() + " (" + item.count() + ")", FONT_LEGEND));
-            cell.addElement(p);
-            legend.addCell(cell);
-        }
-        legend.setSpacingAfter(8);
-        document.add(legend);
-    }
-
-    // ─── Evolution Chart (vertical bars) ────────────────────────
+    // ─── Evolution Chart (vertical grouped bar chart) ───────────
 
     private void addEvolutionChart(Document document, DashboardDataResDto data)
             throws DocumentException {
@@ -318,97 +373,102 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         }
 
         Paragraph section = new Paragraph("Évolution des tâches", FONT_SECTION);
-        section.setSpacingBefore(10);
+        section.setSpacingBefore(12);
         section.setSpacingAfter(8);
         document.add(section);
 
         List<DashboardEvolutionPointResDto> points = data.evolution().points();
-        int size = points.size();
+
         int maxVal = (int) points.stream()
                 .mapToLong(p -> Math.max(p.created(), p.completed()))
                 .max().orElse(1);
         if (maxVal == 0) maxVal = 1;
 
-        PdfPTable table = new PdfPTable(new float[]{70f, 30f});
-        table.setWidthPercentage(100);
+        PdfPTable outer = new PdfPTable(1);
+        outer.setWidthPercentage(100);
 
-        PdfPCell chartCell = new PdfPCell();
-        chartCell.setBorder(Rectangle.NO_BORDER);
-        chartCell.setPadding(4);
-        chartCell.addElement(buildVerticalBarChart(points, maxVal));
-        table.addCell(chartCell);
-
-        PdfPCell legendCell = new PdfPCell();
-        legendCell.setBorder(Rectangle.NO_BORDER);
-        legendCell.setPadding(8);
-        legendCell.setVerticalAlignment(Element.ALIGN_TOP);
-        Paragraph createdLegend = new Paragraph();
-        createdLegend.add(new Phrase("■ ", FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL, COLOR_BLUE)));
-        createdLegend.add(new Phrase("Créées", FONT_LEGEND));
-        createdLegend.setSpacingAfter(6);
-        legendCell.addElement(createdLegend);
-        Paragraph completedLegend = new Paragraph();
-        completedLegend.add(new Phrase("■ ", FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL, COLOR_EMERALD)));
-        completedLegend.add(new Phrase("Terminées", FONT_LEGEND));
-        legendCell.addElement(completedLegend);
-        table.addCell(legendCell);
-
-        table.setSpacingAfter(8);
-        document.add(table);
-        addHorizontalRule(document, COLOR_BORDER, 0.5f);
-    }
-
-    private PdfPTable buildVerticalBarChart(List<DashboardEvolutionPointResDto> points, int maxVal)
-            throws DocumentException {
-        PdfPTable chart = new PdfPTable(new float[]{70f, 30f});
+        PdfPTable chart = new PdfPTable(2);
         chart.setWidthPercentage(100);
+        chart.setWidths(new float[]{85f, 15f});
 
-        PdfPTable bars = new PdfPTable(1);
-        bars.setWidthPercentage(100);
+        // Bars column
+        PdfPCell barsCell = new PdfPCell();
+        barsCell.setBorder(Rectangle.NO_BORDER);
+        barsCell.setPadding(4);
 
-        int maxBarHeight = 80;
+        PdfPTable barsTable = new PdfPTable(1);
+        barsTable.setWidthPercentage(100);
+
         for (DashboardEvolutionPointResDto point : points) {
-            PdfPCell row = new PdfPCell();
-            row.setBorder(Rectangle.NO_BORDER);
-            row.setPadding(2);
-
             PdfPTable barPair = new PdfPTable(2);
             barPair.setWidthPercentage(100);
             barPair.setWidths(new float[]{50f, 50f});
 
-            int createdHeight = maxVal > 0 ? (int) Math.round((double) point.created() / maxVal * maxBarHeight) : 0;
-            int completedHeight = maxVal > 0 ? (int) Math.round((double) point.completed() / maxVal * maxBarHeight) : 0;
+            int cH = maxVal > 0 ? (int) Math.round((double) point.created() / maxVal * CHART_MAX_BAR_HEIGHT) : 0;
+            int pH = maxVal > 0 ? (int) Math.round((double) point.completed() / maxVal * CHART_MAX_BAR_HEIGHT) : 0;
 
             PdfPCell cBar = new PdfPCell();
             cBar.setBorder(Rectangle.NO_BORDER);
-            cBar.addElement(createVerticalBar(createdHeight, COLOR_BLUE));
+            cBar.addElement(createVerticalBar(Math.max(1, cH), COLOR_BLUE));
             barPair.addCell(cBar);
 
             PdfPCell pBar = new PdfPCell();
             pBar.setBorder(Rectangle.NO_BORDER);
-            pBar.addElement(createVerticalBar(completedHeight, COLOR_EMERALD));
+            pBar.addElement(createVerticalBar(Math.max(1, pH), COLOR_EMERALD));
             barPair.addCell(pBar);
 
-            row.addElement(barPair);
-            bars.addCell(row);
+            PdfPCell wrapper = new PdfPCell(barPair);
+            wrapper.setBorder(Rectangle.NO_BORDER);
+            wrapper.setPadding(1);
+            barsTable.addCell(wrapper);
         }
-        bars.setSpacingAfter(2);
+        barsCell.addElement(barsTable);
+        chart.addCell(barsCell);
 
-        PdfPCell barCell = new PdfPCell(bars);
-        barCell.setBorder(Rectangle.NO_BORDER);
-        chart.addCell(barCell);
-
+        // Labels column
         PdfPCell labelsCell = new PdfPCell();
         labelsCell.setBorder(Rectangle.NO_BORDER);
+        labelsCell.setVerticalAlignment(Element.ALIGN_BOTTOM);
+        labelsCell.setPadding(4);
+
         for (DashboardEvolutionPointResDto point : points) {
-            Paragraph lbl = new Paragraph(point.label(), FONT_CHART_LABEL);
-            lbl.setSpacingBefore(2);
-            lbl.setSpacingAfter(6);
+            Paragraph lbl = new Paragraph(point.label(), FONT_AXIS_LABEL);
+            lbl.setAlignment(Element.ALIGN_CENTER);
+            lbl.setSpacingBefore(1);
+            lbl.setSpacingAfter(8);
             labelsCell.addElement(lbl);
         }
         chart.addCell(labelsCell);
 
-        return chart;
+        outer.addCell(chart);
+        outer.setSpacingAfter(6);
+        document.add(outer);
+
+        // Legend
+        PdfPTable legend = new PdfPTable(2);
+        legend.setWidthPercentage(100);
+
+        PdfPCell l1 = new PdfPCell();
+        l1.setBorder(Rectangle.NO_BORDER);
+        l1.setHorizontalAlignment(Element.ALIGN_CENTER);
+        Paragraph p1 = new Paragraph();
+        p1.add(new Phrase("■ ", FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL, COLOR_BLUE)));
+        p1.add(new Phrase("Créées", FONT_LEGEND));
+        l1.addElement(p1);
+        legend.addCell(l1);
+
+        PdfPCell l2 = new PdfPCell();
+        l2.setBorder(Rectangle.NO_BORDER);
+        l2.setHorizontalAlignment(Element.ALIGN_CENTER);
+        Paragraph p2 = new Paragraph();
+        p2.add(new Phrase("■ ", FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL, COLOR_EMERALD)));
+        p2.add(new Phrase("Terminées", FONT_LEGEND));
+        l2.addElement(p2);
+        legend.addCell(l2);
+
+        legend.setSpacingAfter(8);
+        document.add(legend);
+        addHorizontalRule(document, COLOR_BORDER, 0.5f);
     }
 
     private PdfPTable createVerticalBar(int height, Color color) throws DocumentException {
@@ -418,7 +478,8 @@ public class DashboardReportServiceImpl implements DashboardReportService {
 
         PdfPCell filler = new PdfPCell();
         filler.setBorder(Rectangle.NO_BORDER);
-        filler.setFixedHeight(Math.max(1, height));
+        filler.setFixedHeight(height);
+        filler.setMinimumHeight(height);
         filler.setBackgroundColor(color);
         bar.addCell(filler);
 
@@ -434,23 +495,23 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         }
 
         Paragraph section = new Paragraph("Activité récente", FONT_SECTION);
-        section.setSpacingBefore(10);
+        section.setSpacingBefore(12);
         section.setSpacingAfter(8);
         document.add(section);
 
-        PdfPTable table = new PdfPTable(new float[]{18f, 37f, 25f, 20f});
+        PdfPTable table = new PdfPTable(new float[]{28f, 22f, 28f, 22f});
         table.setWidthPercentage(100);
 
-        addTableHeader(table, "Type");
-        addTableHeader(table, "Description");
-        addTableHeader(table, "Utilisateur");
         addTableHeader(table, "Date");
+        addTableHeader(table, "Activité");
+        addTableHeader(table, "Détail");
+        addTableHeader(table, "Utilisateur");
 
         for (DashboardActivityItemResDto a : data.recentActivity()) {
-            addTableRow(table, a.type());
+            addTableRow(table, formatActivityDate(a.createdAt()));
+            addTableRow(table, translateActivityType(a.type()));
             addTableRow(table, truncate(a.description(), 35));
             addTableRow(table, a.userName() != null ? a.userName() : "");
-            addTableRow(table, a.createdAt() != null ? a.createdAt().toString() : "");
         }
 
         table.setSpacingAfter(8);
@@ -467,7 +528,7 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         }
 
         Paragraph section = new Paragraph("Projets récents", FONT_SECTION);
-        section.setSpacingBefore(10);
+        section.setSpacingBefore(12);
         section.setSpacingAfter(8);
         document.add(section);
 
@@ -493,8 +554,8 @@ public class DashboardReportServiceImpl implements DashboardReportService {
 
     // ─── Footer ─────────────────────────────────────────────────
 
-    private void addFooter(Document document, RoleType role) throws DocumentException {
-        document.add(new Paragraph(" "));
+    private void addFooter(Document document, RoleType role, PdfWriter writer) throws DocumentException {
+        addPageNumberFooter(writer, document);
 
         PdfPTable footerTable = new PdfPTable(2);
         footerTable.setWidthPercentage(100);
@@ -524,7 +585,7 @@ public class DashboardReportServiceImpl implements DashboardReportService {
                 "Page " + writer.getPageNumber(),
                 FONT_FOOTER);
         footer.setAlignment(Element.ALIGN_CENTER);
-        footer.setSpacingBefore(20);
+        footer.setSpacingBefore(10);
         ColumnText.showTextAligned(cb, Element.ALIGN_CENTER, footer,
                 document.getPageSize().getWidth() / 2,
                 document.bottomMargin() / 2, 0);
@@ -546,13 +607,6 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         table.addCell(cell);
     }
 
-    private void addChartHeader(PdfPTable table, String text) {
-        PdfPCell cell = new PdfPCell(new Phrase(text, FONT_TH));
-        cell.setBackgroundColor(COLOR_HEADER_BG);
-        cell.setPadding(5);
-        table.addCell(cell);
-    }
-
     private void addHorizontalRule(Document document, Color color, float thickness)
             throws DocumentException {
         PdfPTable line = new PdfPTable(1);
@@ -569,7 +623,46 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         document.add(line);
     }
 
+    private void addStatusLegend(Document document, List<DashboardDistributionItemResDto> items)
+            throws DocumentException {
+        PdfPTable legend = new PdfPTable(items.size());
+        legend.setWidthPercentage(100);
+        for (DashboardDistributionItemResDto item : items) {
+            PdfPCell cell = new PdfPCell();
+            cell.setBorder(Rectangle.NO_BORDER);
+            cell.setPadding(2);
+            cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+            Paragraph p = new Paragraph();
+            p.add(new Phrase("■ ", FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL, resolveStatusColor(item.name()))));
+            p.add(new Phrase(item.name() + " (" + item.count() + ")", FONT_LEGEND));
+            cell.addElement(p);
+            legend.addCell(cell);
+        }
+        legend.setSpacingAfter(8);
+        document.add(legend);
+    }
+
     // ─── Resolution helpers ─────────────────────────────────────
+
+    private String formatActivityDate(LocalDateTime dateTime) {
+        if (dateTime == null) return "";
+        return dateTime.format(PDF_DATE_FORMAT);
+    }
+
+    private String translateActivityType(String type) {
+        if (type == null) return "";
+        return switch (type.toUpperCase()) {
+            case "TASK_CREATED"    -> "Tâche créée";
+            case "TASK_COMPLETED"  -> "Tâche terminée";
+            case "TASK_UPDATED"    -> "Tâche modifiée";
+            case "TASK_DELETED"    -> "Tâche supprimée";
+            case "PROJECT_CREATED" -> "Projet créé";
+            case "PROJECT_UPDATED" -> "Projet modifié";
+            case "USER_ADDED"      -> "Utilisateur ajouté";
+            case "COMMENT_ADDED"   -> "Commentaire ajouté";
+            default                -> type;
+        };
+    }
 
     private String resolveTitle(RoleType role) {
         return switch (role) {

@@ -5,6 +5,7 @@ import com.lowagie.text.DocumentException;
 import com.lowagie.text.Element;
 import com.lowagie.text.Font;
 import com.lowagie.text.FontFactory;
+import com.lowagie.text.Image;
 import com.lowagie.text.PageSize;
 import com.lowagie.text.Paragraph;
 import com.lowagie.text.Phrase;
@@ -18,12 +19,18 @@ import com.school.security.dtos.responses.*;
 import com.school.security.enums.RoleType;
 import com.school.security.services.contracts.DashboardReportService;
 import com.school.security.services.contracts.DashboardService;
+import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import javax.imageio.ImageIO;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -75,8 +82,6 @@ public class DashboardReportServiceImpl implements DashboardReportService {
             DateTimeFormatter.ofPattern("d MMMM yyyy — HH:mm", Locale.FRENCH);
     private static final DateTimeFormatter PDF_GENERATED_FORMAT =
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
-
-    private static final int CHART_MAX_BAR_HEIGHT = 90;
 
     // ─── Public entry ───────────────────────────────────────────
 
@@ -363,7 +368,7 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         return outerCell;
     }
 
-    // ─── Evolution Chart (vertical grouped bar chart) ───────────
+    // ─── Evolution Chart (line chart, rendered as flow image) ──
 
     private void addEvolutionChart(Document document, DashboardDataResDto data)
             throws DocumentException {
@@ -375,74 +380,20 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         Paragraph section = new Paragraph("Évolution des tâches", FONT_SECTION);
         section.setSpacingBefore(12);
         section.setSpacingAfter(8);
-        document.add(section);
 
-        List<DashboardEvolutionPointResDto> points = data.evolution().points();
+        Image chartImage = renderLineChart(data.evolution().points());
 
-        int maxVal = (int) points.stream()
-                .mapToLong(p -> Math.max(p.created(), p.completed()))
-                .max().orElse(1);
-        if (maxVal == 0) maxVal = 1;
+        // Keep the heading, chart and legend together on the same page.
+        PdfPTable sectionGroup = new PdfPTable(1);
+        sectionGroup.setWidthPercentage(100);
+        sectionGroup.setKeepTogether(true);
 
-        PdfPTable outer = new PdfPTable(1);
-        outer.setWidthPercentage(100);
-
-        PdfPTable chart = new PdfPTable(2);
-        chart.setWidthPercentage(100);
-        chart.setWidths(new float[]{85f, 15f});
-
-        // Bars column
-        PdfPCell barsCell = new PdfPCell();
-        barsCell.setBorder(Rectangle.NO_BORDER);
-        barsCell.setPadding(4);
-
-        PdfPTable barsTable = new PdfPTable(1);
-        barsTable.setWidthPercentage(100);
-
-        for (DashboardEvolutionPointResDto point : points) {
-            PdfPTable barPair = new PdfPTable(2);
-            barPair.setWidthPercentage(100);
-            barPair.setWidths(new float[]{50f, 50f});
-
-            int cH = maxVal > 0 ? (int) Math.round((double) point.created() / maxVal * CHART_MAX_BAR_HEIGHT) : 0;
-            int pH = maxVal > 0 ? (int) Math.round((double) point.completed() / maxVal * CHART_MAX_BAR_HEIGHT) : 0;
-
-            PdfPCell cBar = new PdfPCell();
-            cBar.setBorder(Rectangle.NO_BORDER);
-            cBar.addElement(createVerticalBar(Math.max(1, cH), COLOR_BLUE));
-            barPair.addCell(cBar);
-
-            PdfPCell pBar = new PdfPCell();
-            pBar.setBorder(Rectangle.NO_BORDER);
-            pBar.addElement(createVerticalBar(Math.max(1, pH), COLOR_EMERALD));
-            barPair.addCell(pBar);
-
-            PdfPCell wrapper = new PdfPCell(barPair);
-            wrapper.setBorder(Rectangle.NO_BORDER);
-            wrapper.setPadding(1);
-            barsTable.addCell(wrapper);
-        }
-        barsCell.addElement(barsTable);
-        chart.addCell(barsCell);
-
-        // Labels column
-        PdfPCell labelsCell = new PdfPCell();
-        labelsCell.setBorder(Rectangle.NO_BORDER);
-        labelsCell.setVerticalAlignment(Element.ALIGN_BOTTOM);
-        labelsCell.setPadding(4);
-
-        for (DashboardEvolutionPointResDto point : points) {
-            Paragraph lbl = new Paragraph(point.label(), FONT_AXIS_LABEL);
-            lbl.setAlignment(Element.ALIGN_CENTER);
-            lbl.setSpacingBefore(1);
-            lbl.setSpacingAfter(8);
-            labelsCell.addElement(lbl);
-        }
-        chart.addCell(labelsCell);
-
-        outer.addCell(chart);
-        outer.setSpacingAfter(6);
-        document.add(outer);
+        PdfPCell groupCell = new PdfPCell();
+        groupCell.setBorder(Rectangle.NO_BORDER);
+        groupCell.setPadding(0);
+        groupCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+        groupCell.addElement(section);
+        groupCell.addElement(chartImage);
 
         // Legend
         PdfPTable legend = new PdfPTable(2);
@@ -452,7 +403,7 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         l1.setBorder(Rectangle.NO_BORDER);
         l1.setHorizontalAlignment(Element.ALIGN_CENTER);
         Paragraph p1 = new Paragraph();
-        p1.add(new Phrase("■ ", FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL, COLOR_BLUE)));
+        p1.add(new Phrase("● ", FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL, COLOR_BLUE)));
         p1.add(new Phrase("Créées", FONT_LEGEND));
         l1.addElement(p1);
         legend.addCell(l1);
@@ -461,29 +412,160 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         l2.setBorder(Rectangle.NO_BORDER);
         l2.setHorizontalAlignment(Element.ALIGN_CENTER);
         Paragraph p2 = new Paragraph();
-        p2.add(new Phrase("■ ", FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL, COLOR_EMERALD)));
+        p2.add(new Phrase("● ", FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL, COLOR_EMERALD)));
         p2.add(new Phrase("Terminées", FONT_LEGEND));
         l2.addElement(p2);
         legend.addCell(l2);
 
-        legend.setSpacingAfter(8);
-        document.add(legend);
+        groupCell.addElement(legend);
+
+        sectionGroup.addCell(groupCell);
+        sectionGroup.setSpacingAfter(8);
+        document.add(sectionGroup);
+
         addHorizontalRule(document, COLOR_BORDER, 0.5f);
     }
 
-    private PdfPTable createVerticalBar(int height, Color color) throws DocumentException {
-        PdfPTable bar = new PdfPTable(1);
-        bar.setWidthPercentage(100);
-        bar.setWidths(new float[]{100f});
+    private Image renderLineChart(List<DashboardEvolutionPointResDto> points) {
+        // Image is drawn at 2x scale for crisp printing, then downscaled to
+        // fit the A4 content width when embedded as a flow element.
+        int scale = 2;
+        int imgWidth = 1000;
+        int imgHeight = 330;
 
-        PdfPCell filler = new PdfPCell();
-        filler.setBorder(Rectangle.NO_BORDER);
-        filler.setFixedHeight(height);
-        filler.setMinimumHeight(height);
-        filler.setBackgroundColor(color);
-        bar.addCell(filler);
+        int plotLeft = 55;
+        int plotRight = imgWidth - 20;
+        int plotTop = 20;
+        int plotBottom = imgHeight - 55;
 
-        return bar;
+        int plotWidth = plotRight - plotLeft;
+        int plotHeight = plotBottom - plotTop;
+
+        BufferedImage bi = new BufferedImage(imgWidth, imgHeight, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = bi.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g.setColor(Color.WHITE);
+            g.fillRect(0, 0, imgWidth, imgHeight);
+
+            int maxCreated = (int) points.stream().mapToLong(DashboardEvolutionPointResDto::created).max().orElse(1);
+            int maxCompleted = (int) points.stream().mapToLong(DashboardEvolutionPointResDto::completed).max().orElse(1);
+            int maxVal = Math.max(maxCreated, maxCompleted);
+            if (maxVal == 0) maxVal = 1;
+            int axisMax = computeNiceMax(maxVal);
+
+            // ─── Horizontal grid + Y-axis labels ────────────────
+            g.setColor(new Color(230, 230, 230));
+            g.setStroke(new BasicStroke(1f));
+            int gridLines = 5;
+            java.awt.Font axisFont = new java.awt.Font(FontFactory.HELVETICA, java.awt.Font.PLAIN, 15);
+            g.setFont(axisFont);
+            for (int i = 0; i <= gridLines; i++) {
+                int yPos = plotBottom - (int) ((float) i / gridLines * plotHeight);
+                int val = (int) ((float) i / gridLines * axisMax);
+
+                g.setColor(new Color(230, 230, 230));
+                g.drawLine(plotLeft, yPos, plotRight, yPos);
+
+                g.setColor(new Color(120, 120, 120));
+                String label = String.valueOf(val);
+                FontMetrics fm = g.getFontMetrics();
+                g.drawString(label, plotLeft - fm.stringWidth(label) - 8, yPos + 5);
+            }
+
+            // ─── Axes ─────────────────────────────────────────────
+            g.setColor(new Color(160, 160, 160));
+            g.setStroke(new BasicStroke(2f));
+            g.drawLine(plotLeft, plotTop, plotLeft, plotBottom);   // Y axis
+            g.drawLine(plotLeft, plotBottom, plotRight, plotBottom); // X axis
+
+            // ─── Data ─────────────────────────────────────────────
+            int n = points.size();
+            int[] xCoords = new int[n];
+            int[] yCreated = new int[n];
+            int[] yCompleted = new int[n];
+
+            for (int i = 0; i < n; i++) {
+                DashboardEvolutionPointResDto p = points.get(i);
+                xCoords[i] = n == 1
+                        ? plotLeft + plotWidth / 2
+                        : (int) (plotLeft + (float) i / (n - 1) * plotWidth);
+                yCreated[i] = plotBottom - (int) ((float) p.created() / axisMax * plotHeight);
+                yCompleted[i] = plotBottom - (int) ((float) p.completed() / axisMax * plotHeight);
+            }
+
+            // Created line (blue)
+            g.setColor(BLUE_AWT);
+            g.setStroke(new BasicStroke(2.5f * scale, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.drawPolyline(xCoords, yCreated, n);
+
+            // Completed line (green)
+            g.setColor(EMERALD_AWT);
+            g.setStroke(new BasicStroke(2.5f * scale, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.drawPolyline(xCoords, yCompleted, n);
+
+            // ─── Data points ──────────────────────────────────────
+            java.awt.Font smallFont = new java.awt.Font(FontFactory.HELVETICA_BOLD, java.awt.Font.PLAIN, 14);
+            FontMetrics smallFm = g.getFontMetrics(smallFont);
+
+            for (int i = 0; i < n; i++) {
+                // Created points
+                g.setColor(BLUE_AWT);
+                g.fillOval(xCoords[i] - 5 * scale, yCreated[i] - 5 * scale, 10 * scale, 10 * scale);
+                if (points.get(i).created() > 0) {
+                    String v = String.valueOf(points.get(i).created());
+                    g.setFont(smallFont);
+                    g.drawString(v, xCoords[i] - smallFm.stringWidth(v) / 2, yCreated[i] - 12 * scale);
+                }
+
+                // Completed points
+                g.setColor(EMERALD_AWT);
+                g.fillOval(xCoords[i] - 5 * scale, yCompleted[i] - 5 * scale, 10 * scale, 10 * scale);
+                if (points.get(i).completed() > 0) {
+                    String v = String.valueOf(points.get(i).completed());
+                    g.setFont(smallFont);
+                    g.drawString(v, xCoords[i] - smallFm.stringWidth(v) / 2, yCompleted[i] + 24 * scale);
+                }
+            }
+
+            // ─── X-axis labels ────────────────────────────────────
+            g.setFont(axisFont);
+            g.setColor(new Color(70, 70, 70));
+            for (int i = 0; i < n; i++) {
+                String label = points.get(i).label();
+                FontMetrics fm = g.getFontMetrics();
+                g.drawString(label, xCoords[i] - fm.stringWidth(label) / 2, plotBottom + 22);
+            }
+        } finally {
+            g.dispose();
+        }
+
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(bi, "png", baos);
+            Image pdfImage = Image.getInstance(baos.toByteArray());
+            pdfImage.scaleToFit(495f, pdfImage.getHeight() / 2f);
+            pdfImage.setAlignment(Element.ALIGN_CENTER);
+            return pdfImage;
+        } catch (Exception e) {
+            throw new RuntimeException("Erreur lors du rendu du graphique d'évolution", e);
+        }
+    }
+
+    private static final Color BLUE_AWT = new Color(59, 130, 246);
+    private static final Color EMERALD_AWT = new Color(16, 185, 129);
+
+    private int computeNiceMax(int value) {
+        if (value <= 5) return 5;
+        if (value <= 10) return 10;
+        if (value <= 20) return 20;
+        if (value <= 50) return 50;
+        if (value <= 100) return 100;
+        if (value <= 200) return 200;
+        int magnitude = (int) Math.pow(10, (int) Math.log10(value));
+        int normalized = (int) Math.ceil((double) value / magnitude);
+        return normalized * magnitude;
     }
 
     // ─── Recent Activity Table ──────────────────────────────────

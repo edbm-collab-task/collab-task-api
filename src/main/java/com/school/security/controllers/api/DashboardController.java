@@ -45,7 +45,8 @@ public class DashboardController {
     public ResponseEntity<DashboardDataResDto> getDashboardStats(
             @RequestParam String period,
             @RequestParam(required = false) String startDate,
-            @RequestParam(required = false) String endDate) {
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) Long projectId) {
         if (period == null || period.isBlank() || !VALID_PERIODS.contains(period)) {
             return ResponseEntity.badRequest().build();
         }
@@ -69,7 +70,7 @@ public class DashboardController {
 
         Long currentUserId = getCurrentUserId();
         DashboardDataResDto result =
-                dashboardService.getDashboardStats(currentUserId, period, startDate, endDate);
+                dashboardService.getDashboardStats(currentUserId, period, startDate, endDate, projectId);
         return ResponseEntity.ok(result);
     }
 
@@ -77,7 +78,8 @@ public class DashboardController {
     public ResponseEntity<byte[]> generatePdfReport(
             @RequestParam String period,
             @RequestParam(required = false) String startDate,
-            @RequestParam(required = false) String endDate) {
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) Long projectId) {
         if (period == null || period.isBlank() || !VALID_PERIODS.contains(period)) {
             return ResponseEntity.badRequest().build();
         }
@@ -104,7 +106,7 @@ public class DashboardController {
 
         byte[] pdfBytes =
                 dashboardReportService.generateReport(
-                        user.getUsersId(), role, period, startDate, endDate);
+                        user.getUsersId(), role, period, startDate, endDate, projectId);
 
         String filename = resolvePdfFilename(role, LocalDate.now());
 

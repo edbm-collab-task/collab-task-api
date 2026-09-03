@@ -44,7 +44,7 @@ public class DashboardServiceImpl implements DashboardService {
     private static final DateTimeFormatter MONTH_LABEL_FORMAT = DateTimeFormatter.ofPattern("MMM yyyy");
 
     @Override
-    public DashboardDataResDto getDashboardStats(Long userId, String period, String startDate, String endDate) {
+    public DashboardDataResDto getDashboardStats(Long userId, String period, String startDate, String endDate, Long projectId) {
         var user = userRepository.findById(userId).orElse(null);
         if (user == null) {
             return buildEmptyDashboard(period);
@@ -63,6 +63,13 @@ public class DashboardServiceImpl implements DashboardService {
         List<Long> projectIds = accessibleProjects.stream()
                 .map(Project::getProjectId)
                 .collect(Collectors.toList());
+
+        if (projectId != null) {
+            if (!projectIds.contains(projectId)) {
+                return buildEmptyDashboard(period);
+            }
+            projectIds = List.of(projectId);
+        }
 
         if (projectIds.isEmpty()) {
             return buildEmptyDashboard(period);
@@ -137,13 +144,15 @@ public class DashboardServiceImpl implements DashboardService {
         long overdueTasks = personalUserId == null
                 ? taskRepository.countOverdue(projectIds, today, COMPLETED_STATUS_NAME)
                 : taskRepository.countOverdueAndAssignedTo(projectIds, today, COMPLETED_STATUS_NAME, personalUserId);
+        long totalContributors = taskRepository.countDistinctContributors(projectIds);
 
         return new DashboardStatsResDto(
                 projectIds.size(),
                 totalTasks,
                 completedTasks,
                 overdueTasks,
-                totalUsers);
+                totalUsers,
+                totalContributors);
     }
 
     private DashboardEvolutionResDto computeEvolution(
@@ -273,7 +282,7 @@ public class DashboardServiceImpl implements DashboardService {
     private DashboardDataResDto buildEmptyDashboard(String period) {
         return new DashboardDataResDto(
                 period,
-                new DashboardStatsResDto(0, 0, 0, 0, 0),
+                new DashboardStatsResDto(0, 0, 0, 0, 0, 0),
                 new DashboardEvolutionResDto(List.of()),
                 new DashboardDistributionResDto(List.of(), 0),
                 List.of(),

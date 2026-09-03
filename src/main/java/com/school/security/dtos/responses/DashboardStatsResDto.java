@@ -5,4 +5,5 @@ public record DashboardStatsResDto(
         long tasks,
         long completedTasks,
         long overdueTasks,
-        long totalUsers) {}
+        long totalUsers,
+        long totalContributors) {}

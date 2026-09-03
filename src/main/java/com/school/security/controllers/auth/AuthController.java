@@ -109,7 +109,9 @@ public class AuthController {
                         user.getFirstname(),
                         user.getLastname(),
                         user.getEmail(),
-                        extractPermissions(user)
+                        extractPermissions(user),
+                        accessToken,
+                        refreshToken
                 )
         );
     }
@@ -212,7 +214,9 @@ public class AuthController {
                             user.getFirstname(),
                             user.getLastname(),
                             user.getEmail(),
-                            extractPermissions(user)
+                            extractPermissions(user),
+                            newAccessToken,
+                            newRefreshToken
                     )
             );
 

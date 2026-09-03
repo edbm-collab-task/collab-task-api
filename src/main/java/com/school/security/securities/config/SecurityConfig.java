@@ -36,27 +36,29 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/ws").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/auth/login","/auth/create", "/auth/register", "/auth/logout", "/auth/refresh", "/auth/code").permitAll()
-                        .requestMatchers(HttpMethod.POST,"/users/{id}/image").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/users", "/users/*", "/users/email","/users/active","/users/disable").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/users/{id}/image").permitAll()
-                        .requestMatchers(HttpMethod.PUT,"/users/pwd","/users/role").permitAll()
-                        .requestMatchers(HttpMethod.PUT, "/users/account").hasAnyAuthority("ADMIN", "SUPER_ADMIN")
-                        .requestMatchers(HttpMethod.PUT,"/auth/status").permitAll()
-                        .requestMatchers(HttpMethod.GET,"/auth/me","/auth/verification-code","/auth/recovery/me").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/directions", "/directions/{id}").permitAll()
-                        .requestMatchers(HttpMethod.PUT, "/directions/{id}").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/directions").permitAll()
-                        .requestMatchers(HttpMethod.DELETE, "/directions/{id}").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/uploads/messages/{filename}").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/roles", "/roles/permissions").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/roles").hasAuthority("SUPER_ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/roles/{id}").hasAuthority("SUPER_ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/roles/{id}").hasAuthority("SUPER_ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/users/admins").hasAuthority("SUPER_ADMIN")
-                        .anyRequest().authenticated())
+.authorizeHttpRequests(auth -> auth
+        .requestMatchers("/ws").permitAll()
+        .requestMatchers(HttpMethod.POST, "/auth/login","/auth/create", "/auth/register", "/auth/logout", "/auth/refresh", "/auth/code").permitAll()
+        .requestMatchers(HttpMethod.POST,"/users/{id}/image").permitAll()
+        .requestMatchers(HttpMethod.GET, "/users", "/users/*", "/users/email","/users/active","/users/disable").permitAll()
+        .requestMatchers(HttpMethod.GET, "/users/{id}/image").permitAll()
+        .requestMatchers(HttpMethod.PUT,"/users/pwd","/users/role").permitAll()
+        .requestMatchers(HttpMethod.PUT, "/users/account").hasAnyAuthority("ADMIN", "SUPER_ADMIN")
+        .requestMatchers(HttpMethod.PUT,"/auth/status").permitAll()
+        .requestMatchers(HttpMethod.GET,"/auth/me","/auth/verification-code","/auth/recovery/me").permitAll()
+        .requestMatchers(HttpMethod.GET, "/directions", "/directions/{id}").permitAll()
+        .requestMatchers(HttpMethod.PUT, "/directions/{id}").permitAll()
+        .requestMatchers(HttpMethod.POST, "/directions").permitAll()
+        .requestMatchers(HttpMethod.DELETE, "/directions/{id}").permitAll()
+        .requestMatchers(HttpMethod.GET, "/uploads/messages/{filename}").permitAll()
+        .requestMatchers(HttpMethod.GET, "/roles", "/roles/permissions").permitAll()
+        .requestMatchers(HttpMethod.POST, "/roles").hasAuthority("SUPER_ADMIN")
+        .requestMatchers(HttpMethod.PUT, "/roles/{id}").hasAuthority("SUPER_ADMIN")
+        .requestMatchers(HttpMethod.DELETE, "/roles/{id}").hasAuthority("SUPER_ADMIN")
+        .requestMatchers(HttpMethod.GET, "/users/admins").hasAuthority("SUPER_ADMIN")
+        .requestMatchers(HttpMethod.GET, "/projects/{projectId}/report").permitAll()
+        .requestMatchers(HttpMethod.GET, "/projects/{projectId}/report/pdf").permitAll()
+        .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
@@ -81,7 +83,7 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(List.of("http://localhost:5173"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
-        configuration.setExposedHeaders(List.of("Set-Cookie"));
+        configuration.setExposedHeaders(List.of("Set-Cookie", "Content-Disposition", "Content-Length", "Content-Type"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;

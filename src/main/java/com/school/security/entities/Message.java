@@ -10,10 +10,9 @@ import java.util.List;
 
 @Entity
 @Table(name = "messages")
-@Getter
-@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode
 @Builder
 public class Message implements Serializable {
 
@@ -52,11 +51,9 @@ public class Message implements Serializable {
             joinColumns = @JoinColumn(name = "message_id"),
             inverseJoinColumns = @JoinColumn(name = "user_id")
     )
-    @Builder.Default
     private List<User> readBy = new ArrayList<>();
 
     @Column(nullable = false)
-    @Builder.Default
     private Boolean deleted = false;
 
     @OneToMany(
@@ -64,7 +61,82 @@ public class Message implements Serializable {
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
-    @Builder.Default
-    private List<MessageAttachment> attachments =
-            new ArrayList<>();
+    private List<MessageAttachment> attachments = new ArrayList<>();
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+    }
+
+    public Long getMessageId() {
+        return messageId;
+    }
+
+    public void setMessageId(Long messageId) {
+        this.messageId = messageId;
+    }
+
+    public Conversation getConversation() {
+        return conversation;
+    }
+
+    public void setConversation(Conversation conversation) {
+        this.conversation = conversation;
+    }
+
+    public User getSender() {
+        return sender;
+    }
+
+    public void setSender(User sender) {
+        this.sender = sender;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public void setContent(String content) {
+        this.content = content;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public Message getReplyTo() {
+        return replyTo;
+    }
+
+    public void setReplyTo(Message replyTo) {
+        this.replyTo = replyTo;
+    }
+
+    public List<User> getReadBy() {
+        return readBy;
+    }
+
+    public void setReadBy(List<User> readBy) {
+        this.readBy = readBy;
+    }
+
+    public Boolean getDeleted() {
+        return deleted;
+    }
+
+    public void setDeleted(Boolean deleted) {
+        this.deleted = deleted;
+    }
+
+    public List<MessageAttachment> getAttachments() {
+        return attachments;
+    }
+
+    public void setAttachments(List<MessageAttachment> attachments) {
+        this.attachments = attachments;
+    }
 }

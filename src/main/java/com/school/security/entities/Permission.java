@@ -7,8 +7,6 @@ import lombok.*;
 
 @Entity
 @Table(name = "permissions")
-@Getter
-@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode
@@ -24,4 +22,28 @@ public class Permission implements Serializable {
     private PermissionType name;
 
     private String description;
+
+    public Long getPermissionId() {
+        return permissionId;
+    }
+
+    public void setPermissionId(Long permissionId) {
+        this.permissionId = permissionId;
+    }
+
+    public PermissionType getName() {
+        return name;
+    }
+
+    public void setName(PermissionType name) {
+        this.name = name;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
 }

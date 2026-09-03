@@ -3,6 +3,7 @@ package com.school.security.mappers;
 import com.school.security.dtos.responses.MessageResponse;
 import com.school.security.entities.Message;
 import com.school.security.entities.User;
+import java.util.List;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -34,7 +35,7 @@ public class MessageMapper {
 
                 message.getCreatedAt(),
 
-                message.getAttachments()
+                (message.getAttachments() == null ? java.util.Collections.<com.school.security.entities.MessageAttachment>emptyList() : message.getAttachments())
                         .stream()
                         .map(
                                 attachmentMapper::toResponse
@@ -46,7 +47,7 @@ public class MessageMapper {
                         .getMessageId()
                         : null,
 
-                message.getReadBy()
+                (message.getReadBy() == null ? java.util.Collections.<User>emptyList() : message.getReadBy())
                         .stream()
                         .map(
                                 User::getUsersId

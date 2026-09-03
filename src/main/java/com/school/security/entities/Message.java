@@ -45,6 +45,7 @@ public class Message implements Serializable {
     @JoinColumn(name = "reply_to_id")
     private Message replyTo;
 
+    @Builder.Default
     @ManyToMany
     @JoinTable(
             name = "message_reads",
@@ -53,9 +54,11 @@ public class Message implements Serializable {
     )
     private List<User> readBy = new ArrayList<>();
 
+    @Builder.Default
     @Column(nullable = false)
     private Boolean deleted = false;
 
+    @Builder.Default
     @OneToMany(
             mappedBy = "message",
             cascade = CascadeType.ALL,

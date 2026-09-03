@@ -9,9 +9,6 @@ import lombok.*;
 
 @Entity
 @Table(name = "roles")
-@ToString
-@Getter
-@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode
@@ -35,4 +32,36 @@ public class Role implements Serializable {
         inverseJoinColumns = @JoinColumn(name = "permission_id")
     )
     private List<Permission> permissions = new ArrayList<>();
+
+    public Long getRolesId() {
+        return rolesId;
+    }
+
+    public void setRolesId(Long rolesId) {
+        this.rolesId = rolesId;
+    }
+
+    public RoleType getName() {
+        return name;
+    }
+
+    public void setName(RoleType name) {
+        this.name = name;
+    }
+
+    public List<User> getUsers() {
+        return users;
+    }
+
+    public void setUsers(List<User> users) {
+        this.users = users;
+    }
+
+    public List<Permission> getPermissions() {
+        return permissions;
+    }
+
+    public void setPermissions(List<Permission> permissions) {
+        this.permissions = permissions;
+    }
 }

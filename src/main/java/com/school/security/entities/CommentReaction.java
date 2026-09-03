@@ -7,8 +7,6 @@ import lombok.*;
 @Entity
 @Table(name = "comment_reactions",
     uniqueConstraints = @UniqueConstraint(columnNames = {"comment_id", "emoji", "user_id"}))
-@Getter
-@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode
@@ -29,4 +27,36 @@ public class CommentReaction implements Serializable {
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    public Long getReactionId() {
+        return reactionId;
+    }
+
+    public void setReactionId(Long reactionId) {
+        this.reactionId = reactionId;
+    }
+
+    public String getEmoji() {
+        return emoji;
+    }
+
+    public void setEmoji(String emoji) {
+        this.emoji = emoji;
+    }
+
+    public TaskComment getComment() {
+        return comment;
+    }
+
+    public void setComment(TaskComment comment) {
+        this.comment = comment;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
 }

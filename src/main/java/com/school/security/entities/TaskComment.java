@@ -9,8 +9,6 @@ import lombok.*;
 
 @Entity
 @Table(name = "task_comments")
-@Getter
-@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode
@@ -53,5 +51,77 @@ public class TaskComment implements Serializable {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    public Long getCommentId() {
+        return commentId;
+    }
+
+    public void setCommentId(Long commentId) {
+        this.commentId = commentId;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public void setContent(String content) {
+        this.content = content;
+    }
+
+    public Task getTask() {
+        return task;
+    }
+
+    public void setTask(Task task) {
+        this.task = task;
+    }
+
+    public User getAuthor() {
+        return author;
+    }
+
+    public void setAuthor(User author) {
+        this.author = author;
+    }
+
+    public TaskComment getParentComment() {
+        return parentComment;
+    }
+
+    public void setParentComment(TaskComment parentComment) {
+        this.parentComment = parentComment;
+    }
+
+    public List<TaskComment> getReplies() {
+        return replies;
+    }
+
+    public void setReplies(List<TaskComment> replies) {
+        this.replies = replies;
+    }
+
+    public List<CommentReaction> getReactions() {
+        return reactions;
+    }
+
+    public void setReactions(List<CommentReaction> reactions) {
+        this.reactions = reactions;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
     }
 }

@@ -6,9 +6,6 @@ import lombok.*;
 
 @Entity
 @Table(name = "priorities")
-@ToString
-@Getter
-@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode
@@ -21,4 +18,20 @@ public class Priority implements Serializable {
 
     @Column(nullable = false)
     private String name;
+
+    public Long getPriorityId() {
+        return priorityId;
+    }
+
+    public void setPriorityId(Long priorityId) {
+        this.priorityId = priorityId;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
 }

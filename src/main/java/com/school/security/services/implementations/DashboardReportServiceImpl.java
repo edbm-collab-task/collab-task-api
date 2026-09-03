@@ -86,9 +86,9 @@ public class DashboardReportServiceImpl implements DashboardReportService {
     // ─── Public entry ───────────────────────────────────────────
 
     @Override
-    public byte[] generateReport(Long userId, RoleType role, String period, String startDate, String endDate) {
+    public byte[] generateReport(Long userId, RoleType role, String period, String startDate, String endDate, Long projectId) {
         DashboardDataResDto data =
-                dashboardService.getDashboardStats(userId, period, startDate, endDate);
+                dashboardService.getDashboardStats(userId, period, startDate, endDate, projectId);
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         Document document = new Document(PageSize.A4, 45, 45, 40, 45);

@@ -90,7 +90,7 @@ class DashboardServiceImplTest {
                 new Object[]{2L, 2L}));
         when(userRepository.count()).thenReturn(42L);
 
-        DashboardDataResDto result = dashboardService.getDashboardStats(1L, "LAST_30_DAYS", null, null);
+        DashboardDataResDto result = dashboardService.getDashboardStats(1L, "LAST_30_DAYS", null, null, null);
 
         assertNotNull(result);
         assertEquals("LAST_30_DAYS", result.period());
@@ -129,7 +129,7 @@ class DashboardServiceImplTest {
                 new Object[]{1L, 3L}));
         when(userRepository.count()).thenReturn(15L);
 
-        DashboardDataResDto result = dashboardService.getDashboardStats(2L, "LAST_7_DAYS", null, null);
+        DashboardDataResDto result = dashboardService.getDashboardStats(2L, "LAST_7_DAYS", null, null, null);
 
         assertNotNull(result);
         assertEquals("LAST_7_DAYS", result.period());
@@ -145,7 +145,7 @@ class DashboardServiceImplTest {
         when(userRepository.findById(2L)).thenReturn(Optional.of(regularUser));
         when(projectRepository.findAccessibleProjectsByUserId(2L)).thenReturn(List.of());
 
-        DashboardDataResDto result = dashboardService.getDashboardStats(2L, "LAST_30_DAYS", null, null);
+        DashboardDataResDto result = dashboardService.getDashboardStats(2L, "LAST_30_DAYS", null, null, null);
 
         assertNotNull(result);
         assertEquals(0, result.stats().projects());
@@ -179,7 +179,7 @@ class DashboardServiceImplTest {
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
         when(userRepository.count()).thenReturn(42L);
 
-        DashboardDataResDto result = dashboardService.getDashboardStats(1L, "TODAY", null, null);
+        DashboardDataResDto result = dashboardService.getDashboardStats(1L, "TODAY", null, null, null);
 
         assertNotNull(result);
         assertEquals("TODAY", result.period());
@@ -206,7 +206,7 @@ class DashboardServiceImplTest {
         when(userRepository.count()).thenReturn(10L);
 
         DashboardDataResDto result = dashboardService.getDashboardStats(
-                1L, "CUSTOM", "2026-08-01", "2026-08-25");
+                1L, "CUSTOM", "2026-08-01", "2026-08-25", null);
 
         assertNotNull(result);
         assertEquals("CUSTOM", result.period());
@@ -218,7 +218,7 @@ class DashboardServiceImplTest {
     void getDashboardStatsShouldReturnEmptyWhenUserNotFound() {
         when(userRepository.findById(99L)).thenReturn(Optional.empty());
 
-        DashboardDataResDto result = dashboardService.getDashboardStats(99L, "LAST_30_DAYS", null, null);
+        DashboardDataResDto result = dashboardService.getDashboardStats(99L, "LAST_30_DAYS", null, null, null);
 
         assertNotNull(result);
         assertEquals(0, result.stats().projects());
@@ -252,7 +252,7 @@ class DashboardServiceImplTest {
         when(activityRepository.findRecentByProjectIdsAndPeriod(anyList(), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(activities);
 
-        DashboardDataResDto result = dashboardService.getDashboardStats(1L, "LAST_30_DAYS", null, null);
+        DashboardDataResDto result = dashboardService.getDashboardStats(1L, "LAST_30_DAYS", null, null, null);
 
         assertNotNull(result);
         assertEquals(10, result.recentActivity().size());
@@ -280,7 +280,7 @@ class DashboardServiceImplTest {
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
         when(userRepository.count()).thenReturn(20L);
 
-        DashboardDataResDto result = dashboardService.getDashboardStats(1L, "LAST_30_DAYS", null, null);
+        DashboardDataResDto result = dashboardService.getDashboardStats(1L, "LAST_30_DAYS", null, null, null);
 
         assertNotNull(result);
         assertEquals(5, result.recentProjects().size());
@@ -307,7 +307,7 @@ class DashboardServiceImplTest {
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
         when(userRepository.count()).thenReturn(100L);
 
-        DashboardDataResDto result = dashboardService.getDashboardStats(3L, "LAST_30_DAYS", null, null);
+        DashboardDataResDto result = dashboardService.getDashboardStats(3L, "LAST_30_DAYS", null, null, null);
 
         assertNotNull(result);
         assertEquals("LAST_30_DAYS", result.period());
@@ -338,7 +338,7 @@ class DashboardServiceImplTest {
         when(taskRepository.countCompletedBetween(anyList(), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(3L);
         when(userRepository.count()).thenReturn(30L);
 
-        DashboardDataResDto result = dashboardService.getDashboardStats(1L, "TODAY", null, null);
+        DashboardDataResDto result = dashboardService.getDashboardStats(1L, "TODAY", null, null, null);
 
         assertNotNull(result);
         assertEquals(3, result.stats().completedTasks());
@@ -364,7 +364,7 @@ class DashboardServiceImplTest {
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
         when(userRepository.count()).thenReturn(8L);
 
-        DashboardDataResDto result = dashboardService.getDashboardStats(1L, "LAST_7_DAYS", null, null);
+        DashboardDataResDto result = dashboardService.getDashboardStats(1L, "LAST_7_DAYS", null, null, null);
 
         assertNotNull(result);
         assertEquals(0, result.evolution().points().size());
@@ -393,7 +393,7 @@ class DashboardServiceImplTest {
                 new Object[]{1L, 6L}));
         when(userRepository.count()).thenReturn(25L);
 
-        DashboardDataResDto result = dashboardService.getDashboardStats(1L, "LAST_30_DAYS", null, null);
+        DashboardDataResDto result = dashboardService.getDashboardStats(1L, "LAST_30_DAYS", null, null, null);
 
         assertNotNull(result);
         assertEquals(1, result.recentProjects().size());
@@ -418,7 +418,7 @@ class DashboardServiceImplTest {
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
         when(userRepository.count()).thenReturn(100L);
 
-        dashboardService.getDashboardStats(3L, "LAST_30_DAYS", null, null);
+        dashboardService.getDashboardStats(3L, "LAST_30_DAYS", null, null, null);
 
         verify(projectRepository).findByIsActiveTrue();
         verify(projectRepository, never()).findAccessibleProjectsByUserId(any());
@@ -440,7 +440,7 @@ class DashboardServiceImplTest {
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
         when(userRepository.count()).thenReturn(50L);
 
-        dashboardService.getDashboardStats(1L, "LAST_30_DAYS", null, null);
+        dashboardService.getDashboardStats(1L, "LAST_30_DAYS", null, null, null);
 
         verify(projectRepository).findAccessibleProjectsByUserId(1L);
         verify(projectRepository, never()).findByIsActiveTrue();
@@ -467,7 +467,7 @@ class DashboardServiceImplTest {
                 new Object[]{1L, 3L}));
         when(userRepository.count()).thenReturn(30L);
 
-        DashboardDataResDto result = dashboardService.getDashboardStats(2L, "LAST_30_DAYS", null, null);
+        DashboardDataResDto result = dashboardService.getDashboardStats(2L, "LAST_30_DAYS", null, null, null);
 
         assertNotNull(result);
         assertEquals(8, result.stats().tasks());
@@ -506,7 +506,7 @@ class DashboardServiceImplTest {
         when(activityRepository.findRecentByProjectIdsAndPeriod(anyList(), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(activities);
 
-        DashboardDataResDto result = dashboardService.getDashboardStats(2L, "LAST_30_DAYS", null, null);
+        DashboardDataResDto result = dashboardService.getDashboardStats(2L, "LAST_30_DAYS", null, null, null);
 
         assertNotNull(result);
         assertEquals(5, result.recentActivity().size());
@@ -531,7 +531,7 @@ class DashboardServiceImplTest {
                 new Object[]{1L, 6L}));
         when(userRepository.count()).thenReturn(15L);
 
-        DashboardDataResDto result = dashboardService.getDashboardStats(2L, "LAST_30_DAYS", null, null);
+        DashboardDataResDto result = dashboardService.getDashboardStats(2L, "LAST_30_DAYS", null, null, null);
 
         assertNotNull(result);
         assertEquals(1, result.recentProjects().size());
@@ -557,7 +557,7 @@ class DashboardServiceImplTest {
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
         when(userRepository.count()).thenReturn(40L);
 
-        DashboardDataResDto result = dashboardService.getDashboardStats(1L, "LAST_30_DAYS", null, null);
+        DashboardDataResDto result = dashboardService.getDashboardStats(1L, "LAST_30_DAYS", null, null, null);
 
         assertNotNull(result);
         assertEquals(25, result.stats().tasks());
@@ -584,7 +584,7 @@ class DashboardServiceImplTest {
                 new Object[]{1L, 3L}));
         when(userRepository.count()).thenReturn(5L);
 
-        DashboardDataResDto result = dashboardService.getDashboardStats(2L, "LAST_30_DAYS", null, null);
+        DashboardDataResDto result = dashboardService.getDashboardStats(2L, "LAST_30_DAYS", null, null, null);
 
         assertNotNull(result);
         assertEquals(0, result.stats().tasks());

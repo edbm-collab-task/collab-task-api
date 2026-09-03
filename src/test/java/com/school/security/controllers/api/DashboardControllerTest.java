@@ -174,7 +174,7 @@ class DashboardControllerTest {
         mockUserRepository("test@test.com", RoleType.ADMIN);
         byte[] fakePdf = "%PDF-1.4 admin content".getBytes();
         when(dashboardReportService.generateReport(
-                        eq(1L), eq(RoleType.ADMIN), eq("TODAY"), isNull(), isNull()))
+                        eq(1L), eq(RoleType.ADMIN), eq("TODAY"), isNull(), isNull(), null))
                 .thenReturn(fakePdf);
 
         mockMvc.perform(get("/dashboard/reports/pdf")
@@ -192,7 +192,7 @@ class DashboardControllerTest {
         mockUserRepository("test@test.com", RoleType.ADMIN);
         byte[] fakePdf = "%PDF-1.4 admin custom".getBytes();
         when(dashboardReportService.generateReport(
-                        eq(1L), eq(RoleType.ADMIN), eq("CUSTOM"), eq("2026-08-01"), eq("2026-08-25")))
+                        eq(1L), eq(RoleType.ADMIN), eq("CUSTOM"), eq("2026-08-01"), eq("2026-08-25"), null))
                 .thenReturn(fakePdf);
 
         mockMvc.perform(get("/dashboard/reports/pdf")
@@ -212,7 +212,7 @@ class DashboardControllerTest {
         mockUserRepository("test@test.com", RoleType.SUPER_ADMIN);
         byte[] fakePdf = "%PDF-1.4 super admin content".getBytes();
         when(dashboardReportService.generateReport(
-                        eq(2L), eq(RoleType.SUPER_ADMIN), eq("TODAY"), isNull(), isNull()))
+                        eq(2L), eq(RoleType.SUPER_ADMIN), eq("TODAY"), isNull(), isNull(), null))
                 .thenReturn(fakePdf);
 
         mockMvc.perform(get("/dashboard/reports/pdf")
@@ -232,7 +232,7 @@ class DashboardControllerTest {
         mockUserRepository("test@test.com", RoleType.USER);
         byte[] fakePdf = "%PDF-1.4 user content".getBytes();
         when(dashboardReportService.generateReport(
-                        eq(3L), eq(RoleType.USER), eq("TODAY"), isNull(), isNull()))
+                        eq(3L), eq(RoleType.USER), eq("TODAY"), isNull(), isNull(), null))
                 .thenReturn(fakePdf);
 
         mockMvc.perform(get("/dashboard/reports/pdf")
@@ -250,7 +250,7 @@ class DashboardControllerTest {
         mockUserRepository("test@test.com", RoleType.USER);
         byte[] fakePdf = "%PDF-1.4 user custom".getBytes();
         when(dashboardReportService.generateReport(
-                        eq(3L), eq(RoleType.USER), eq("CUSTOM"), eq("2026-08-01"), eq("2026-08-15")))
+                        eq(3L), eq(RoleType.USER), eq("CUSTOM"), eq("2026-08-01"), eq("2026-08-15"), null))
                 .thenReturn(fakePdf);
 
         mockMvc.perform(get("/dashboard/reports/pdf")
@@ -298,7 +298,7 @@ class DashboardControllerTest {
         mockUserRepository("test@test.com", RoleType.USER);
         byte[] fakePdf = "%PDF-1.4".getBytes();
         when(dashboardReportService.generateReport(
-                        eq(3L), eq(RoleType.USER), eq("TODAY"), isNull(), isNull()))
+                        eq(3L), eq(RoleType.USER), eq("TODAY"), isNull(), isNull(), null))
                 .thenReturn(fakePdf);
 
         mockMvc.perform(get("/dashboard/reports/pdf")
@@ -306,7 +306,7 @@ class DashboardControllerTest {
                         .accept(MediaType.APPLICATION_PDF))
                 .andExpect(status().isOk());
 
-        verify(dashboardReportService).generateReport(eq(3L), eq(RoleType.USER), anyString(), isNull(), isNull());
+        verify(dashboardReportService).generateReport(eq(3L), eq(RoleType.USER), anyString(), isNull(), isNull(), null);
     }
 
     // ─── Helpers ──────────────────────────────────────────────────
@@ -355,14 +355,14 @@ class DashboardControllerTest {
         user.setRoles(List.of(role));
 
         when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
-        when(dashboardService.getDashboardStats(eq(1L), eq(period), eq(startDate), eq(endDate)))
+        when(dashboardService.getDashboardStats(eq(1L), eq(period), eq(startDate), eq(endDate), null))
                 .thenReturn(sampleResponse);
     }
 
     private DashboardDataResDto buildSampleResponse() {
         return new DashboardDataResDto(
                 "TODAY",
-                new DashboardStatsResDto(2, 15, 8, 3, 42),
+                new DashboardStatsResDto(2, 15, 8, 3, 42, 0),
                 new DashboardEvolutionResDto(List.of(
                         new DashboardEvolutionPointResDto("25 ao\u00fbt", 3, 2),
                         new DashboardEvolutionPointResDto("24 ao\u00fbt", 5, 3))),

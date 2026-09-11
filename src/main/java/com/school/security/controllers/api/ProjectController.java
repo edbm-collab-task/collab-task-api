@@ -9,6 +9,7 @@ import com.school.security.securities.utils.SecurityUtils;
 import com.school.security.services.contracts.ProjectService;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -77,6 +78,20 @@ public class ProjectController {
     @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_PROJECTS')")
     public ProjectResDto unarchiveProject(@PathVariable Long id) {
         return this.projectService.unarchiver(id);
+    }
+
+    @PostMapping("/{id}/transfer-ownership")
+    @PreAuthorize("@permissionEvaluator.hasProjectPermission(#id, 'MANAGE_PROJECT_CONTRIBUTORS')")
+    public ResponseEntity<?> transferOwnership(
+            @PathVariable Long id,
+            @RequestBody java.util.Map<String, Long> body) {
+        Long currentUserId = getCurrentUserId();
+        Long newOwnerId = body.get("newOwnerId");
+        if (newOwnerId == null) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("error", "newOwnerId is required"));
+        }
+        this.projectService.transferOwnership(id, currentUserId, newOwnerId);
+        return ResponseEntity.ok(java.util.Map.of("message", "Ownership transferred successfully"));
     }
 
     @GetMapping("/archived")

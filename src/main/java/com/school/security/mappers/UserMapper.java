@@ -26,7 +26,7 @@ public class UserMapper implements Mapper<UserReqDto, User, UserResDto> {
     @Override
     public User fromDto(UserReqDto d) {
         User user = new User();
-        user.setEmail(d.email());
+        user.setEmail(d.email() != null ? d.email().trim().toLowerCase() : null);
         user.setNumber(d.number());
         user.setFirstname(d.firstname());
         user.setGender(d.gender());

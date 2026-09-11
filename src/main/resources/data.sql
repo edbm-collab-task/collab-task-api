@@ -37,6 +37,9 @@ WHERE NOT EXISTS (
 -- 3. Créer les permissions si elles n'existent pas
 -- =========================================================
 
+ALTER TABLE permissions DROP CONSTRAINT IF EXISTS permissions_name_check;
+ALTER TABLE permissions ADD CONSTRAINT permissions_name_check CHECK (name IN ('VIEW_USERS','MANAGE_USERS','MANAGE_ADMINS','MANAGE_ROLES','MANAGE_PROJECTS','MANAGE_PROJECT_CONTRIBUTORS','MANAGE_DIRECTIONS','MANAGE_STATUSES','VIEW_REPORTS'));
+
 INSERT INTO permissions (name, description)
 SELECT perm_name, perm_desc
 FROM (
@@ -46,6 +49,7 @@ FROM (
         ('MANAGE_ADMINS', 'Gérer les comptes administrateurs'),
         ('MANAGE_ROLES', 'Gérer les rôles et permissions'),
         ('MANAGE_PROJECTS', 'Créer et gérer les projets'),
+        ('MANAGE_PROJECT_CONTRIBUTORS', 'Gérer les contributeurs d''un projet'),
         ('MANAGE_DIRECTIONS', 'Gérer les directions'),
         ('MANAGE_STATUSES', 'Gérer les statuts'),
         ('VIEW_REPORTS', 'Voir les rapports et statistiques')

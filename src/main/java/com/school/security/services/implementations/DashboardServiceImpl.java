@@ -15,9 +15,9 @@ import com.school.security.repositories.ProjectRepository;
 import com.school.security.repositories.TaskRepository;
 import com.school.security.repositories.UserRepository;
 import com.school.security.services.contracts.DashboardService;
+import com.school.security.common.PeriodUtils;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -27,6 +27,12 @@ import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Service du tableau de bord utilisateur et administrateur.
+ * Fournit les statistiques, l'évolution, la distribution et l'activité récente
+ * en fonction de la période et du projet sélectionné.
+ * Utilise PeriodUtils pour éviter la duplication de la résolution des périodes.
+ */
 @Service
 @Transactional(readOnly = true)
 @AllArgsConstructor
@@ -85,7 +91,7 @@ public class DashboardServiceImpl implements DashboardService {
         DashboardEvolutionResDto evolution = computeEvolution(projectIds, personalUserId, dates[0], dates[1]);
         DashboardDistributionResDto distribution = computeDistribution(projectIds, personalUserId);
         List<DashboardActivityItemResDto> recentActivity = computeRecentActivity(projectIds, dates[0], dates[1]);
-        List<DashboardRecentProjectResDto> recentProjects = computeRecentProjects(accessibleProjects);
+        List<DashboardRecentProjectResDto> recentProjects = computeRecentProjects(accessibleProjects, personalUserId);
 
         return new DashboardDataResDto(
                 period,
@@ -96,40 +102,11 @@ public class DashboardServiceImpl implements DashboardService {
                 recentProjects);
     }
 
+    /**
+     * Délègue à PeriodUtils pour éviter la duplication avec AdminDashboardServiceImpl et ProjectReportServiceImpl.
+     */
     private LocalDateTime[] resolvePeriodDates(String period, String startDate, String endDate, LocalDate today) {
-        LocalDateTime start;
-        LocalDateTime end = today.atTime(LocalTime.MAX);
-
-        switch (period) {
-            case "TODAY":
-                start = today.atStartOfDay();
-                break;
-            case "LAST_7_DAYS":
-                start = today.minusDays(6).atStartOfDay();
-                break;
-            case "LAST_30_DAYS":
-                start = today.minusDays(29).atStartOfDay();
-                break;
-            case "LAST_3_MONTHS":
-                start = today.minusMonths(3).atStartOfDay();
-                break;
-            case "THIS_YEAR":
-                start = today.withDayOfYear(1).atStartOfDay();
-                break;
-            case "CUSTOM":
-                start = (startDate != null && !startDate.isEmpty())
-                        ? LocalDate.parse(startDate).atStartOfDay()
-                        : today.minusDays(29).atStartOfDay();
-                end = (endDate != null && !endDate.isEmpty())
-                        ? LocalDate.parse(endDate).atTime(LocalTime.MAX)
-                        : today.atTime(LocalTime.MAX);
-                break;
-            default:
-                start = today.minusDays(29).atStartOfDay();
-                break;
-        }
-
-        return new LocalDateTime[]{start, end};
+        return PeriodUtils.resolvePeriodDates(period, startDate, endDate, today);
     }
 
     private DashboardStatsResDto computeStats(
@@ -248,23 +225,30 @@ public class DashboardServiceImpl implements DashboardService {
                 .collect(Collectors.toList());
     }
 
-    private List<DashboardRecentProjectResDto> computeRecentProjects(List<Project> projects) {
-        List<Long> projectIds = projects.stream()
+    private List<DashboardRecentProjectResDto> computeRecentProjects(List<Project> projects, Long personalUserId) {
+        // Pour USER : ne garder que les projets où il a au moins une tâche assignée (cohérent avec stats personnelles)
+        List<Project> filtered = projects;
+        if (personalUserId != null) {
+            filtered = projects.stream()
+                    .filter(p -> taskRepository.countActiveByUserAndProjects(List.of(p.getProjectId()), personalUserId) > 0)
+                    .toList();
+        }
+        List<Long> projectIds = filtered.stream()
                 .map(Project::getProjectId)
                 .collect(Collectors.toList());
 
-        Map<Long, Long> totalByProject = taskRepository.countActiveByProjectGrouped(projectIds).stream()
+        Map<Long, Long> totalByProject = projectIds.isEmpty() ? Map.of() : taskRepository.countActiveByProjectGrouped(projectIds).stream()
                 .collect(Collectors.toMap(
                         row -> (Long) row[0],
                         row -> (Long) row[1]));
 
-        Map<Long, Long> completedByProject = taskRepository
+        Map<Long, Long> completedByProject = projectIds.isEmpty() ? Map.of() : taskRepository
                 .countByStatusAndProjectGrouped(projectIds, COMPLETED_STATUS_NAME).stream()
                 .collect(Collectors.toMap(
                         row -> (Long) row[0],
                         row -> (Long) row[1]));
 
-        return projects.stream()
+        return filtered.stream()
                 .limit(RECENT_PROJECTS_LIMIT)
                 .map(project -> {
                     long total = totalByProject.getOrDefault(project.getProjectId(), 0L);

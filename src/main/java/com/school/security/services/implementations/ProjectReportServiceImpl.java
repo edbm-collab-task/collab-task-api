@@ -1,5 +1,6 @@
 package com.school.security.services.implementations;
 
+import com.school.security.common.PeriodUtils;
 import com.school.security.dtos.responses.*;
 import com.school.security.entities.*;
 import com.school.security.enums.RoleType;
@@ -32,10 +33,6 @@ public class ProjectReportServiceImpl implements ProjectReportService {
     private UserRepository userRepository;
     private ActivityRepository activityRepository;
     private DirectionRepository directionRepository;
-    private MilestoneRepository milestoneRepository;
-    private RiskRepository riskRepository;
-    private ActionItemRepository actionItemRepository;
-    private BudgetItemRepository budgetItemRepository;
 
     private static final String COMPLETED_STATUS = "Termine";
     private static final String IN_PROGRESS_STATUS = "En cours";
@@ -132,10 +129,6 @@ public class ProjectReportServiceImpl implements ProjectReportService {
                 "ON_TRACK",
                 "Sur la bonne voie",
                 tasks,
-                getMilestones(projectId),
-                getBudgetItems(project.getProjectId()),
-                getRisks(projectId),
-                getActionItems(projectId),
                 project.getOwner().getFirstname() + " " + project.getOwner().getLastname(),
                 project.getOwner().getEmail(),
                 LocalDateTime.now()
@@ -165,56 +158,6 @@ public class ProjectReportServiceImpl implements ProjectReportService {
             case "A faire" -> "□ À faire";
             default -> status;
         };
-    }
-
-    private List<MilestoneResDto> getMilestones(Long projectId) {
-        return milestoneRepository.findByProjectProjectId(projectId).stream()
-                .map(m -> new MilestoneResDto(
-                        m.getMilestoneId(),
-                        m.getTitle(),
-                        m.getPlannedDate(),
-                        m.getActualDate(),
-                        m.getStatus().name(),
-                        getMilestoneStatusLabel(m.getStatus().name())
-                ))
-                .collect(Collectors.toList());
-    }
-
-    private String getMilestoneStatusLabel(String status) {
-        return switch (status) {
-            case "DONE" -> "✅ Fait";
-            case "IN_PROGRESS" -> "🔄 En cours";
-            case "OVERDUE" -> "⚠️ Retard";
-            case "PLANNED" -> "🎯 Prochaine étape";
-            default -> status;
-        };
-    }
-
-    private List<BudgetItemResDto> getBudgetItems(Long projectId) {
-        // Simplified - would come from BudgetItemRepository
-        return List.of(
-                new BudgetItemResDto("Design", 5000, 5500, 10.0),
-                new BudgetItemResDto("Développement", 15000, 14000, -6.0),
-                new BudgetItemResDto("Tests", 5000, 4500, -10.0),
-                new BudgetItemResDto("Déploiement", 5000, 5000, 0.0)
-        );
-    }
-
-    private List<RiskResDto> getRisks(Long projectId) {
-        // Simplified - would come from RiskRepository
-        return List.of(
-                new RiskResDto(1L, "Départ d'un développeur", "Élevé", "Recrutement urgent", "Sponsor"),
-                new RiskResDto(2L, "Panne serveur", "Moyen", "Backup externe", "DevOps"),
-                new RiskResDto(3L, "Retard client", "Faible", "Relance hebdomadaire", "Chef de projet")
-        );
-    }
-
-    private List<ActionItemResDto> getActionItems(Long projectId) {
-        // Simplified - would come from ActionItemRepository
-        return List.of(
-                new ActionItemResDto(1L, "Valider le budget supplémentaire", "Sponsors", java.time.LocalDate.now().plusDays(3), "PENDING"),
-                new ActionItemResDto(2L, "Recruter un testeur", "RH", java.time.LocalDate.now().plusDays(5), "PENDING")
-        );
     }
 
     private List<RecentActivityResDto> getRecentActivity(List<Long> projectIds, LocalDateTime start, LocalDateTime end) {
@@ -290,36 +233,7 @@ public class ProjectReportServiceImpl implements ProjectReportService {
     }
 
     private LocalDateTime[] resolvePeriodDates(String period, String startDate, String endDate, LocalDate today) {
-        LocalDateTime start;
-        LocalDateTime end = today.atTime(LocalTime.MAX);
-
-        switch (period != null ? period : "LAST_30_DAYS") {
-            case "TODAY":
-                start = today.atStartOfDay();
-                break;
-            case "LAST_7_DAYS":
-                start = today.minusDays(7).atStartOfDay();
-                break;
-            case "LAST_30_DAYS":
-                start = today.minusDays(30).atStartOfDay();
-                break;
-            case "LAST_3_MONTHS":
-                start = today.minusMonths(3).atStartOfDay();
-                break;
-            case "THIS_YEAR":
-                start = today.withDayOfYear(1).atStartOfDay();
-                break;
-            case "CUSTOM":
-                try {
-                    start = LocalDate.parse(startDate).atStartOfDay();
-                } catch (Exception e) {
-                    start = today.minusDays(30).atStartOfDay();
-                }
-                break;
-            default:
-                start = today.minusDays(30).atStartOfDay();
-        }
-        return new LocalDateTime[]{start, end};
+        return PeriodUtils.resolvePeriodDates(period, startDate, endDate, today);
     }
 
     private AdminDashboardStatsResDto emptyStats() {

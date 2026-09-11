@@ -43,6 +43,7 @@ public class Conversation implements Serializable {
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
+    @Builder.Default
     private List<ConversationMember> members = new ArrayList<>();
 
     @OneToMany(
@@ -50,6 +51,7 @@ public class Conversation implements Serializable {
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
+    @Builder.Default
     private List<Message> messages = new ArrayList<>();
 
     public Long getConversationId() {

@@ -207,4 +207,10 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
             "WHERE t.isActive = true " +
             "AND t.project.projectId IN :projectIds")
     long countDistinctContributors(@Param("projectIds") List<Long> projectIds);
+
+    @Query("SELECT a.usersId FROM Task t " +
+            "JOIN t.assignees a " +
+            "WHERE t.isActive = true " +
+            "AND t.project.projectId IN :projectIds")
+    List<Long> findAssigneeIdsByProjectId(@Param("projectIds") List<Long> projectIds);
 }

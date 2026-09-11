@@ -29,6 +29,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(body);
     }
 
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<Map<String, String>> handleBadRequestException(
+            BadRequestException exception) {
+        return ResponseEntity.badRequest()
+                .body(Map.of("message", exception.getMessage()));
+    }
+
     @ExceptionHandler(EntityException.class)
     public ResponseEntity<Map<String, String>> handleEntityException(EntityException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)

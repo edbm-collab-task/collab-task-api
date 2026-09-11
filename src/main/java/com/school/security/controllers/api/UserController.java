@@ -101,6 +101,12 @@ public class UserController {
         return ResponseEntity.ok(userService.findAllByRole(com.school.security.enums.RoleType.ADMIN));
     }
 
+    @GetMapping("/project/{projectId}/contributors")
+    @PreAuthorize("@permissionEvaluator.hasProjectPermission(#projectId, 'MANAGE_PROJECT_CONTRIBUTORS')")
+    public List<UserResDto> getPotentialContributors(@PathVariable Long projectId) {
+        return userService.findPotentialContributors(projectId);
+    }
+
     @PostMapping(value = "/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<UserResDto> addImageToUser(
             @PathVariable Long id,

@@ -46,6 +46,7 @@ public class AuthController {
     private final JwtService jwtService;
     private final EmailService emailService;
     private static final String LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    private static final String DIGITS = "0123456789";
     private static final SecureRandom RANDOM = new SecureRandom();
     private final UserMapper userMapper;
     private final DirectionRepository directionRepository;
@@ -76,14 +77,18 @@ public class AuthController {
             HttpServletResponse response
     ) {
 
+        String email = credential.email() != null
+                ? credential.email().trim().toLowerCase()
+                : null;
+
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
-                        credential.email(),
+                        email,
                         credential.password()
                 )
         );
 
-        var user = userService.findByEmail(credential.email());
+        var user = userService.findByEmail(email);
         updateStatus(user.getEmail(),true);
 
         String accessToken = jwtService.generateToken(user);
@@ -98,7 +103,7 @@ public class AuthController {
         );
 
         response.addCookie(
-                CookieUtils.createEmail(credential.email())
+                CookieUtils.createEmail(email)
         );
 
 
@@ -137,6 +142,17 @@ public class AuthController {
 
         for (int i = 0; i < length; i++) {
             sb.append(LETTERS.charAt(RANDOM.nextInt(LETTERS.length())));
+        }
+
+        return sb.toString();
+    }
+
+    public static String generateRandomNumericString(int length) {
+
+        StringBuilder sb = new StringBuilder(length);
+
+        for (int i = 0; i < length; i++) {
+            sb.append(DIGITS.charAt(RANDOM.nextInt(DIGITS.length())));
         }
 
         return sb.toString();
@@ -244,6 +260,14 @@ public class AuthController {
     ) {
 
         var user = userService.findByEmail(emailReq.email());
+
+        if (Boolean.FALSE.equals(user.getIsActive())) {
+            return ResponseEntity.status(403)
+                    .body(Map.of(
+                            "message",
+                            "Ce compte est désactivé, la récupération du mot de passe n'est pas possible."
+                    ));
+        }
 
         int code = (int) (Math.random() * 900000) + 100000;
 

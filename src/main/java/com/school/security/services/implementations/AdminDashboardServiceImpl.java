@@ -1,5 +1,6 @@
 package com.school.security.services.implementations;
 
+import com.school.security.common.PeriodUtils;
 import com.school.security.dtos.responses.*;
 import com.school.security.entities.*;
 import com.school.security.enums.RoleType;
@@ -243,36 +244,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     }
 
     private LocalDateTime[] resolvePeriodDates(String period, String startDate, String endDate, LocalDate today) {
-        LocalDateTime start;
-        LocalDateTime end = today.atTime(LocalTime.MAX);
-
-        switch (period != null ? period : "LAST_30_DAYS") {
-            case "TODAY":
-                start = today.atStartOfDay();
-                break;
-            case "LAST_7_DAYS":
-                start = today.minusDays(7).atStartOfDay();
-                break;
-            case "LAST_30_DAYS":
-                start = today.minusDays(30).atStartOfDay();
-                break;
-            case "LAST_3_MONTHS":
-                start = today.minusMonths(3).atStartOfDay();
-                break;
-            case "THIS_YEAR":
-                start = today.withDayOfYear(1).atStartOfDay();
-                break;
-            case "CUSTOM":
-                try {
-                    start = LocalDate.parse(startDate).atStartOfDay();
-                } catch (Exception e) {
-                    start = today.minusDays(30).atStartOfDay();
-                }
-                break;
-            default:
-                start = today.minusDays(30).atStartOfDay();
-        }
-        return new LocalDateTime[]{start, today.atTime(LocalTime.MAX)};
+        return PeriodUtils.resolvePeriodDates(period, startDate, endDate, today);
     }
 
     private AdminDashboardStatsResDto emptyStats() {

@@ -6,6 +6,7 @@ import com.school.security.dtos.responses.UserResDto;
 import com.school.security.entities.Role;
 import com.school.security.entities.User;
 import com.school.security.enums.RoleType;
+import com.school.security.exceptions.BadRequestException;
 import com.school.security.exceptions.EntityException;
 import com.school.security.mappers.UserMapper;
 import com.school.security.repositories.*;
@@ -24,7 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import static com.school.security.controllers.auth.AuthController.generateRandomString;
+import static com.school.security.controllers.auth.AuthController.generateRandomNumericString;
 
 @Service
 @Transactional
@@ -37,10 +38,16 @@ public class UserServiceImpl implements UserService {
     private DirectionRepository directionRepository;
     private EmailService emailService;
     private final FileStorageService fileStorageService;
+    private final TaskRepository taskRepository;
 
     @Override
     public UserResDto createOrUpdate(UserReqDto toSave) {
-        Optional<User> userOptional = userRepository.findByEmail(toSave.email());
+        validatePasswordLength(toSave.password());
+        validateNameContainsNoDigits(toSave.firstname(), "Le nom");
+        validateNameContainsNoDigits(toSave.lastname(), "Le prénom");
+
+        String email = normalizeEmail(toSave.email());
+        Optional<User> userOptional = userRepository.findByEmail(email);
 
         if (userOptional.isPresent()) {
             User user = userOptional.get();
@@ -57,7 +64,7 @@ public class UserServiceImpl implements UserService {
             user.setStatus(false);
             user.setCreatedAt(LocalDate.now());
             var userToSave = userRepository.save(user);
-            attachRole(toSave.email(),RoleType.USER);
+            attachRole(email,RoleType.USER);
             return userMapper.toDto(userToSave);
         }
     }
@@ -66,15 +73,19 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserResDto create(UserReqDto toSave) {
-        Optional<User> userOptional = userRepository.findByEmail(toSave.email());
+        validateNameContainsNoDigits(toSave.firstname(), "Le nom");
+        validateNameContainsNoDigits(toSave.lastname(), "Le prénom");
+
+        Optional<User> userOptional = userRepository.findByEmail(normalizeEmail(toSave.email()));
 
         if(userOptional.isEmpty()){
 
-            String code = generateRandomString(12);
+            String code = generateRandomNumericString(12);
 
             User user = new User();
-            user.setEmail(toSave.email());
-            user.setPwd(code);
+            user.setEmail(normalizeEmail(toSave.email()));
+            user.setPwd(passwordEncoder.encode(code));
+            user.setCreatedAt(LocalDate.now());
             user.setDirection(directionRepository.getReferenceById(toSave.directionId()));
             user.setFirstname(toSave.firstname());
             user.setLastname(toSave.lastname());
@@ -252,18 +263,41 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserResDto updatePassword(String email, String newPassword) {
+        validatePasswordLength(newPassword);
+
         User user =
                 userRepository
-                        .findByEmail(email)
+                        .findByEmail(normalizeEmail(email))
                         .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (Boolean.FALSE.equals(user.getIsActive())) {
+            throw new BadRequestException("Ce compte est désactivé, la récupération du mot de passe n'est pas possible.");
+        }
+
         user.setPwd(passwordEncoder.encode(newPassword));
         User saved = userRepository.save(user);
         return this.userMapper.toDto(saved);
     }
 
+    private void validatePasswordLength(String password) {
+        if (password != null && !password.isBlank() && password.length() < 8) {
+            throw new BadRequestException("Le mot de passe doit contenir au moins 8 caractères");
+        }
+    }
+
+    private void validateNameContainsNoDigits(String name, String fieldLabel) {
+        if (name != null && !name.isBlank() && name.chars().anyMatch(Character::isDigit)) {
+            throw new BadRequestException(fieldLabel + " ne doit pas contenir de chiffres");
+        }
+    }
+
+    private String normalizeEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase();
+    }
+
     @Override
     public UserResDto getUserRestByEmail(String email) {
-        Optional<User> users = this.userRepository.findByEmail(email);
+        Optional<User> users = this.userRepository.findByEmail(normalizeEmail(email));
         if (users.isPresent()) {
             var user = users.get();
             return this.userMapper.toDto(user);
@@ -305,6 +339,19 @@ public class UserServiceImpl implements UserService {
                 .filter(user -> user.getRoles().stream()
                         .anyMatch(role -> role.getName() == roleType))
                 .map(userMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<UserResDto> findPotentialContributors(Long projectId) {
+        var existingAssigneeIds = taskRepository.findAssigneeIdsByProjectId(List.of(projectId));
+        var allUsers = userRepository.findByIsActiveTrue().stream()
+                .map(userMapper::toDto)
+                .collect(Collectors.toList());
+        
+        return allUsers.stream()
+                .filter(user -> existingAssigneeIds.stream()
+                        .noneMatch(id -> id.equals(user.id())))
                 .collect(Collectors.toList());
     }
 

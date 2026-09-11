@@ -13,6 +13,8 @@ public interface ProjectService extends Service<ProjectReqDto, ProjectResDto, Lo
 
     ProjectResDto createWithOwner(ProjectReqDto toSave, Long ownerId);
 
+    void transferOwnership(Long projectId, Long oldOwnerId, Long newOwnerId);
+
     ProjectResDto findByIdWithUser(Long id, Long currentUserId);
 
     List<ProjectResDto> findAllWithUser(Long currentUserId);

@@ -23,10 +23,6 @@ public record ProjectReportResDto(
         String globalStatus,
         String globalStatusLabel,
         List<TaskReportResDto> tasks,
-        List<MilestoneResDto> milestones,
-        List<BudgetItemResDto> budgetItems,
-        List<RiskResDto> risks,
-        List<ActionItemResDto> actionItems,
         String projectManagerName,
         String projectManagerEmail,
         LocalDateTime generatedAt

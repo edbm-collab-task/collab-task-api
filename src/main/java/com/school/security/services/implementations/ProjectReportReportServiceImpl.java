@@ -9,6 +9,10 @@ import com.school.security.dtos.responses.TaskReportResDto;
 import com.school.security.entities.Role;
 import com.school.security.enums.RoleType;
 import com.school.security.repositories.*;
+import com.school.security.common.ChartRenderer;
+import com.school.security.common.PdfConstants;
+import com.school.security.common.PdfHelper;
+import com.school.security.common.PeriodUtils;
 import com.school.security.dtos.responses.DashboardDataResDto;
 import com.school.security.dtos.responses.DashboardEvolutionPointResDto;
 import com.school.security.services.contracts.DashboardService;
@@ -18,15 +22,9 @@ import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.awt.BasicStroke;
 import java.awt.Color;
-import java.awt.FontMetrics;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import javax.imageio.ImageIO;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -50,30 +48,17 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
     private final UserRepository userRepository;
     private final ProjectRepository projectRepository;
     private final TaskRepository taskRepository;
-    private final MilestoneRepository milestoneRepository;
-    private final RiskRepository riskRepository;
-    private final ActionItemRepository actionItemRepository;
 
-    private static final Color BLACK = Color.BLACK;
-    private static final Color WHITE = Color.WHITE;
-    private static final Color LIGHT_GRAY = new Color(240, 240, 240);
-    private static final Color BORDER_GRAY = new Color(200, 200, 200);
-
-    private static final Font FONT_TITLE       = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 20, Font.BOLD, Color.BLACK);
-    private static final Font FONT_SUBTITLE    = FontFactory.getFont(FontFactory.HELVETICA, 12, Font.NORMAL, Color.BLACK);
-    private static final Font FONT_SECTION     = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 13, Font.BOLD, Color.BLACK);
-    private static final Font FONT_KPI_LABEL   = FontFactory.getFont(FontFactory.HELVETICA, 8, Font.NORMAL, Color.BLACK);
-    private static final Font FONT_KPI_VALUE   = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18, Font.BOLD, Color.BLACK);
-    private static final Font FONT_TH          = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, Font.BOLD, Color.BLACK);
-    private static final Font FONT_TD          = FontFactory.getFont(FontFactory.HELVETICA, 8, Font.NORMAL, Color.BLACK);
-    private static final Font FONT_SMALL       = FontFactory.getFont(FontFactory.HELVETICA, 7, Font.NORMAL, Color.BLACK);
-    private static final Font FONT_FOOTER      = FontFactory.getFont(FontFactory.HELVETICA, 7, Font.ITALIC, Color.BLACK);
-    private static final Font FONT_LEGEND      = FontFactory.getFont(FontFactory.HELVETICA, 7, Font.NORMAL, Color.BLACK);
-
-    private static final DateTimeFormatter PDF_DATE_FORMAT =
-            DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.FRENCH);
-    private static final DateTimeFormatter PDF_GENERATED_FORMAT =
-            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm", Locale.FRENCH);
+    // Constantes centralisées dans PdfConstants (doc FR)
+    private static final Font FONT_TITLE       = PdfConstants.FONT_TITLE;
+    private static final Font FONT_SUBTITLE    = PdfConstants.FONT_SUBTITLE;
+    private static final Font FONT_SECTION     = PdfConstants.FONT_SECTION;
+    private static final Font FONT_TH          = PdfConstants.FONT_TH;
+    private static final Font FONT_TD          = PdfConstants.FONT_TD;
+    private static final Font FONT_SMALL       = PdfConstants.FONT_SMALL;
+    private static final Font FONT_FOOTER      = PdfConstants.FONT_FOOTER;
+    private static final DateTimeFormatter PDF_DATE_FORMAT = PdfConstants.PDF_DATE_FORMAT;
+    private static final DateTimeFormatter PDF_GENERATED_FORMAT = PdfConstants.PDF_GENERATED_FORMAT;
 
     @Override
     public byte[] generateReport(Long userId, String period, String startDate, String endDate) {
@@ -140,33 +125,33 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
         document.add(title);
 
         // Nom du projet
-        Paragraph projectName = new Paragraph(data.projectTitle(), FontFactory.getFont(FontFactory.HELVETICA_BOLD, 14, Font.NORMAL, Color.BLACK));
+        Paragraph projectName = new Paragraph(data.projectTitle(), PdfConstants.FONT_BOLD_14);
         projectName.setAlignment(Element.ALIGN_CENTER);
         projectName.setSpacingAfter(2);
         document.add(projectName);
 
         // Chef de projet
         Paragraph chefProjet = new Paragraph("Chef de projet : " + data.projectManagerName(),
-                FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL, Color.BLACK));
+                PdfConstants.FONT_BODY);
         chefProjet.setAlignment(Element.ALIGN_CENTER);
         chefProjet.setSpacingAfter(2);
         document.add(chefProjet);
 
         // Période + date
         Paragraph periodPara = new Paragraph("Période : " + formatPeriodWithDates(period, startDate, endDate),
-                FontFactory.getFont(FontFactory.HELVETICA, 9, Font.NORMAL, Color.BLACK));
+                PdfConstants.FONT_TD);
         periodPara.setAlignment(Element.ALIGN_CENTER);
         periodPara.setSpacingAfter(2);
         document.add(periodPara);
 
         Paragraph genPara = new Paragraph("Édité le : " + LocalDateTime.now().format(PDF_GENERATED_FORMAT),
-                FontFactory.getFont(FontFactory.HELVETICA, 8, Font.ITALIC, Color.BLACK));
+                PdfConstants.FONT_FOOTER);
         genPara.setAlignment(Element.ALIGN_CENTER);
         genPara.setSpacingAfter(10);
         document.add(genPara);
 
         // Ligne de séparation
-        addHorizontalRule(document, Color.BLACK, 1f);
+        addHorizontalRule(document, PdfConstants.BLACK, 1f);
     }
 
 // ================== TÂCHES EN RETARD ==================
@@ -181,11 +166,11 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
 
         Paragraph overduePara = new Paragraph(
                 "Tâches en retard : " + overdueText,
-                FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL, Color.BLACK));
+                PdfConstants.FONT_BODY);
         overduePara.setSpacingAfter(6);
         document.add(overduePara);
 
-        addHorizontalRule(document, Color.BLACK, 1f);
+        addHorizontalRule(document, PdfConstants.BLACK, 1f);
     }
 
 // ================== INTRODUCTION ==================
@@ -200,7 +185,7 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
                 ? data.projectDescription()
                 : "Ce projet vise à organiser et suivre l'avancement des tâches au sein de l'équipe.";
         Paragraph descPara = new Paragraph("Description : " + description,
-                FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL, Color.BLACK));
+                PdfConstants.FONT_BODY);
         descPara.setSpacingAfter(6);
         document.add(descPara);
 
@@ -223,25 +208,16 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
                 .append(overdue).append(" en retard (").append(pctOverdue).append("%).");
 
         Paragraph introTextPara = new Paragraph(introText.toString(),
-                FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL, Color.BLACK));
+                PdfConstants.FONT_BODY);
         introTextPara.setAlignment(Element.ALIGN_JUSTIFIED);
         introTextPara.setSpacingAfter(12);
         document.add(introTextPara);
 
-        addHorizontalRule(document, Color.BLACK, 1f);
+        addHorizontalRule(document, PdfConstants.BLACK, 1f);
     }
 
     private String formatPeriodWithDates(String period, String startDate, String endDate) {
-        if (period == null) return "";
-        return switch (period) {
-            case "TODAY" -> "Aujourd'hui";
-            case "LAST_7_DAYS" -> "7 derniers jours";
-            case "LAST_30_DAYS" -> "30 derniers jours";
-            case "LAST_3_MONTHS" -> "3 derniers mois";
-            case "THIS_YEAR" -> "Cette année";
-            case "CUSTOM" -> (startDate != null && endDate != null ? startDate + " au " + endDate : "Période personnalisée");
-            default -> period;
-        };
+        return PeriodUtils.formatPeriodWithDates(period, startDate, endDate);
     }
 
     private void addProjectEvolutionChart(Document document, Long userId, Long projectId, String period, String startDate, String endDate) throws DocumentException {
@@ -255,115 +231,18 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
             document.add(sec);
             Image chart = renderVerticalBarChart(points);
             document.add(chart);
-            addHorizontalRule(document, Color.BLACK, 1f);
+            addHorizontalRule(document, PdfConstants.BLACK, 1f);
         } catch (Exception e) {
             // silencieux
         }
     }
 
     private Image renderVerticalBarChart(java.util.List<DashboardEvolutionPointResDto> points) {
-        int scale = 2;
-        int imgW = 1000, imgH = 380;
-        int left = 60, right = imgW - 20, top = 20, bottom = imgH - 60;
-        int plotW = right - left, plotH = bottom - top;
-        BufferedImage bi = new BufferedImage(imgW, imgH, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g = bi.createGraphics();
-        try {
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g.setColor(Color.WHITE);
-            g.fillRect(0,0,imgW,imgH);
-            long maxC = points.stream().mapToLong(DashboardEvolutionPointResDto::created).max().orElse(1);
-            long maxT = points.stream().mapToLong(DashboardEvolutionPointResDto::completed).max().orElse(1);
-            long maxL = Math.max(maxC, maxT);
-            int max = (int)maxL;
-            if (max==0) max=1;
-            int axisMax = max <=5?5: max<=10?10: max<=20?20: max<=50?50: max<=100?100: (int)(Math.ceil(max/50.0)*50);
-            int gridLines=5;
-            java.awt.Font f = new java.awt.Font("Helvetica", java.awt.Font.PLAIN, 15);
-            g.setFont(f);
-            for(int i=0;i<=gridLines;i++){
-                int y = bottom - (int)((float)i/gridLines*plotH);
-                int v = (int)((float)i/gridLines*axisMax);
-                g.setColor(new Color(230,230,230));
-                g.drawLine(left, y, right, y);
-                g.setColor(new Color(120,120,120));
-                String lab = String.valueOf(v);
-                FontMetrics fm=g.getFontMetrics();
-                g.drawString(lab, left - fm.stringWidth(lab)-8, y+5);
-            }
-            g.setColor(new Color(160,160,160));
-            g.setStroke(new BasicStroke(2f));
-            g.drawLine(left, top, left, bottom);
-            g.drawLine(left, bottom, right, bottom);
-            int n=points.size();
-            int groupW = plotW / Math.max(1,n);
-            int barW = Math.max(8, groupW/3);
-            int gap = 6;
-            for(int i=0;i<n;i++){
-                DashboardEvolutionPointResDto p=points.get(i);
-                int x0 = left + i*groupW + (groupW - barW*2 - gap)/2;
-                int hC = (int)((float)p.created()/axisMax*plotH);
-                int hT = (int)((float)p.completed()/axisMax*plotH);
-                int yC = bottom - hC;
-                int yT = bottom - hT;
-                g.setColor(new Color(59,130,246));
-                g.fillRect(x0, yC, barW, hC);
-                g.setColor(new Color(16,185,129));
-                g.fillRect(x0+barW+gap, yT, barW, hT);
-                if(p.created()>0){
-                    g.setColor(new Color(59,130,246).darker());
-                    java.awt.Font sf=new java.awt.Font("Helvetica", java.awt.Font.BOLD, 13);
-                    g.setFont(sf);
-                    String v=String.valueOf(p.created());
-                    FontMetrics fm=g.getFontMetrics();
-                    g.drawString(v, x0+barW/2 - fm.stringWidth(v)/2, yC-6);
-                }
-                if(p.completed()>0){
-                    g.setColor(new Color(16,185,129).darker());
-                    java.awt.Font sf=new java.awt.Font("Helvetica", java.awt.Font.BOLD, 13);
-                    g.setFont(sf);
-                    String v=String.valueOf(p.completed());
-                    FontMetrics fm=g.getFontMetrics();
-                    g.drawString(v, x0+barW+gap+barW/2 - fm.stringWidth(v)/2, yT-6);
-                }
-                // abscisses : éviter superposition – police plus petite + affichage 1/n si beaucoup de points
-                g.setFont(new java.awt.Font("Helvetica", java.awt.Font.PLAIN, 11));
-                g.setColor(new Color(70,70,70));
-                int stepLabel = n > 20 ? 3 : n > 12 ? 2 : 1;
-                if (i % stepLabel == 0 || i == n-1) {
-                    String lab=p.label();
-                    if(lab.length()>10) lab=lab.substring(0,10);
-                    FontMetrics fm=g.getFontMetrics();
-                    int lx = left + i*groupW + groupW/2 - fm.stringWidth(lab)/2;
-                    // rotation légère si encore serré
-                    if(n>15){
-                        java.awt.geom.AffineTransform old = g.getTransform();
-                        g.rotate(Math.toRadians(-30), lx+fm.stringWidth(lab)/2, bottom+18);
-                        g.drawString(lab, lx, bottom+18);
-                        g.setTransform(old);
-                    } else {
-                        g.drawString(lab, lx, bottom+20);
-                    }
-                }
-            }
-            // legend
-            g.setColor(new Color(59,130,246));
-            g.fillRect(right-180, top-5, 12,12);
-            g.setColor(Color.BLACK);
-            g.drawString("Créées", right-162, top+6);
-            g.setColor(new Color(16,185,129));
-            g.fillRect(right-80, top-5, 12,12);
-            g.setColor(Color.BLACK);
-            g.drawString("Terminées", right-62, top+6);
-        } finally { g.dispose(); }
-        try{
-            ByteArrayOutputStream baos=new ByteArrayOutputStream();
-            ImageIO.write(bi,"png",baos);
-            Image img=Image.getInstance(baos.toByteArray());
-            img.scaleToFit(495f, img.getHeight()/2f);
-            img.setAlignment(Element.ALIGN_CENTER);
-            return img;
-        } catch(Exception e){ throw new RuntimeException(e); }
+        // Délégué à ChartRenderer centralisé (évite duplication)
+        java.util.List<ChartRenderer.BarPoint> barPoints = points.stream()
+                .map(p -> new ChartRenderer.BarPoint(p.label(), p.created(), p.completed()))
+                .toList();
+        return ChartRenderer.renderVerticalBarChart(barPoints);
     }
 
 // ================== TABLEAU DES TÂCHES PAR STATUT ==================
@@ -377,7 +256,7 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
         java.util.List<TaskReportResDto> tasks = data.tasks();
         if (tasks == null || tasks.isEmpty()) {
             Paragraph noTasks = new Paragraph("Aucune tâche trouvée pour ce projet.",
-                    FontFactory.getFont(FontFactory.HELVETICA, 9, Font.ITALIC, Color.BLACK));
+                    PdfConstants.FONT_ITALIC_9);
             noTasks.setAlignment(Element.ALIGN_CENTER);
             noTasks.setSpacingAfter(12);
             document.add(noTasks);
@@ -399,7 +278,7 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
 
             // Titre du statut
             Paragraph statusTitle = new Paragraph("Statut : " + status + " (" + statusTasks.size() + " tâche(s))",
-                    FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, Font.BOLD, Color.BLACK));
+                    PdfConstants.FONT_BOLD_12);
             statusTitle.setSpacingBefore(10);
             statusTitle.setSpacingAfter(4);
             document.add(statusTitle);
@@ -450,11 +329,11 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
 
         Paragraph overduePara = new Paragraph(
                 "Tâches en retard : " + overdueText,
-                FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL, Color.BLACK));
+                PdfConstants.FONT_BODY);
         overduePara.setSpacingAfter(6);
         document.add(overduePara);
 
-        addHorizontalRule(document, Color.BLACK, 1f);
+        addHorizontalRule(document, PdfConstants.BLACK, 1f);
     }
 
 // ================== LISTE DES CONTRIBUTEURS ==================
@@ -479,7 +358,7 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
 
         if (contributors.isEmpty()) {
             Paragraph noContributors = new Paragraph("Aucun contributeur trouvé.",
-                    FontFactory.getFont(FontFactory.HELVETICA, 9, Font.ITALIC, Color.BLACK));
+                    PdfConstants.FONT_ITALIC_9);
             noContributors.setAlignment(Element.ALIGN_CENTER);
             noContributors.setSpacingAfter(12);
             document.add(noContributors);
@@ -487,13 +366,13 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
         }
 
         // Liste des contributeurs avec des puces (tirets)
-        Paragraph contributorsPara = new Paragraph("Contributeurs :", FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10, Font.NORMAL, Color.BLACK));
+        Paragraph contributorsPara = new Paragraph("Contributeurs :", PdfConstants.FONT_BOLD_10);
         contributorsPara.setSpacingAfter(4);
         document.add(contributorsPara);
 
         for (String contributor : contributors) {
             Paragraph contributorPara = new Paragraph("- " + contributor,
-                    FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL, Color.BLACK));
+                    PdfConstants.FONT_BODY);
             contributorPara.setSpacingAfter(2);
             document.add(contributorPara);
         }
@@ -503,53 +382,29 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
     private void addFooter(Document document) throws DocumentException {
         Paragraph footer = new Paragraph(
                 "Rapport généré automatiquement par Collab Task — " + LocalDateTime.now().format(PDF_GENERATED_FORMAT),
-                FontFactory.getFont(FontFactory.HELVETICA, 7, Font.ITALIC, Color.BLACK));
+                PdfConstants.FONT_FOOTER_DARK);
         footer.setAlignment(Element.ALIGN_CENTER);
         footer.setSpacingBefore(20);
         document.add(footer);
 
         Paragraph contact = new Paragraph(
                 "EDBM -EDBM Building, Avenue Gal Gabriel, RAMANANTSOA, Antananarivo - edbm.mg",
-                FontFactory.getFont(FontFactory.HELVETICA, 7, Font.ITALIC, Color.BLACK));
+                PdfConstants.FONT_FOOTER_DARK);
         contact.setAlignment(Element.ALIGN_CENTER);
         contact.setSpacingBefore(4);
         document.add(contact);
     }
 
-// ================== MÉTHODES UTILITAIRES ==================
+// ================== MÉTHODES UTILITAIRES (déléguées à PdfHelper pour DRY) ==================
     private void addHorizontalRule(Document document, Color color, float thickness) throws DocumentException {
-        PdfPTable rule = new PdfPTable(1);
-        rule.setWidthPercentage(100);
-        PdfPCell cell = new PdfPCell();
-        cell.setBorder(Rectangle.NO_BORDER);
-        cell.setBorderColorBottom(color);
-        cell.setBorderWidthBottom(thickness);
-        cell.setPadding(0);
-        rule.addCell(cell);
-        rule.setSpacingAfter(8);
-        document.add(rule);
+        PdfHelper.addHorizontalRule(document, color, thickness);
     }
 
     private void addTableHeader(PdfPTable table, String... headers) {
-        for (String h : headers) {
-            PdfPCell cell = new PdfPCell(new Phrase(h, FONT_TH));
-            cell.setBackgroundColor(LIGHT_GRAY);
-            cell.setHorizontalAlignment(Element.ALIGN_CENTER);
-            cell.setPadding(6);
-            cell.setBorderColor(BORDER_GRAY);
-            cell.setBorderWidth(1);
-            table.addCell(cell);
-        }
+        PdfHelper.addTableHeaderProject(table, headers);
     }
 
     private void addTableRow(PdfPTable table, String... cells) {
-        for (String c : cells) {
-            PdfPCell cell = new PdfPCell(new Phrase(c, FONT_TD));
-            cell.setHorizontalAlignment(Element.ALIGN_CENTER);
-            cell.setPadding(5);
-            cell.setBorderColor(BORDER_GRAY);
-            cell.setBorderWidth(1);
-            table.addCell(cell);
-        }
+        PdfHelper.addTableRowProject(table, cells);
     }
 }

@@ -8,6 +8,7 @@ import com.school.security.entities.Status;
 import com.school.security.entities.Task;
 import com.school.security.entities.User;
 import com.school.security.enums.NotificationType;
+import com.school.security.exceptions.BadRequestException;
 import com.school.security.exceptions.EntityException;
 import com.school.security.mappers.TaskMapper;
 import com.school.security.repositories.PriorityRepository;
@@ -17,6 +18,7 @@ import com.school.security.repositories.TaskRepository;
 import com.school.security.repositories.UserRepository;
 import com.school.security.services.contracts.NotificationService;
 import com.school.security.services.contracts.TaskService;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -51,6 +53,8 @@ public class TaskServiceImpl implements TaskService {
             Optional<Task> taskOptional = this.taskRepository.findById(id);
             if (taskOptional.isPresent()) {
                 Task taskToUpdate = taskOptional.get();
+
+                validateDueDate(toSave.dueDate(), taskToUpdate.getDueDate());
 
                 Long oldPriorityId = taskToUpdate.getPriority().getPriorityId();
                 List<Long> oldAssigneeIds = taskToUpdate.getAssignees().stream()
@@ -108,6 +112,7 @@ public class TaskServiceImpl implements TaskService {
                 return this.taskMapper.toDto(saved);
             }
         }
+        validateDueDate(toSave.dueDate(), null);
         Task taskToSave = this.taskMapper.fromDto(toSave);
         if (toSave.parentTaskId() != null) {
             checkParentRules(taskToSave, toSave.parentTaskId());
@@ -272,6 +277,20 @@ public class TaskServiceImpl implements TaskService {
         if (Boolean.FALSE.equals(project.getIsActive())) {
             project.setIsActive(true);
             projectRepository.save(project);
+        }
+    }
+
+    private void validateDueDate(LocalDate dueDate, LocalDate originalDueDate) {
+        if (dueDate == null) {
+            throw new BadRequestException(
+                    "La date d'échéance est obligatoire."
+            );
+        }
+        boolean dueDateChanged = originalDueDate == null || !originalDueDate.equals(dueDate);
+        if (dueDateChanged && dueDate.isBefore(LocalDate.now())) {
+            throw new BadRequestException(
+                    "La date d'échéance ne peut pas être dans le passé."
+            );
         }
     }
 }

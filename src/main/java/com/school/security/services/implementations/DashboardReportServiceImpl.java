@@ -15,22 +15,19 @@ import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.ColumnText;
 import com.lowagie.text.pdf.PdfWriter;
+import com.school.security.common.ChartRenderer;
+import com.school.security.common.PdfConstants;
+import com.school.security.common.PdfHelper;
+import com.school.security.common.PeriodUtils;
 import com.school.security.dtos.responses.*;
 import com.school.security.enums.RoleType;
 import com.school.security.services.contracts.DashboardReportService;
 import com.school.security.services.contracts.DashboardService;
-import java.awt.BasicStroke;
 import java.awt.Color;
-import java.awt.FontMetrics;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Locale;
-import javax.imageio.ImageIO;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,46 +39,40 @@ public class DashboardReportServiceImpl implements DashboardReportService {
 
     private DashboardService dashboardService;
 
-    // ─── Colors ─────────────────────────────────────────────────
-    private static final Color COLOR_PRIMARY    = new Color(59, 130, 246);
-    private static final Color COLOR_DARK       = new Color(30, 30, 30);
-    private static final Color COLOR_HEADER_BG  = new Color(59, 130, 246);
-    private static final Color COLOR_HEADER_FG  = Color.WHITE;
-    private static final Color COLOR_LIGHT_BG   = new Color(248, 250, 252);
-    private static final Color COLOR_BORDER     = new Color(226, 232, 240);
-    private static final Color COLOR_MUTED      = new Color(100, 116, 139);
-    private static final Color COLOR_GRID       = new Color(241, 245, 249);
+    // ─── Colors centralisées dans PdfConstants ─────────────────────────────────────────────────
+    private static final Color COLOR_PRIMARY    = PdfConstants.COLOR_PRIMARY;
+    private static final Color COLOR_DARK       = PdfConstants.COLOR_DARK;
+    private static final Color COLOR_HEADER_BG  = PdfConstants.COLOR_HEADER_BG;
+    private static final Color COLOR_HEADER_FG  = PdfConstants.COLOR_HEADER_FG;
+    private static final Color COLOR_LIGHT_BG   = PdfConstants.COLOR_LIGHT_BG;
+    private static final Color COLOR_BORDER     = PdfConstants.COLOR_BORDER;
+    private static final Color COLOR_MUTED      = PdfConstants.COLOR_MUTED;
+    private static final Color COLOR_GRID       = PdfConstants.COLOR_GRID;
 
-    private static final Color COLOR_AMBER      = new Color(245, 158, 11);
-    private static final Color COLOR_BLUE       = new Color(59, 130, 246);
-    private static final Color COLOR_EMERALD    = new Color(16, 185, 129);
-    private static final Color COLOR_RED        = new Color(239, 68, 68);
-    private static final Color COLOR_GRAY       = new Color(148, 163, 184);
+    private static final Color COLOR_AMBER      = PdfConstants.COLOR_AMBER;
+    private static final Color COLOR_BLUE       = PdfConstants.COLOR_BLUE;
+    private static final Color COLOR_EMERALD    = PdfConstants.COLOR_EMERALD;
+    private static final Color COLOR_RED        = PdfConstants.COLOR_RED;
+    private static final Color COLOR_GRAY       = PdfConstants.COLOR_GRAY;
 
-    private static final Color COLOR_BAR_BG     = new Color(241, 245, 249);
+    private static final Color COLOR_BAR_BG     = PdfConstants.COLOR_BAR_BG;
 
-    // ─── Fonts ──────────────────────────────────────────────────
-    private static final Font FONT_TITLE       = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 22, Font.BOLD, COLOR_DARK);
-    private static final Font FONT_ROLE        = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 13, Font.NORMAL, COLOR_PRIMARY);
-    private static final Font FONT_SUBTITLE    = FontFactory.getFont(FontFactory.HELVETICA, 11, Font.NORMAL, COLOR_MUTED);
-    private static final Font FONT_SECTION     = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 14, Font.BOLD, COLOR_DARK);
-    private static final Font FONT_KPI_LABEL   = FontFactory.getFont(FontFactory.HELVETICA, 9, Font.NORMAL, COLOR_MUTED);
-    private static final Font FONT_KPI_VALUE   = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 22, Font.BOLD, COLOR_DARK);
-    private static final Font FONT_TH          = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, Font.BOLD, COLOR_HEADER_FG);
-    private static final Font FONT_TD          = FontFactory.getFont(FontFactory.HELVETICA, 9, Font.NORMAL, COLOR_DARK);
-    private static final Font FONT_CHART_LABEL = FontFactory.getFont(FontFactory.HELVETICA, 8, Font.NORMAL, COLOR_DARK);
-    private static final Font FONT_CHART_VAL   = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, Font.BOLD, COLOR_DARK);
-    private static final Font FONT_CHART_VAL_SM= FontFactory.getFont(FontFactory.HELVETICA_BOLD, 7, Font.BOLD, COLOR_DARK);
-    private static final Font FONT_FOOTER      = FontFactory.getFont(FontFactory.HELVETICA, 8, Font.ITALIC, COLOR_MUTED);
-    private static final Font FONT_LEGEND      = FontFactory.getFont(FontFactory.HELVETICA, 8, Font.NORMAL, COLOR_DARK);
-    private static final Font FONT_PERIOD      = FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL, COLOR_MUTED);
-    private static final Font FONT_AXIS_LABEL  = FontFactory.getFont(FontFactory.HELVETICA, 7, Font.NORMAL, COLOR_MUTED);
-
-    // ─── Formatters ─────────────────────────────────────────────
-    private static final DateTimeFormatter PDF_DATE_FORMAT =
-            DateTimeFormatter.ofPattern("d MMMM yyyy — HH:mm", Locale.FRENCH);
-    private static final DateTimeFormatter PDF_GENERATED_FORMAT =
-            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+    // ─── Fonts centralisées ──────────────────────────────────────────────────
+    private static final Font FONT_TITLE       = PdfConstants.FONT_TITLE;
+    private static final Font FONT_ROLE        = PdfConstants.FONT_ROLE;
+    private static final Font FONT_SUBTITLE    = PdfConstants.FONT_SUBTITLE;
+    private static final Font FONT_SECTION     = PdfConstants.FONT_SECTION;
+    private static final Font FONT_KPI_LABEL   = PdfConstants.FONT_KPI_LABEL;
+    private static final Font FONT_KPI_VALUE   = PdfConstants.FONT_KPI_VALUE;
+    private static final Font FONT_TH          = PdfConstants.FONT_TH;
+    private static final Font FONT_TD          = PdfConstants.FONT_TD;
+    private static final Font FONT_CHART_LABEL = PdfConstants.FONT_CHART_LABEL;
+    private static final Font FONT_CHART_VAL   = PdfConstants.FONT_CHART_VAL;
+    private static final Font FONT_FOOTER      = PdfConstants.FONT_FOOTER;
+    private static final Font FONT_LEGEND      = PdfConstants.FONT_LEGEND;
+    private static final Font FONT_PERIOD      = PdfConstants.FONT_PERIOD;
+    private static final DateTimeFormatter PDF_DATE_FORMAT = PdfConstants.PDF_DATE_LONG;
+    private static final DateTimeFormatter PDF_GENERATED_FORMAT = PdfConstants.PDF_GENERATED_FORMAT;
 
     // ─── Public entry ───────────────────────────────────────────
 
@@ -341,31 +332,8 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         addHorizontalRule(document, COLOR_BORDER, 0.5f);
     }
 
-    private PdfPCell buildBarCell(long value, long maxVal, Color color) throws DocumentException {
-        float barPct = maxVal > 0 ? (float) value / maxVal : 0;
-        float remainingPct = 1f - barPct;
-
-        PdfPTable barWrapper = new PdfPTable(2);
-        barWrapper.setWidthPercentage(100);
-        barWrapper.setWidths(new float[]{barPct * 100f, remainingPct * 100f + 0.01f});
-
-        PdfPCell barFiller = new PdfPCell();
-        barFiller.setBorder(Rectangle.NO_BORDER);
-        barFiller.setBackgroundColor(color);
-        barFiller.setFixedHeight(14);
-        barFiller.setMinimumHeight(14);
-        barWrapper.addCell(barFiller);
-
-        PdfPCell emptyFiller = new PdfPCell();
-        emptyFiller.setBorder(Rectangle.NO_BORDER);
-        emptyFiller.setBackgroundColor(COLOR_BAR_BG);
-        emptyFiller.setFixedHeight(14);
-        barWrapper.addCell(emptyFiller);
-
-        PdfPCell outerCell = new PdfPCell(barWrapper);
-        outerCell.setBorder(Rectangle.NO_BORDER);
-        outerCell.setPadding(4);
-        return outerCell;
+    private PdfPCell buildBarCell(long value, long maxVal, Color color) {
+        return PdfHelper.buildBarCell(value, maxVal, color);
     }
 
     // ─── Evolution Chart (line chart, rendered as flow image) ──
@@ -427,145 +395,11 @@ public class DashboardReportServiceImpl implements DashboardReportService {
     }
 
     private Image renderLineChart(List<DashboardEvolutionPointResDto> points) {
-        // Image is drawn at 2x scale for crisp printing, then downscaled to
-        // fit the A4 content width when embedded as a flow element.
-        int scale = 2;
-        int imgWidth = 1000;
-        int imgHeight = 330;
-
-        int plotLeft = 55;
-        int plotRight = imgWidth - 20;
-        int plotTop = 20;
-        int plotBottom = imgHeight - 55;
-
-        int plotWidth = plotRight - plotLeft;
-        int plotHeight = plotBottom - plotTop;
-
-        BufferedImage bi = new BufferedImage(imgWidth, imgHeight, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g = bi.createGraphics();
-        try {
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g.setColor(Color.WHITE);
-            g.fillRect(0, 0, imgWidth, imgHeight);
-
-            int maxCreated = (int) points.stream().mapToLong(DashboardEvolutionPointResDto::created).max().orElse(1);
-            int maxCompleted = (int) points.stream().mapToLong(DashboardEvolutionPointResDto::completed).max().orElse(1);
-            int maxVal = Math.max(maxCreated, maxCompleted);
-            if (maxVal == 0) maxVal = 1;
-            int axisMax = computeNiceMax(maxVal);
-
-            // ─── Horizontal grid + Y-axis labels ────────────────
-            g.setColor(new Color(230, 230, 230));
-            g.setStroke(new BasicStroke(1f));
-            int gridLines = 5;
-            java.awt.Font axisFont = new java.awt.Font(FontFactory.HELVETICA, java.awt.Font.PLAIN, 15);
-            g.setFont(axisFont);
-            for (int i = 0; i <= gridLines; i++) {
-                int yPos = plotBottom - (int) ((float) i / gridLines * plotHeight);
-                int val = (int) ((float) i / gridLines * axisMax);
-
-                g.setColor(new Color(230, 230, 230));
-                g.drawLine(plotLeft, yPos, plotRight, yPos);
-
-                g.setColor(new Color(120, 120, 120));
-                String label = String.valueOf(val);
-                FontMetrics fm = g.getFontMetrics();
-                g.drawString(label, plotLeft - fm.stringWidth(label) - 8, yPos + 5);
-            }
-
-            // ─── Axes ─────────────────────────────────────────────
-            g.setColor(new Color(160, 160, 160));
-            g.setStroke(new BasicStroke(2f));
-            g.drawLine(plotLeft, plotTop, plotLeft, plotBottom);   // Y axis
-            g.drawLine(plotLeft, plotBottom, plotRight, plotBottom); // X axis
-
-            // ─── Data ─────────────────────────────────────────────
-            int n = points.size();
-            int[] xCoords = new int[n];
-            int[] yCreated = new int[n];
-            int[] yCompleted = new int[n];
-
-            for (int i = 0; i < n; i++) {
-                DashboardEvolutionPointResDto p = points.get(i);
-                xCoords[i] = n == 1
-                        ? plotLeft + plotWidth / 2
-                        : (int) (plotLeft + (float) i / (n - 1) * plotWidth);
-                yCreated[i] = plotBottom - (int) ((float) p.created() / axisMax * plotHeight);
-                yCompleted[i] = plotBottom - (int) ((float) p.completed() / axisMax * plotHeight);
-            }
-
-            // Created line (blue)
-            g.setColor(BLUE_AWT);
-            g.setStroke(new BasicStroke(2.5f * scale, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            g.drawPolyline(xCoords, yCreated, n);
-
-            // Completed line (green)
-            g.setColor(EMERALD_AWT);
-            g.setStroke(new BasicStroke(2.5f * scale, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            g.drawPolyline(xCoords, yCompleted, n);
-
-            // ─── Data points ──────────────────────────────────────
-            java.awt.Font smallFont = new java.awt.Font(FontFactory.HELVETICA_BOLD, java.awt.Font.PLAIN, 14);
-            FontMetrics smallFm = g.getFontMetrics(smallFont);
-
-            for (int i = 0; i < n; i++) {
-                // Created points
-                g.setColor(BLUE_AWT);
-                g.fillOval(xCoords[i] - 5 * scale, yCreated[i] - 5 * scale, 10 * scale, 10 * scale);
-                if (points.get(i).created() > 0) {
-                    String v = String.valueOf(points.get(i).created());
-                    g.setFont(smallFont);
-                    g.drawString(v, xCoords[i] - smallFm.stringWidth(v) / 2, yCreated[i] - 12 * scale);
-                }
-
-                // Completed points
-                g.setColor(EMERALD_AWT);
-                g.fillOval(xCoords[i] - 5 * scale, yCompleted[i] - 5 * scale, 10 * scale, 10 * scale);
-                if (points.get(i).completed() > 0) {
-                    String v = String.valueOf(points.get(i).completed());
-                    g.setFont(smallFont);
-                    g.drawString(v, xCoords[i] - smallFm.stringWidth(v) / 2, yCompleted[i] + 24 * scale);
-                }
-            }
-
-            // ─── X-axis labels ────────────────────────────────────
-            g.setFont(axisFont);
-            g.setColor(new Color(70, 70, 70));
-            for (int i = 0; i < n; i++) {
-                String label = points.get(i).label();
-                FontMetrics fm = g.getFontMetrics();
-                g.drawString(label, xCoords[i] - fm.stringWidth(label) / 2, plotBottom + 22);
-            }
-        } finally {
-            g.dispose();
-        }
-
-        try {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            ImageIO.write(bi, "png", baos);
-            Image pdfImage = Image.getInstance(baos.toByteArray());
-            pdfImage.scaleToFit(495f, pdfImage.getHeight() / 2f);
-            pdfImage.setAlignment(Element.ALIGN_CENTER);
-            return pdfImage;
-        } catch (Exception e) {
-            throw new RuntimeException("Erreur lors du rendu du graphique d'évolution", e);
-        }
+        return ChartRenderer.renderLineChart(points);
     }
 
-    private static final Color BLUE_AWT = new Color(59, 130, 246);
-    private static final Color EMERALD_AWT = new Color(16, 185, 129);
-
     private int computeNiceMax(int value) {
-        if (value <= 5) return 5;
-        if (value <= 10) return 10;
-        if (value <= 20) return 20;
-        if (value <= 50) return 50;
-        if (value <= 100) return 100;
-        if (value <= 200) return 200;
-        int magnitude = (int) Math.pow(10, (int) Math.log10(value));
-        int normalized = (int) Math.ceil((double) value / magnitude);
-        return normalized * magnitude;
+        return ChartRenderer.computeNiceMax(value);
     }
 
     // ─── Recent Activity Table ──────────────────────────────────
@@ -676,33 +510,16 @@ public class DashboardReportServiceImpl implements DashboardReportService {
     // ─── Shared table helpers ───────────────────────────────────
 
     private void addTableHeader(PdfPTable table, String text) {
-        PdfPCell cell = new PdfPCell(new Phrase(text, FONT_TH));
-        cell.setBackgroundColor(COLOR_HEADER_BG);
-        cell.setPadding(8);
-        cell.setHorizontalAlignment(Element.ALIGN_LEFT);
-        table.addCell(cell);
+        PdfHelper.addTableHeader(table, text);
     }
 
     private void addTableRow(PdfPTable table, String text) {
-        PdfPCell cell = new PdfPCell(new Phrase(text, FONT_TD));
-        cell.setPadding(6);
-        table.addCell(cell);
+        PdfHelper.addTableRow(table, text);
     }
 
     private void addHorizontalRule(Document document, Color color, float thickness)
             throws DocumentException {
-        PdfPTable line = new PdfPTable(1);
-        line.setWidthPercentage(100);
-        PdfPCell cell = new PdfPCell();
-        cell.setBorder(Rectangle.BOTTOM);
-        cell.setBorderColor(color);
-        cell.setBorderWidthBottom(thickness);
-        cell.setFixedHeight(1);
-        cell.setBorder(Rectangle.NO_BORDER);
-        cell.addElement(new Phrase(" "));
-        line.addCell(cell);
-        line.setSpacingAfter(4);
-        document.add(line);
+        PdfHelper.addHorizontalRule(document, color, thickness);
     }
 
     private void addStatusLegend(Document document, List<DashboardDistributionItemResDto> items)

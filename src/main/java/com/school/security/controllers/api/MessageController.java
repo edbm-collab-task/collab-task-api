@@ -13,6 +13,18 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/conversations")
+/**
+ * Contrôleur HTTP des messages de conversation.
+ *
+ * <p>Il expose les opérations de lecture, d'envoi et de suppression des
+ * messages associés à une conversation donnée. La majorité des contrôles
+ * métier, notamment l'appartenance à la conversation et la cohérence des
+ * réponses, est déléguée au service.
+ *
+ * <p>Ce contrôleur joue aussi un rôle de relais temps réel : après l'envoi
+ * d'un message, il diffuse la réponse via WebSocket à la destination
+ * {@code /topic/conversations/{conversationId}}.
+ */
 public class MessageController {
 
     private final MessageService messageService;
@@ -27,6 +39,12 @@ public class MessageController {
         this.messagingTemplate = messagingTemplate;
     }
 
+    /**
+     * Retourne les messages d'une conversation.
+     *
+     * <p>La vérification de l'appartenance de l'utilisateur courant à la
+     * conversation est effectuée dans le service avant l'accès aux messages.
+     */
     @GetMapping("/{conversationId}/messages")
     public ResponseEntity<List<MessageResponse>> getMessages(
             @PathVariable Long conversationId
@@ -39,6 +57,17 @@ public class MessageController {
         );
     }
 
+    /**
+     * Envoie un message dans une conversation.
+     *
+     * <p>La requête accepte un contenu texte, une référence de réponse
+     * éventuelle et une liste de pièces jointes multipart. Le service
+     * construit le message, applique les contrôles d'appartenance et gère
+     * la persistance des fichiers associés.
+     *
+     * <p>Après la création, la réponse du service est diffusée en temps réel
+     * à tous les abonnés de la conversation via WebSocket.
+     */
     @PostMapping(
             value = "/{conversationId}/messages",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
@@ -73,8 +102,8 @@ public class MessageController {
                 );
 
         /*
-         * Envoi temps réel à tous les utilisateurs
-         * abonnés à cette conversation.
+         * Diffusion temps réel du message créé à tous les clients abonnés
+         * à cette conversation.
          *
          * Destination :
          *
@@ -90,6 +119,12 @@ public class MessageController {
                 .body(response);
     }
 
+    /**
+     * Retourne un message précis.
+     *
+     * <p>Le service vérifie l'accès à la conversation d'origine du message
+     * avant de renvoyer le DTO correspondant.
+     */
     @GetMapping("/messages/{messageId}")
     public ResponseEntity<MessageResponse> getMessage(
             @PathVariable Long messageId
@@ -102,6 +137,13 @@ public class MessageController {
         );
     }
 
+    /**
+     * Supprime un message.
+     *
+     * <p>La suppression effective est gérée dans le service, qui applique la
+     * règle métier de suppression par l'auteur et traite également les
+     * pièces jointes associées.
+     */
     @DeleteMapping("/messages/{messageId}")
     public ResponseEntity<Void> deleteMessage(
             @PathVariable Long messageId

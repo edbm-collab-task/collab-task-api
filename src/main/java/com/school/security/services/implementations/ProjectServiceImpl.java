@@ -25,6 +25,17 @@ import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Gère les règles métier liées aux projets.
+ *
+ * <p>L'archivage est utilisé à la place d'une suppression physique afin de
+ * conserver l'historique : un projet archivé reste en base, marqué par
+ * {@code isActive = false}. L'archivage est réversible (unarchiver). Les listes
+ * n'exposent que les projets actifs, à l'exception des administrateurs qui voient
+ * également les projets archivés. À la création, l'owner est automatiquement
+ * ajouté comme contributeur et reçoit la permission par projet
+ * {@code MANAGE_PROJECT_CONTRIBUTORS}.
+ */
 @Service
 @Transactional
 @AllArgsConstructor
@@ -41,6 +52,14 @@ public class ProjectServiceImpl implements ProjectService {
         return save(toSave, null);
     }
 
+    /**
+     * Crée un projet en rattachant l'owner donné (l'utilisateur courant).
+     *
+     * <p>L'owner est automatiquement enregistré comme contributeur et reçoit la
+     * permission par projet {@code MANAGE_PROJECT_CONTRIBUTORS}. Cette permission
+     * est celle qui lui permettra ensuite de gérer les contributeurs ou de
+     * transférer la propriété ({@code PermissionEvaluator.hasProjectPermission}).
+     */
     @Override
     public ProjectResDto createWithOwner(ProjectReqDto toSave, Long ownerId) {
         validateDates(toSave.startDate(), toSave.endDate(), null);
@@ -63,6 +82,14 @@ public class ProjectServiceImpl implements ProjectService {
         return this.projectMapper.toDto(saved, ownerId);
     }
 
+    /**
+     * Transfère la propriété d'un projet à un autre utilisateur.
+     *
+     * <p>Toute l'opération est réalisée dans une seule transaction : la permission
+     * par projet {@code MANAGE_PROJECT_CONTRIBUTORS} est retirée à l'ancien owner
+     * et accordée au nouveau, l'ancien owner quitte la liste des contributeurs et
+     * le nouveau y est ajouté uniquement s'il n'en faisait pas déjà partie.
+     */
     @Override
     @Transactional
     public void transferOwnership(Long projectId, Long oldOwnerId, Long newOwnerId) {
@@ -90,6 +117,11 @@ public class ProjectServiceImpl implements ProjectService {
         }
     }
 
+    /**
+     * Crée ou met à jour un projet : si {@code id} est renseigné et existe,
+     * les champs modifiables sont appliqués sur l'entité existante, sinon un
+     * nouveau projet est créé. Les dates sont contrôlées avant enregistrement.
+     */
     @Override
     public ProjectResDto save(ProjectReqDto toSave, Long id) {
         if (id != null) {
@@ -112,6 +144,10 @@ public class ProjectServiceImpl implements ProjectService {
         return this.projectMapper.toDto(this.projectRepository.save(projectToSave));
     }
 
+    /**
+     * Retourne uniquement les projets actifs afin que les projets archivés
+     * restent exclus des opérations courantes.
+     */
     @Override
     public List<ProjectResDto> findAll() {
         return this.projectRepository.findByIsActiveTrue().stream()
@@ -119,6 +155,11 @@ public class ProjectServiceImpl implements ProjectService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Liste les projets selon le rôle de l'utilisateur courant : un administrateur
+     * (ADMIN/SUPER_ADMIN) voit tous les projets actifs, un utilisateur simple ne
+     * voit que les projets dont il est owner ou contributeur.
+     */
     @Override
     public List<ProjectResDto> findAllWithUser(Long currentUserId) {
         User user = userRepository.findById(currentUserId)
@@ -139,6 +180,12 @@ public class ProjectServiceImpl implements ProjectService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Même visibilité que {@code findAllWithUser} mais inclut cette fois les
+     * projets archivés : réservé à la consultation d'historique. Les
+     * administrateurs voient l'intégralité des projets (actifs et archivés), les
+     * utilisateurs simples uniquement ceux dont ils sont owner ou contributeur.
+     */
     @Override
     public List<ProjectResDto> findAllWithUserIncludingArchived(Long currentUserId) {
         User user = userRepository.findById(currentUserId)
@@ -177,11 +224,20 @@ public class ProjectServiceImpl implements ProjectService {
         throw new EntityException("Project not found");
     }
 
+    /**
+     * "Supprime" un projet en le basculant en archivé : aucune suppression
+     * physique, l'enregistrement demeure dans la base avec {@code isActive = false}.
+     */
     @Override
     public ProjectResDto deleteById(Long id) {
         return archiver(id);
     }
 
+    /**
+     * Archive un projet (soft delete) afin de conserver l'historique tout en le
+     * retirant des listes et statistiques courantes. Opération réversible via
+     * {@code unarchiver}.
+     */
     @Override
     public ProjectResDto archiver(Long id) {
         Optional<Project> projectOptional = this.projectRepository.findById(id);
@@ -204,6 +260,15 @@ public class ProjectServiceImpl implements ProjectService {
         throw new EntityException("Project not found");
     }
 
+    /**
+     * Contrôle les dates d'un projet : la date de début est obligatoire et doit
+     * rester dans le futur, la date de fin ne peut pas précéder la date de début.
+     *
+     * <p>La règle "pas de date de début passée" n'est appliquée qu'en cas de
+     * modification de cette date (par rapport à l'originale). Cela permet de
+     * mettre à jour un projet existant dont la date de début est déjà dans le
+     * passé sans être bloqué, tant qu'on ne la modifie pas.
+     */
     private void validateDates(LocalDate startDate, LocalDate endDate, LocalDate originalStartDate) {
         if (startDate == null) {
             throw new BadRequestException(

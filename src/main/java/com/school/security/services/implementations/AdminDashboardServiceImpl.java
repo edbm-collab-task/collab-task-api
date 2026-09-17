@@ -23,6 +23,25 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+/**
+ * Implémentation du tableau de bord administrateur.
+ *
+ * <p>Règles de périmètre constatées (documentées, non modifiées) :
+ * <ul>
+ *   <li>{@code SUPER_ADMIN} voit tous les projets actifs ; les autres rôles
+ *       (dont {@code ADMIN}) voient leurs projets accessibles
+ *       ({@code findAccessibleProjectsByUserId}) ;</li>
+ *   <li>{@code totalUsers} et {@code totalProjects} sont des compteurs globaux
+ *       (non restreints au périmètre), contrairement aux statistiques de tâches ;</li>
+ *   <li>contrairement à {@code DashboardServiceImpl}, aucune sélection par
+ *       {@code projectId} n'est possible ici ;</li>
+ *   <li>les distributions par priorité et la charge par assigné ne sont PAS
+ *       implémentées : elles renvoient toujours une liste vide ;</li>
+ *   <li>le classement des utilisateurs porte sur l'ensemble des utilisateurs
+ *       (hors SUPER_ADMIN), pas seulement sur les contributeurs des projets
+ *       accessibles.</li>
+ * </ul>
+ */
 @Service
 @Transactional(readOnly = true)
 @AllArgsConstructor
@@ -37,6 +56,11 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     private static final String IN_PROGRESS_STATUS = "En cours";
     private static final String TODO_STATUS = "A faire";
 
+    /**
+     * Agrège les statistiques administrateur sur les projets accessibles et la
+     * période demandés. Renvoie des statistiques vides si l'utilisateur est
+     * inconnu.
+     */
     @Override
     public AdminDashboardStatsResDto getAdminDashboardStats(Long userId, String period, String startDate, String endDate) {
         var user = userRepository.findById(userId).orElse(null);
@@ -111,6 +135,11 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
         );
     }
 
+    /**
+     * Top 10 des utilisateurs (hors SUPER_ADMIN) triés par nombre de tâches
+     * assignées décroissant ; les statistiques de tâches sont calculées sur les
+     * projets fournis. Le libellé de direction vaut "—" si absente.
+     */
     private List<UserStatsResDto> getTopUsers(List<Long> projectIds) {
         List<User> allUsers = userRepository.findAll();
 
@@ -143,6 +172,10 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Top 10 des projets accessibles triés par nombre total de tâches
+     * décroissant, avec une progression calculée sur les 30 derniers jours.
+     */
     private List<ProjectStatsResDto> getTopProjects(List<Project> accessibleProjects) {
         return accessibleProjects.stream()
                 .map(project -> {
@@ -171,6 +204,11 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Série créées/terminées, regroupée par jour si la période fait au plus
+     * 31 jours, par mois sinon (les périodes initialisées à 0 incluent les
+     * intervalles sans activité).
+     */
     private List<EvolutionPointResDto> computeEvolution(List<Long> projectIds, LocalDateTime start, LocalDateTime end) {
         List<LocalDateTime> createdDates = taskRepository.findCreatedDatesBetween(projectIds, start, end);
         List<LocalDateTime> completedDates = taskRepository.findCompletedDatesBetween(projectIds, start, end);
@@ -218,16 +256,19 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
         return result;
     }
 
+    /** Non implémenté : renvoie toujours une liste vide. */
     private List<PriorityDistributionResDto> computePriorityDistribution(List<Long> projectIds) {
         // Return empty for now - would need priority distribution query
         return List.of();
     }
 
+    /** Non implémenté : renvoie toujours une liste vide. */
     private List<AssigneeWorkloadResDto> getAssigneeWorkload(List<Long> projectIds) {
         // Return empty for now
         return List.of();
     }
 
+    /** Activités récentes de la période, plafonnées à 20. */
     private List<RecentActivityResDto> computeRecentActivity(List<Long> projectIds, LocalDateTime start, LocalDateTime end) {
         List<Activity> activities = activityRepository.findRecentByProjectIdsAndPeriod(projectIds, start, end);
         return activities.stream()
@@ -243,10 +284,12 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                 .collect(Collectors.toList());
     }
 
+    /** Délègue à PeriodUtils la résolution des dates de période. */
     private LocalDateTime[] resolvePeriodDates(String period, String startDate, String endDate, LocalDate today) {
         return PeriodUtils.resolvePeriodDates(period, startDate, endDate, today);
     }
 
+    /** Statistiques vides (tous les compteurs à 0, listes vides). */
     private AdminDashboardStatsResDto emptyStats() {
         return new AdminDashboardStatsResDto(
                 0, 0, 0, 0, 0, 0, 0, 0,

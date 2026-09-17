@@ -719,6 +719,16 @@ public class ConversationServiceImpl
         Long currentUserId =
                 currentUserId();
 
+        Conversation conversation =
+                findConversation(
+                        conversationId
+                );
+
+        verifyMember(
+                conversation,
+                currentUserId
+        );
+
         ConversationMember member =
                 memberRepository
                         .findByConversationConversationIdAndUserUsersId(

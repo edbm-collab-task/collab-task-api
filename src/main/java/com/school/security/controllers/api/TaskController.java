@@ -47,9 +47,8 @@ public class TaskController {
         return this.taskService.deleteById(id);
     }
 
-    @PatchMapping("/{taskId}/status")
-    public TaskResDto changeTaskStatus(
-            @PathVariable Long taskId, @RequestParam Long statusId) {
-        return this.taskService.changerStatut(taskId, statusId);
+    @PatchMapping("/{taskId}/sort-order")
+    public TaskResDto updateTaskSortOrder(@PathVariable Long taskId, @RequestParam Integer sortOrder) {
+        return this.taskService.updateTaskSortOrder(taskId, sortOrder);
     }
 }

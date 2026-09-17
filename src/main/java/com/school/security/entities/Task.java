@@ -52,6 +52,8 @@ public class Task implements Serializable {
 
     private LocalDateTime completedAt;
 
+    private Integer sortOrder;
+
     @ManyToMany
     @JoinTable(
         name = "task_assignees",
@@ -159,6 +161,14 @@ public class Task implements Serializable {
 
     public void setCompletedAt(LocalDateTime completedAt) {
         this.completedAt = completedAt;
+    }
+
+    public Integer getSortOrder() {
+        return sortOrder;
+    }
+
+    public void setSortOrder(Integer sortOrder) {
+        this.sortOrder = sortOrder;
     }
 
     public List<User> getAssignees() {

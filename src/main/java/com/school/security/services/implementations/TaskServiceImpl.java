@@ -152,6 +152,12 @@ public class TaskServiceImpl implements TaskService {
                 .collect(Collectors.toList());
     }
 
+    public List<TaskResDto> findTasksByProjectAndStatusOrderBySortOrder(Long projectId, Long statusId) {
+        return this.taskRepository.findByProjectProjectIdAndStatusIdOrderBySortOrderAsc(projectId, statusId).stream()
+                .map(this.taskMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
     @Override
     public TaskResDto findById(Long id) {
         Optional<Task> taskOptional = this.taskRepository.findById(id);
@@ -208,6 +214,18 @@ public class TaskServiceImpl implements TaskService {
                 return this.taskMapper.toDto(saved);
             }
             throw new EntityException("Status not found");
+        }
+        throw new EntityException("Task not found");
+    }
+
+    @Override
+    public TaskResDto updateTaskSortOrder(Long taskId, Integer sortOrder) {
+        Optional<Task> taskOptional = this.taskRepository.findById(taskId);
+        if (taskOptional.isPresent()) {
+            Task task = taskOptional.get();
+            task.setSortOrder(sortOrder);
+            Task saved = this.taskRepository.save(task);
+            return this.taskMapper.toDto(saved);
         }
         throw new EntityException("Task not found");
     }

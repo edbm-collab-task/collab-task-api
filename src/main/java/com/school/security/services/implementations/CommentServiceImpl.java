@@ -12,6 +12,7 @@ import com.school.security.repositories.ProjectRepository;
 import com.school.security.repositories.TaskCommentRepository;
 import com.school.security.repositories.TaskRepository;
 import com.school.security.repositories.UserRepository;
+import com.school.security.securities.services.FileStorageService;
 import com.school.security.securities.utils.SecurityUtils;
 import com.school.security.services.contracts.CommentService;
 import java.util.ArrayList;
@@ -22,6 +23,7 @@ import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @Transactional
@@ -33,6 +35,7 @@ public class CommentServiceImpl implements CommentService {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final ProjectRepository projectRepository;
+    private final FileStorageService fileStorageService;
 
     @Override
     public List<CommentResDto> getCommentsByTask(Long taskId) {
@@ -50,7 +53,7 @@ public class CommentServiceImpl implements CommentService {
     }
 
     @Override
-    public CommentResDto createComment(Long taskId, CommentReqDto dto) {
+    public CommentResDto createComment(Long taskId, CommentReqDto dto, MultipartFile file) {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new EntityException("Task not found"));
         User author = getCurrentUser();
@@ -64,6 +67,14 @@ public class CommentServiceImpl implements CommentService {
             TaskComment parent = commentRepository.findById(dto.parentCommentId())
                     .orElseThrow(() -> new EntityException("Parent comment not found"));
             comment.setParentComment(parent);
+        }
+
+        if (file != null && !file.isEmpty()) {
+            String path = fileStorageService.saveCommentAttachment(file);
+            comment.setAttachmentPath(path);
+            comment.setAttachmentOriginalName(file.getOriginalFilename());
+            comment.setAttachmentContentType(file.getContentType());
+            comment.setAttachmentSize(file.getSize());
         }
 
         TaskComment saved = commentRepository.save(comment);
@@ -98,6 +109,10 @@ public class CommentServiceImpl implements CommentService {
             throw new EntityException("Vous ne pouvez supprimer que vos propres commentaires");
         }
 
+        if (comment.getAttachmentPath() != null) {
+            fileStorageService.deleteCommentAttachment(comment.getAttachmentPath());
+        }
+
         commentRepository.delete(comment);
     }
 
@@ -108,15 +123,23 @@ public class CommentServiceImpl implements CommentService {
         User currentUser = getCurrentUser();
 
         var existing = reactionRepository
-                .findByCommentCommentIdAndEmojiAndUserUsersId(commentId, emoji, currentUser.getUsersId());
+                .findByCommentCommentIdAndUserUsersId(commentId, currentUser.getUsersId());
 
         if (existing.isPresent()) {
-            reactionRepository.delete(existing.get());
+            CommentReaction reaction = existing.get();
+            if (reaction.getEmoji().equals(emoji)) {
+                // suppression : retirer de la collection pour que le cache Hibernate reste cohérent
+                comment.getReactions()
+                        .removeIf(r -> r.getReactionId().equals(reaction.getReactionId()));
+            } else {
+                reaction.setEmoji(emoji);
+            }
         } else {
             CommentReaction reaction = new CommentReaction();
             reaction.setEmoji(emoji);
             reaction.setComment(comment);
             reaction.setUser(currentUser);
+            comment.getReactions().add(reaction);
             reactionRepository.save(reaction);
         }
 
@@ -131,6 +154,16 @@ public class CommentServiceImpl implements CommentService {
 
         List<CommentResDto.ReactionDto> reactions = groupReactions(comment.getReactions(), currentUserId);
 
+        CommentResDto.AttachmentDto attachment = null;
+        if (comment.getAttachmentPath() != null) {
+            attachment = new CommentResDto.AttachmentDto(
+                    comment.getAttachmentOriginalName(),
+                    comment.getAttachmentContentType(),
+                    comment.getAttachmentSize(),
+                    comment.getAttachmentPath()
+            );
+        }
+
         return new CommentResDto(
                 comment.getCommentId(),
                 comment.getContent(),
@@ -144,7 +177,8 @@ public class CommentServiceImpl implements CommentService {
                 ),
                 comment.getParentComment() != null ? comment.getParentComment().getCommentId() : null,
                 replies,
-                reactions
+                reactions,
+                attachment
         );
     }
 

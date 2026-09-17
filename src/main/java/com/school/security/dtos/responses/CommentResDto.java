@@ -11,7 +11,8 @@ public record CommentResDto(
     AuthorDto author,
     Long parentId,
     List<CommentResDto> replies,
-    List<ReactionDto> reactions
+    List<ReactionDto> reactions,
+    AttachmentDto attachment
 ) {
     public record AuthorDto(
         Long userId,
@@ -25,5 +26,12 @@ public record CommentResDto(
         long count,
         boolean reactedByCurrentUser,
         List<String> usernames
+    ) {}
+
+    public record AttachmentDto(
+        String name,
+        String contentType,
+        Long size,
+        String path
     ) {}
 }

@@ -6,7 +6,7 @@ import lombok.*;
 
 @Entity
 @Table(name = "comment_reactions",
-    uniqueConstraints = @UniqueConstraint(columnNames = {"comment_id", "emoji", "user_id"}))
+    uniqueConstraints = @UniqueConstraint(columnNames = {"comment_id", "user_id"}))
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode

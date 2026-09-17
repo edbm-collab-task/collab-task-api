@@ -36,6 +36,14 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())
+                .headers(headers -> headers
+                        .frameOptions(frame -> frame.disable())
+                        .addHeaderWriter((request, response) -> {
+                            if (request.getRequestURI().startsWith("/uploads/comments/")) {
+                                response.setHeader("X-Frame-Options", "ALLOWALL");
+                                response.setHeader("Content-Security-Policy", "frame-ancestors *");
+                            }
+                        }))
 .authorizeHttpRequests(auth -> auth
         .requestMatchers("/ws").permitAll()
         .requestMatchers(HttpMethod.POST, "/auth/login","/auth/create", "/auth/register", "/auth/logout", "/auth/refresh", "/auth/code").permitAll()
@@ -51,6 +59,7 @@ public class SecurityConfig {
         .requestMatchers(HttpMethod.POST, "/directions").permitAll()
         .requestMatchers(HttpMethod.DELETE, "/directions/{id}").permitAll()
         .requestMatchers(HttpMethod.GET, "/uploads/messages/{filename}").permitAll()
+        .requestMatchers(HttpMethod.GET, "/uploads/comments/{filename}").permitAll()
         .requestMatchers(HttpMethod.GET, "/roles", "/roles/permissions").permitAll()
         .requestMatchers(HttpMethod.POST, "/roles").hasAuthority("SUPER_ADMIN")
         .requestMatchers(HttpMethod.PUT, "/roles/{id}").hasAuthority("SUPER_ADMIN")

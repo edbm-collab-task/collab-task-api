@@ -101,10 +101,29 @@ public class ProjectContributorController {
      */
     @GetMapping("/{projectId}/contributors")
     public ResponseEntity<List<ProjectContributorResDto>> getContributors(@PathVariable Long projectId) {
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Projet non trouvé"));
+
         List<ProjectContributor> contributors = contributorRepository.findByProjectProjectIdOrderByAddedAtDesc(projectId);
         List<ProjectContributorResDto> dtos = contributors.stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
+
+        // Le propriétaire doit toujours figurer parmi les contributeurs,
+        // même s'il a été absent de la table (projets créés avant cette logique).
+        User owner = project.getOwner();
+        if (owner != null && dtos.stream().noneMatch(dto -> owner.getUsersId().equals(dto.userId()))) {
+            LocalDateTime addedAt = project.getCreatedAt() != null ? project.getCreatedAt() : LocalDateTime.now();
+            dtos.add(0, new ProjectContributorResDto(
+                    null,
+                    project.getProjectId(),
+                    owner.getUsersId(),
+                    (owner.getFirstname() + " " + owner.getLastname()).trim(),
+                    owner.getEmail(),
+                    addedAt
+            ));
+        }
+
         return ResponseEntity.ok(dtos);
     }
 

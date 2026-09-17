@@ -42,7 +42,9 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     /** Toutes les tâches actives. */
     List<Task> findByIsActiveTrue();
 
-    /** Tâches racines uniquement (sans tâche parente). */
+    @Query("SELECT t FROM Task t WHERE t.project.projectId = :projectId AND t.status.statusId = :statusId ORDER BY t.sortOrder ASC")
+List<Task> findByProjectProjectIdAndStatusIdOrderBySortOrderAsc(@Param("projectId") Long projectId, @Param("statusId") Long statusId);
+
     List<Task> findByParentIsNull();
 
     /** Nombre de tâches actives dans les projets donnés. */

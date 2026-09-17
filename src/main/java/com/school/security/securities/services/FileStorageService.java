@@ -587,4 +587,82 @@ public class FileStorageService {
             );
         }
     }
+
+    public String saveCommentAttachment(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return null;
+        }
+        if (file.getSize() > MAX_FILE_SIZE) {
+            throw new IllegalArgumentException(
+                    "Le fichier ne doit pas dépasser 10 MB."
+            );
+        }
+
+        String contentType = file.getContentType();
+        if (contentType == null || contentType.isBlank()) {
+            throw new IllegalArgumentException(
+                    "Type de fichier non supporté."
+            );
+        }
+
+        boolean supported = contentType.equals("image/jpeg")
+                || contentType.equals("image/png")
+                || contentType.equals("image/webp")
+                || contentType.equals("image/gif")
+                || contentType.equals("application/pdf");
+        if (!supported) {
+            throw new IllegalArgumentException(
+                    "Seules les images (JPG, PNG, GIF) et les PDF sont acceptés."
+            );
+        }
+
+        String originalName = file.getOriginalFilename();
+        String extension = "";
+        if (originalName != null && originalName.contains(".")) {
+            extension = originalName.substring(originalName.lastIndexOf("."));
+        }
+
+        String fileName = UUID.randomUUID() + extension;
+
+        Path targetPath = uploadPath
+                .resolve("comments")
+                .resolve(fileName)
+                .normalize();
+
+        try {
+            Files.createDirectories(targetPath.getParent());
+            Files.copy(
+                    file.getInputStream(),
+                    targetPath,
+                    StandardCopyOption.REPLACE_EXISTING
+            );
+            return "uploads/comments/" + fileName;
+        } catch (IOException e) {
+            throw new RuntimeException(
+                    "Erreur lors de la sauvegarde du fichier",
+                    e
+            );
+        }
+    }
+
+    public void deleteCommentAttachment(String filePath) {
+        if (filePath == null || filePath.isBlank()) {
+            return;
+        }
+        try {
+            String fileName = Paths.get(filePath)
+                    .getFileName()
+                    .toString();
+            Path file = uploadPath
+                    .resolve("comments")
+                    .resolve(fileName)
+                    .normalize();
+            Files.deleteIfExists(file);
+        } catch (IOException e) {
+            throw new RuntimeException(
+                    "Erreur lors de la suppression du fichier",
+                    e
+            );
+        }
+    }
 }

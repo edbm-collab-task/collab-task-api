@@ -67,6 +67,14 @@ public class SecurityConfig {
                 // portée par le JWT transporté en cookie ou header Authorization.
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())
+                .headers(headers -> headers
+                        .frameOptions(frame -> frame.disable())
+                        .addHeaderWriter((request, response) -> {
+                            if (request.getRequestURI().startsWith("/uploads/comments/")) {
+                                response.setHeader("X-Frame-Options", "ALLOWALL");
+                                response.setHeader("Content-Security-Policy", "frame-ancestors *");
+                            }
+                        }))
 .authorizeHttpRequests(auth -> auth
         // Endpoint WebSocket public (STOMP handshake) : l'authentification
         // n'est pas requise pour l'ouverture initiale de la connexion.
@@ -100,8 +108,7 @@ public class SecurityConfig {
         .requestMatchers(HttpMethod.DELETE, "/directions/{id}").permitAll()
         // Téléchargement de pièces jointes de messages — public.
         .requestMatchers(HttpMethod.GET, "/uploads/messages/{filename}").permitAll()
-        // Lecture des rôles et permissions — public (nécessaire au front pour
-        // afficher les options de sélection de rôle).
+        .requestMatchers(HttpMethod.GET, "/uploads/comments/{filename}").permitAll()
         .requestMatchers(HttpMethod.GET, "/roles", "/roles/permissions").permitAll()
         // Gestion des rôles réservée exclusivement au SUPER_ADMIN.
         .requestMatchers(HttpMethod.POST, "/roles").hasAuthority("SUPER_ADMIN")

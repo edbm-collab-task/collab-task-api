@@ -54,6 +54,11 @@ public class TaskComment implements Serializable {
     @OneToMany(mappedBy = "comment", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<CommentReaction> reactions = new ArrayList<>();
 
+    private String attachmentPath;
+    private String attachmentOriginalName;
+    private String attachmentContentType;
+    private Long attachmentSize;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -137,5 +142,37 @@ public class TaskComment implements Serializable {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getAttachmentPath() {
+        return attachmentPath;
+    }
+
+    public void setAttachmentPath(String attachmentPath) {
+        this.attachmentPath = attachmentPath;
+    }
+
+    public String getAttachmentOriginalName() {
+        return attachmentOriginalName;
+    }
+
+    public void setAttachmentOriginalName(String attachmentOriginalName) {
+        this.attachmentOriginalName = attachmentOriginalName;
+    }
+
+    public String getAttachmentContentType() {
+        return attachmentContentType;
+    }
+
+    public void setAttachmentContentType(String attachmentContentType) {
+        this.attachmentContentType = attachmentContentType;
+    }
+
+    public Long getAttachmentSize() {
+        return attachmentSize;
+    }
+
+    public void setAttachmentSize(Long attachmentSize) {
+        this.attachmentSize = attachmentSize;
     }
 }

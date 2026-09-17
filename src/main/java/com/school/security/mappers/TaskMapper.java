@@ -102,6 +102,7 @@ public class TaskMapper implements Mapper<TaskReqDto, Task, TaskResDto> {
                 entity.getStatus().getStatusId(),
                 entity.getStatus().getName(),
                 entity.getParent() != null ? entity.getParent().getTaskId() : null,
+                entity.getSortOrder(),
                 assignees);
     }
 }

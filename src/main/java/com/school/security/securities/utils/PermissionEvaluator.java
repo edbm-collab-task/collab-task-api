@@ -2,6 +2,7 @@ package com.school.security.securities.utils;
 
 import com.school.security.entities.User;
 import com.school.security.enums.PermissionType;
+import com.school.security.repositories.ProjectRepository;
 import com.school.security.repositories.UserProjectPermissionRepository;
 import com.school.security.repositories.UserRepository;
 import java.util.Collection;
@@ -36,6 +37,7 @@ public class PermissionEvaluator {
 
     private UserRepository userRepository;
     private UserProjectPermissionRepository userProjectPermissionRepository;
+    private ProjectRepository projectRepository;
 
     /**
      * Vérifie si l'utilisateur authentifié possède une permission GLOBALE,
@@ -98,6 +100,13 @@ public class PermissionEvaluator {
                 .anyMatch(p -> p.getName().name().equals(permission));
 
         if (hasRolePermission) return true;
+
+        // Le propriétaire du projet a toujours tous les droits sur son projet
+        boolean isOwner = projectRepository.findById(projectId)
+                .map(p -> p.getOwner() != null
+                        && user.getUsersId().equals(p.getOwner().getUsersId()))
+                .orElse(false);
+        if (isOwner) return true;
 
         try {
             PermissionType permType = PermissionType.valueOf(permission);

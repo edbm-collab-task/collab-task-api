@@ -11,5 +11,7 @@ public interface TaskService extends Service<TaskReqDto, TaskResDto, Long> {
 
     TaskResDto changerStatut(Long taskId, Long statusId);
 
+    TaskResDto updateTaskSortOrder(Long taskId, Integer sortOrder);
+
     List<TaskResDto> findByProject(Long projectId);
 }

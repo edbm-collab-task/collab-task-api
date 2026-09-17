@@ -6,8 +6,10 @@ import com.school.security.services.contracts.CommentService;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Contrôleur de gestion des commentaires d'une tâche, sous le préfixe
@@ -82,11 +84,14 @@ public class CommentController {
      * réactive automatiquement un projet archivé si sa tâche appartient à ce
      * projet.
      */
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public CommentResDto createComment(
             @PathVariable Long taskId,
-            @Valid @RequestBody CommentReqDto dto) {
-        return commentService.createComment(taskId, dto);
+            @RequestParam("content") String content,
+            @RequestParam(value = "parentCommentId", required = false) Long parentCommentId,
+            @RequestParam(value = "file", required = false) MultipartFile file) {
+        CommentReqDto dto = new CommentReqDto(content, parentCommentId);
+        return commentService.createComment(taskId, dto, file);
     }
 
     /**

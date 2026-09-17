@@ -25,6 +25,26 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+/**
+ * Implémentation du service de commentaires de tâche (avec réponses imbriquées
+ * et réactions emoji).
+ *
+ * <p>Règles métier constatées (documentées, non modifiées) :
+ * <ul>
+ *   <li>l'utilisateur courant est résolu depuis le {@code SecurityContext} par
+ *       email ; {@link #getCurrentUser} lève une {@code EntityException}
+ *       ("User not found") si l'email n'existe pas, alors que
+ *       {@link #getCurrentUserId} renvoie silencieusement {@code null} en cas
+ *       d'échec (sert uniquement à marquer "réaction de l'utilisateur
+ *       courant") ;</li>
+ *   <li>la modification et la suppression d'un commentaire sont réservées à son
+ *       auteur : aucun rôle (admin/super admin) ne peut les contourner ;</li>
+ *   <li>la suppression est physique ({@code commentRepository.delete}) ;</li>
+ *   <li>la création d'un commentaire réactive automatiquement le projet parent
+ *       s'il était archivé (voir {@link #autoUnarchiveProject}) ;</li>
+ *   <li>aucune notification ni diffusion WebSocket n'est émise par ce service.</li>
+ * </ul>
+ */
 @Service
 @Transactional
 @AllArgsConstructor
@@ -37,6 +57,12 @@ public class CommentServiceImpl implements CommentService {
     private final ProjectRepository projectRepository;
     private final FileStorageService fileStorageService;
 
+    /**
+     * Retourne uniquement les commentaires racines (sans parent), triés du plus
+     * récent au plus ancien ; les réponses sont imbriquées récursivement dans le
+     * DTO. {@code currentUserId} (nullable) sert à indiquer si l'utilisateur
+     * courant a réagi.
+     */
     @Override
     public List<CommentResDto> getCommentsByTask(Long taskId) {
         List<TaskComment> rootComments = commentRepository
@@ -47,11 +73,17 @@ public class CommentServiceImpl implements CommentService {
                 .collect(Collectors.toList());
     }
 
+    /** Compte tous les commentaires de la tâche (racines et réponses). */
     @Override
     public long countCommentsByTask(Long taskId) {
         return commentRepository.countByTaskTaskId(taskId);
     }
 
+    /**
+     * Crée un commentaire (ou une réponse si {@code parentCommentId} est fourni)
+     * attribué à l'utilisateur courant, puis réactive le projet parent s'il
+     * était archivé.
+     */
     @Override
     public CommentResDto createComment(Long taskId, CommentReqDto dto, MultipartFile file) {
         Task task = taskRepository.findById(taskId)
@@ -84,6 +116,7 @@ public class CommentServiceImpl implements CommentService {
         return toDto(saved, author.getUsersId());
     }
 
+    /** Met à jour le contenu ; seul l'auteur du commentaire est autorisé. */
     @Override
     public CommentResDto updateComment(Long commentId, CommentReqDto dto) {
         TaskComment comment = commentRepository.findById(commentId)
@@ -99,6 +132,7 @@ public class CommentServiceImpl implements CommentService {
         return toDto(saved, currentUser.getUsersId());
     }
 
+    /** Supprime physiquement le commentaire ; seul l'auteur est autorisé. */
     @Override
     public void deleteComment(Long commentId) {
         TaskComment comment = commentRepository.findById(commentId)
@@ -116,6 +150,10 @@ public class CommentServiceImpl implements CommentService {
         commentRepository.delete(comment);
     }
 
+    /**
+     * Bascule la réaction de l'utilisateur courant pour un emoji : l'ajoute si
+     * absente, la retire sinon. Retourne le commentaire mis à jour.
+     */
     @Override
     public CommentResDto toggleReaction(Long commentId, String emoji) {
         TaskComment comment = commentRepository.findById(commentId)
@@ -146,6 +184,10 @@ public class CommentServiceImpl implements CommentService {
         return toDto(comment, currentUser.getUsersId());
     }
 
+    /**
+     * Convertit récursivement un commentaire et ses réponses ; les réponses sont
+     * triées par date de création croissante.
+     */
     private CommentResDto toDto(TaskComment comment, Long currentUserId) {
         List<CommentResDto> replies = comment.getReplies().stream()
                 .sorted((a, b) -> a.getCreatedAt().compareTo(b.getCreatedAt()))
@@ -182,6 +224,10 @@ public class CommentServiceImpl implements CommentService {
         );
     }
 
+    /**
+     * Regroupe les réactions par emoji en conservant l'ordre d'insertion et
+     * indique pour chaque groupe si l'utilisateur courant a réagi.
+     */
     private List<CommentResDto.ReactionDto> groupReactions(List<CommentReaction> reactions, Long currentUserId) {
         Map<String, List<CommentReaction>> grouped = new LinkedHashMap<>();
         for (CommentReaction r : reactions) {
@@ -206,6 +252,10 @@ public class CommentServiceImpl implements CommentService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Retourne l'id de l'utilisateur courant, ou {@code null} si
+     * l'authentification est absente ou l'email inconnu (aucune exception).
+     */
     private Long getCurrentUserId() {
         try {
             String email = SecurityUtils.getCurrentUsername();
@@ -215,12 +265,20 @@ public class CommentServiceImpl implements CommentService {
         }
     }
 
+    /**
+     * Retourne l'utilisateur courant ; lève une {@code EntityException} si
+     * l'email résolu n'est pas trouvé.
+     */
     private User getCurrentUser() {
         String email = SecurityUtils.getCurrentUsername();
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new EntityException("User not found"));
     }
 
+    /**
+     * Réactive le projet parent si son flag actif vaut explicitement
+     * {@code Boolean.FALSE} (un {@code null} n'est pas traité).
+     */
     private void autoUnarchiveProject(Task task) {
         var project = task.getProject();
         if (Boolean.FALSE.equals(project.getIsActive())) {

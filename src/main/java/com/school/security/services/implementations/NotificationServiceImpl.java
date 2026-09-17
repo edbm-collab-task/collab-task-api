@@ -13,6 +13,21 @@ import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Implémentation du service de notifications internes (persistance en base
+ * uniquement).
+ *
+ * <p>Règles métier constatées (documentées, non modifiées) :
+ * <ul>
+ *   <li>{@link #markAsRead} ne vérifie PAS que la notification appartient à
+ *       l'utilisateur courant : n'importe quel identifiant existant peut être
+ *       marqué comme lu ;</li>
+ *   <li>{@link #createNotification} effectue un simple insert, sans déduplication
+ *       ni contrôle d'existence préalable ;</li>
+ *   <li>ce service ne diffuse rien en temps réel (pas de dépendance WebSocket) :
+ *       il se contente d'écrire/lire la table des notifications.</li>
+ * </ul>
+ */
 @Service
 @Transactional
 @AllArgsConstructor
@@ -21,6 +36,7 @@ public class NotificationServiceImpl implements NotificationService {
     private NotificationRepository notificationRepository;
     private UserRepository userRepository;
 
+    /** Retourne toutes les notifications d'un utilisateur, de la plus récente à la plus ancienne. */
     @Override
     public List<NotificationResDto> findByUserId(Long userId) {
         return notificationRepository.findByUserUsersIdOrderByCreatedAtDesc(userId)
@@ -29,11 +45,16 @@ public class NotificationServiceImpl implements NotificationService {
                 .collect(Collectors.toList());
     }
 
+    /** Compte les notifications non lues d'un utilisateur. */
     @Override
     public long countUnread(Long userId) {
         return notificationRepository.countByUserUsersIdAndIsReadFalse(userId);
     }
 
+    /**
+     * Marque une notification comme lue (sans contrôle de propriétaire) ; lève
+     * une {@code RuntimeException} si l'identifiant n'existe pas.
+     */
     @Override
     public NotificationResDto markAsRead(Long notificationId) {
         Notification notification = notificationRepository.findById(notificationId)
@@ -42,6 +63,10 @@ public class NotificationServiceImpl implements NotificationService {
         return toDto(notificationRepository.save(notification));
     }
 
+    /**
+     * Marque toutes les notifications d'un utilisateur comme lues ; réécrit
+     * également celles déjà lues.
+     */
     @Override
     public void markAllAsRead(Long userId) {
         List<Notification> notifications = notificationRepository.findByUserUsersIdOrderByCreatedAtDesc(userId);
@@ -51,6 +76,10 @@ public class NotificationServiceImpl implements NotificationService {
         notificationRepository.saveAll(notifications);
     }
 
+    /**
+     * Crée une notification non lue pour un utilisateur ; lève une
+     * {@code RuntimeException} si l'utilisateur n'existe pas.
+     */
     @Override
     public void createNotification(Long userId, String message, NotificationType type, Long projectId, Long taskId) {
         User user = userRepository.findById(userId)
@@ -65,6 +94,7 @@ public class NotificationServiceImpl implements NotificationService {
         notificationRepository.save(notification);
     }
 
+    /** Convertit l'entité de notification en DTO de réponse. */
     private NotificationResDto toDto(Notification entity) {
         return new NotificationResDto(
                 entity.getNotificationId(),

@@ -8,6 +8,16 @@ import java.util.ArrayList;
 import java.util.List;
 import lombok.*;
 
+/**
+ * Entité projet.
+ *
+ * <p>Conventions JPA et règles métier constatées (documentées, non modifiées) :
+ * <ul>
+ *   <li>{@code isActive} est un flag de suppression logique ;</li>
+ *   <li>{@code contributors}OneToMany avec {@code cascade = CascadeType.ALL, orphanRemoval = true} ;</li>
+ *   <li>pas d'annotation {@code @PreUpdate} ; les modifications de champs simples ne rafraîchissent pas de timestamp.</li>
+ * </ul>
+ */
 @Entity
 @Table(name = "projects")
 @ToString

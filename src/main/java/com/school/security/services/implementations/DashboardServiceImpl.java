@@ -32,6 +32,21 @@ import org.springframework.transaction.annotation.Transactional;
  * Fournit les statistiques, l'évolution, la distribution et l'activité récente
  * en fonction de la période et du projet sélectionné.
  * Utilise PeriodUtils pour éviter la duplication de la résolution des périodes.
+ *
+ * <p>Règles de périmètre constatées (documentées, non modifiées) :
+ * <ul>
+ *   <li>le service est appelé sans contrôle de rôle préalable : le périmètre est
+ *       déterminé ici à partir des rôles de l'utilisateur. {@code SUPER_ADMIN}
+ *       voit tous les projets actifs, {@code ADMIN} voit ses projets accessibles
+ *       ({@code findAccessibleProjectsByUserId}) ;</li>
+ *   <li>un utilisateur "personnel" (ni SUPER_ADMIN ni ADMIN) ne voit que les
+ *       tâches qui lui sont assignées (paramètre {@code personalUserId}) ;</li>
+ *   <li>{@code userId} inconnu, ou {@code projectId} demandé hors des projets
+ *       accessibles, renvoie un tableau de bord vide ;</li>
+ *   <li>{@code totalUsers} est le nombre global d'utilisateurs (non filtré),
+ *       y compris pour un utilisateur "personnel" ;</li>
+ *   <li>listes bornées : 10 activités récentes et 5 projets récents.</li>
+ * </ul>
  */
 @Service
 @Transactional(readOnly = true)
@@ -49,6 +64,13 @@ public class DashboardServiceImpl implements DashboardService {
     private static final DateTimeFormatter DAY_LABEL_FORMAT = DateTimeFormatter.ofPattern("d MMM");
     private static final DateTimeFormatter MONTH_LABEL_FORMAT = DateTimeFormatter.ofPattern("MMM yyyy");
 
+    /**
+     * Point d'entrée du tableau de bord : détermine les projets accessibles
+     * selon le rôle, résout la période, puis agrège statistiques, évolution,
+     * distribution, activité et projets récents. Renvoie un tableau de bord vide
+     * si l'utilisateur est inconnu, si aucun projet n'est accessible ou si
+     * {@code projectId} n'appartient pas au périmètre.
+     */
     @Override
     public DashboardDataResDto getDashboardStats(Long userId, String period, String startDate, String endDate, Long projectId) {
         var user = userRepository.findById(userId).orElse(null);
@@ -109,6 +131,11 @@ public class DashboardServiceImpl implements DashboardService {
         return PeriodUtils.resolvePeriodDates(period, startDate, endDate, today);
     }
 
+    /**
+     * Calcule les KPI. Pour un utilisateur "personnel", toutes les requêtes sont
+     * restreintes aux tâches qui lui sont assignées ; {@code totalContributors}
+     * reste calculé sur l'ensemble des projets accessibles.
+     */
     private DashboardStatsResDto computeStats(
             List<Long> projectIds, Long personalUserId, LocalDate today, LocalDateTime start, LocalDateTime end,
             long totalUsers) {
@@ -132,6 +159,10 @@ public class DashboardServiceImpl implements DashboardService {
                 totalContributors);
     }
 
+    /**
+     * Construit la série créées/terminées par jour ou par mois (regroupement
+     * mensuel au-delà de 90 jours, voir {@link #resolvePeriodType}).
+     */
     private DashboardEvolutionResDto computeEvolution(
             List<Long> projectIds, Long personalUserId, LocalDateTime start, LocalDateTime end) {
         List<LocalDateTime> createdDates = personalUserId == null
@@ -170,6 +201,10 @@ public class DashboardServiceImpl implements DashboardService {
         return new DashboardEvolutionResDto(points);
     }
 
+    /**
+     * Regroupement mensuel si la période dépasse 90 jours, journalier sinon
+     * (le seuil est strictement supérieur à 90).
+     */
     private String resolvePeriodType(LocalDateTime start, LocalDateTime end) {
         long days = java.time.temporal.ChronoUnit.DAYS.between(start.toLocalDate(), end.toLocalDate());
         if (days > 90) {
@@ -178,6 +213,10 @@ public class DashboardServiceImpl implements DashboardService {
         return "DAY";
     }
 
+    /**
+     * Répartition des tâches par statut ; le libellé et la clé de la barre
+     * reprennent tous deux le nom du statut.
+     */
     private DashboardDistributionResDto computeDistribution(List<Long> projectIds, Long personalUserId) {
         List<Object[]> statusCounts = personalUserId == null
                 ? taskRepository.countByStatusGrouped(projectIds)
@@ -202,6 +241,10 @@ public class DashboardServiceImpl implements DashboardService {
         return new DashboardDistributionResDto(items, total);
     }
 
+    /**
+     * Classe CSS de couleur associée au nom de statut ; un statut inconnu
+     * retombe sur le gris.
+     */
     private String resolveStatusCssClass(String statusName) {
         return switch (statusName) {
             case "A faire" -> "bg-amber-400";
@@ -211,6 +254,7 @@ public class DashboardServiceImpl implements DashboardService {
         };
     }
 
+    /** Dernières activités de la période, plafonnées à 10. */
     private List<DashboardActivityItemResDto> computeRecentActivity(
             List<Long> projectIds, LocalDateTime start, LocalDateTime end) {
         return activityRepository.findRecentByProjectIdsAndPeriod(projectIds, start, end).stream()
@@ -225,6 +269,11 @@ public class DashboardServiceImpl implements DashboardService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Projets récents avec progression (tâches terminées / tâches actives).
+     * Pour un utilisateur "personnel", ne conserve que les projets où il a au
+     * moins une tâche assignée ; plafonné à 5 projets.
+     */
     private List<DashboardRecentProjectResDto> computeRecentProjects(List<Project> projects, Long personalUserId) {
         // Pour USER : ne garder que les projets où il a au moins une tâche assignée (cohérent avec stats personnelles)
         List<Project> filtered = projects;
@@ -263,6 +312,7 @@ public class DashboardServiceImpl implements DashboardService {
                 .collect(Collectors.toList());
     }
 
+    /** Construit un tableau de bord à zéro, en conservant le libellé de période. */
     private DashboardDataResDto buildEmptyDashboard(String period) {
         return new DashboardDataResDto(
                 period,

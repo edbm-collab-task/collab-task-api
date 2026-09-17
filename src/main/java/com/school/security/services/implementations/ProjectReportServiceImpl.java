@@ -23,6 +23,25 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+/**
+ * Implémentation de l'agrégation de données du rapport de projet.
+ *
+ * <p>Règles métier constatées (documentées, non modifiées) :
+ * <ul>
+ *   <li>l'accès est autorisé pour un SUPER_ADMIN, un ADMIN, le propriétaire du
+ *       projet ou un contributeur ; sinon {@code getProjectReport} renvoie
+ *       {@code null} (c'est le contrôleur qui en déduit le statut HTTP) ;</li>
+ *   <li>un ADMIN n'est PAS restreint à ses projets accessibles : il peut
+ *       consulter le rapport de n'importe quel projet existant ;</li>
+ *   <li>seules les tâches actives ({@code isActive = true}) sont comptabilisées ;</li>
+ *   <li>le statut global et son libellé placés dans le DTO sont figés à
+ *       "ON_TRACK" / "Sur la bonne voie" ; les valeurs calculées par
+ *       {@link #calculateGlobalStatus} ne sont pas utilisées (code mort) ;</li>
+ *   <li>plusieurs méthodes privées (activité, évolution, distributions,
+ *       résolution de période, statistiques vides) sont déclarées mais jamais
+ *       appelées dans ce service.</li>
+ * </ul>
+ */
 @Service
 @Transactional(readOnly = true)
 @AllArgsConstructor
@@ -38,6 +57,12 @@ public class ProjectReportServiceImpl implements ProjectReportService {
     private static final String IN_PROGRESS_STATUS = "En cours";
     private static final String TODO_STATUS = "A faire";
 
+    /**
+     * Construit le rapport d'un projet : contrôle d'accès, comptages par statut,
+     * liste des contributeurs et table des tâches triée par statut puis
+     * échéance. Renvoie {@code null} si l'utilisateur, le projet ou l'accès est
+     * invalide.
+     */
     @Override
     public ProjectReportResDto getProjectReport(Long userId, Long projectId) {
         var user = userRepository.findById(userId).orElse(null);
@@ -135,6 +160,11 @@ public class ProjectReportServiceImpl implements ProjectReportService {
         );
     }
 
+    /**
+     * Statut global théorique : "DIFFICULTY" au-delà de 3 tâches en retard,
+     * "ON_TRACK" à partir de 80 % de progression, "MONITORING" sinon. Non
+     * utilisé par le DTO actuel.
+     */
     private String calculateGlobalStatus(int progressPercent, int overdueTasks) {
         if (overdueTasks > 3) return "DIFFICULTY";
         if (progressPercent >= 80) return "ON_TRACK";
@@ -142,6 +172,7 @@ public class ProjectReportServiceImpl implements ProjectReportService {
         return "MONITORING";
     }
 
+    /** Libellé français d'un statut global ; "Inconnu" par défaut. */
     private String getGlobalStatusLabel(String status) {
         return switch (status) {
             case "ON_TRACK" -> "Sur la bonne voie";
@@ -151,6 +182,7 @@ public class ProjectReportServiceImpl implements ProjectReportService {
         };
     }
 
+    /** Libellé d'affichage d'un statut (préfixé d'un pictogramme) ; statut inconnu retourné tel quel. */
     private String getStatusLabel(String status) {
         return switch (status) {
             case "Termine" -> "✅ Terminé";
@@ -160,6 +192,7 @@ public class ProjectReportServiceImpl implements ProjectReportService {
         };
     }
 
+    /** Activités récentes de la période, plafonnées à 20 (non appelée actuellement). */
     private List<RecentActivityResDto> getRecentActivity(List<Long> projectIds, LocalDateTime start, LocalDateTime end) {
         List<Activity> activities = activityRepository.findRecentByProjectIdsAndPeriod(projectIds, start, end);
         return activities.stream()
@@ -175,6 +208,10 @@ public class ProjectReportServiceImpl implements ProjectReportService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Série créées/terminées, regroupée par jour si la période fait au plus
+     * 31 jours, par mois sinon (non appelée actuellement).
+     */
     private List<EvolutionPointResDto> computeEvolution(List<Long> projectIds, LocalDateTime start, LocalDateTime end) {
         List<LocalDateTime> createdDates = taskRepository.findCreatedDatesBetween(projectIds, start, end);
         List<LocalDateTime> completedDates = taskRepository.findCompletedDatesBetween(projectIds, start, end);
@@ -222,20 +259,24 @@ public class ProjectReportServiceImpl implements ProjectReportService {
         return result;
     }
 
+    /** Non implémenté et non appelé : renvoie toujours une liste vide. */
     private List<PriorityDistributionResDto> computePriorityDistribution(List<Long> projectIds) {
         // Return empty for now - would need priority distribution query
         return List.of();
     }
 
+    /** Non implémenté et non appelé : renvoie toujours une liste vide. */
     private List<AssigneeWorkloadResDto> getAssigneeWorkload(List<Long> projectIds) {
         // Return empty for now
         return List.of();
     }
 
+    /** Délègue à PeriodUtils (non appelée actuellement). */
     private LocalDateTime[] resolvePeriodDates(String period, String startDate, String endDate, LocalDate today) {
         return PeriodUtils.resolvePeriodDates(period, startDate, endDate, today);
     }
 
+    /** Statistiques vides (non utilisées actuellement ; type de retour incohérent avec ce service). */
     private AdminDashboardStatsResDto emptyStats() {
         return new AdminDashboardStatsResDto(
                 0, 0, 0, 0, 0, 0, 0, 0,

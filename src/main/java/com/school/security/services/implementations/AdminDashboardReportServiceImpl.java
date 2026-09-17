@@ -35,6 +35,25 @@ import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Implémentation du rapport PDF administrateur (iText / OpenPDF).
+ *
+ * <p>Fonctionnement constaté (documenté, non modifié) :
+ * <ul>
+ *   <li>les données proviennent de {@link AdminDashboardService} ; le nom de
+ *       l'administrateur générateur est résolu depuis l'utilisateur, avec le
+ *       repli "Admin" ;</li>
+ *   <li>le document enchaîne : en-tête (logo optionnel), contexte des projets,
+ *       graphique d'évolution, tableaux des projets actifs puis inactifs, et
+ *       pied de page ;</li>
+ *   <li>le graphique "Évolution des projets" réutilise en réalité l'évolution
+ *       des tâches de {@link AdminDashboardService} comme approximation des
+ *       projets créés ;</li>
+ *   <li>les cartes KPI et les tableaux "Top 10" sont définis mais jamais
+ *       appelés (code mort) : {@code addKpiCards}, {@code addKpiCell},
+ *       {@code addUsersTable}, {@code addProjectsTable}.</li>
+ * </ul>
+ */
 @Service
 @Transactional(readOnly = true)
 @AllArgsConstructor
@@ -77,6 +96,10 @@ public class AdminDashboardReportServiceImpl implements AdminDashboardReportServ
     private static final DateTimeFormatter PDF_DATE_FORMAT = PdfConstants.PDF_DATE_LONG;
     private static final DateTimeFormatter PDF_GENERATED_FORMAT = PdfConstants.PDF_GENERATED_FORMAT;
 
+    /**
+     * Surcharge sans rôle : déduit le rôle de l'utilisateur puis délègue à
+     * {@link #generateReport(Long, RoleType, String, String, String)}.
+     */
     @Override
     public byte[] generateReport(Long userId, String period, String startDate, String endDate) {
         var user = userRepository.findById(userId).orElse(null);
@@ -86,6 +109,10 @@ public class AdminDashboardReportServiceImpl implements AdminDashboardReportServ
         return generateReport(userId, role, period, startDate, endDate);
     }
 
+    /**
+     * Génère le PDF administrateur ; toute erreur iText est encapsulée dans une
+     * {@code RuntimeException}.
+     */
     @Override
     public byte[] generateReport(Long userId, RoleType role, String period, String startDate, String endDate) {
         AdminDashboardStatsResDto data =
@@ -115,6 +142,7 @@ public class AdminDashboardReportServiceImpl implements AdminDashboardReportServ
         }
     }
 
+    /** En-tête : logo optionnel (erreur ignorée), titre, générateur, période et date. */
     private void addHeader(Document document, RoleType role, String period, String startDate, String endDate, String adminName) throws DocumentException {
         // Logo
         try (java.io.InputStream is = getClass().getResourceAsStream("/static/logoEDBM.png")) {
@@ -143,10 +171,12 @@ public class AdminDashboardReportServiceImpl implements AdminDashboardReportServ
         document.add(new Paragraph(" ", FONT_FOOTER));
     }
 
+    /** Délègue à PeriodUtils le libellé de période avec dates. */
     private String formatPeriodWithDates(String period, String sd, String ed){
         return PeriodUtils.formatPeriodWithDates(period, sd, ed);
     }
 
+    /** Section "Contexte" : répartition actifs/inactifs en pourcentage et barres horizontales. */
     private void addContexteProjets(Document document, AdminDashboardStatsResDto data) throws DocumentException {
         Paragraph sec = new Paragraph("Contexte", FONT_SECTION);
         sec.setSpacingBefore(10);
@@ -180,6 +210,10 @@ public class AdminDashboardReportServiceImpl implements AdminDashboardReportServ
         document.add(t);
     }
 
+    /**
+     * Graphique d'évolution des projets (basé sur l'évolution des tâches) ;
+     * section omise si la série est vide.
+     */
     private void addProjetsEvolutionBarChart(Document document, AdminDashboardStatsResDto data, String period, String sd, String ed) throws DocumentException {
         if(data.evolution()==null || data.evolution().isEmpty()) return;
         Paragraph sec = new Paragraph("Évolution des projets ("+formatPeriodWithDates(period, sd, ed)+")", FONT_SECTION);
@@ -191,14 +225,17 @@ public class AdminDashboardReportServiceImpl implements AdminDashboardReportServ
         document.add(chart);
     }
 
+    /** Délègue à ChartRenderer le rendu en barres simples ("Projets créés"). */
     private Image renderProjetsVerticalBarChart(java.util.List<EvolutionPointResDto> points){
         return ChartRenderer.renderSingleBarChart("Projets créés", points);
     }
 
+    /** Délègue la création d'une cellule de barre à PdfHelper. */
     private PdfPCell buildBarCell(long value, long maxVal, Color color) {
         return PdfHelper.buildBarCell(value, maxVal, color);
     }
 
+    /** Tableau des projets dont le statut est "Actif" ; message si aucun. */
     private void addProjetsActifsTable(Document document, AdminDashboardStatsResDto data) throws DocumentException {
         java.util.List<ProjectStatsResDto> actifs = data.topProjects().stream().filter(p-> "Actif".equals(p.status())).toList();
         Paragraph sec = new Paragraph("Projets actifs", FONT_SECTION);
@@ -212,6 +249,7 @@ public class AdminDashboardReportServiceImpl implements AdminDashboardReportServ
         }
         t.setSpacingAfter(8); document.add(t);
     }
+    /** Tableau des projets non "Actif" (inactifs/archivés) ; message si aucun. */
     private void addProjetsInactifsTable(Document document, AdminDashboardStatsResDto data) throws DocumentException {
         java.util.List<ProjectStatsResDto> inactifs = data.topProjects().stream().filter(p-> !"Actif".equals(p.status())).toList();
         Paragraph sec = new Paragraph("Projets inactifs / archivés", FONT_SECTION);
@@ -226,6 +264,7 @@ public class AdminDashboardReportServiceImpl implements AdminDashboardReportServ
         t.setSpacingAfter(8); document.add(t);
     }
 
+    /** Cartes KPI (4 colonnes) ; définie mais jamais appelée (code mort). */
     private void addKpiCards(Document document, AdminDashboardStatsResDto data) throws DocumentException {
         PdfPTable table = new PdfPTable(4);
         table.setWidthPercentage(100);
@@ -240,6 +279,7 @@ public class AdminDashboardReportServiceImpl implements AdminDashboardReportServ
         document.add(table);
     }
 
+    /** Ajoute une carte KPI colorée (bordure basse) ; définie mais jamais appelée (code mort). */
     private void addKpiCell(PdfPTable table, String label, String value, Color color) {
         PdfPCell cell = new PdfPCell();
         cell.setBorder(Rectangle.NO_BORDER);
@@ -263,6 +303,7 @@ public class AdminDashboardReportServiceImpl implements AdminDashboardReportServ
         table.addCell(cell);
     }
 
+    /** Tableau "Top 10 Utilisateurs" ; définie mais jamais appelée (code mort). */
     private void addUsersTable(Document document, List<UserStatsResDto> users) throws DocumentException {
         if (users.isEmpty()) return;
 
@@ -291,6 +332,7 @@ public class AdminDashboardReportServiceImpl implements AdminDashboardReportServ
         document.add(table);
     }
 
+    /** Tableau "Top 10 Projets" ; définie mais jamais appelée (code mort). */
     private void addProjectsTable(Document document, List<ProjectStatsResDto> projects) throws DocumentException {
         if (projects.isEmpty()) return;
 
@@ -320,14 +362,17 @@ public class AdminDashboardReportServiceImpl implements AdminDashboardReportServ
         document.add(table);
     }
 
+    /** Délègue l'en-tête de tableau à PdfHelper. */
     private void addTableHeader(PdfPTable table, String... headers) {
         PdfHelper.addTableHeader(table, headers);
     }
 
+    /** Délègue la ligne de tableau à PdfHelper. */
     private void addTableRow(PdfPTable table, String... cells) {
         PdfHelper.addTableRow(table, cells);
     }
 
+    /** Pied de page : mention de génération automatique. */
     private void addFooter(Document document) throws DocumentException {
         Paragraph footer = new Paragraph(
                 "Rapport généré automatiquement par CollaB Tasks — " + LocalDateTime.now().format(PDF_GENERATED_FORMAT),

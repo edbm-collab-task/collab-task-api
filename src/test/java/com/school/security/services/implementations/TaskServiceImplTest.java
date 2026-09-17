@@ -73,6 +73,7 @@ class TaskServiceImplTest {
                         2L,
                         "In progress",
                         null,
+                        0,
                         List.of());
         taskTwoDto =
                 new TaskResDto(
@@ -88,6 +89,7 @@ class TaskServiceImplTest {
                         2L,
                         "In progress",
                         null,
+                        0,
                         List.of());
         createTaskReqDto =
                 new TaskReqDto(
@@ -171,6 +173,7 @@ class TaskServiceImplTest {
                         2L,
                         "In progress",
                         null,
+                        0,
                         List.of());
         when(taskMapper.fromDto(createTaskReqDto)).thenReturn(taskToCreate);
         when(taskRepository.save(taskToCreate)).thenReturn(taskToCreate);
@@ -211,6 +214,7 @@ class TaskServiceImplTest {
                         2L,
                         "In progress",
                         null,
+                        0,
                         List.of());
         when(taskRepository.findById(1L)).thenReturn(Optional.of(taskOne));
         when(priorityRepository.getReferenceById(3L)).thenReturn(priority);
@@ -258,6 +262,7 @@ class TaskServiceImplTest {
                         2L,
                         "In progress",
                         null,
+                        0,
                         List.of());
         when(taskRepository.findById(404L)).thenReturn(Optional.empty());
         when(taskMapper.fromDto(fallbackRequest)).thenReturn(taskToCreate);
@@ -351,6 +356,7 @@ class TaskServiceImplTest {
                         2L,
                         "In progress",
                         null,
+                        0,
                         List.of());
         when(taskRepository.findById(1L)).thenReturn(Optional.of(taskOne));
         when(taskRepository.save(taskOne)).thenReturn(archivedTask);
@@ -395,6 +401,7 @@ class TaskServiceImplTest {
                         3L,
                         "Done",
                         null,
+                        0,
                         List.of());
         when(taskRepository.findById(1L)).thenReturn(Optional.of(taskOne));
         when(statusRepository.findById(3L)).thenReturn(Optional.of(done));

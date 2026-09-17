@@ -19,14 +19,16 @@ WHERE NOT EXISTS (
 -- 2. Créer les rôles s'ils n'existent pas
 -- =========================================================
 
-INSERT INTO roles (name)
-SELECT role_name
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS code_role VARCHAR(10);
+
+INSERT INTO roles (name, code_role)
+SELECT role_name, code_role
 FROM (
     VALUES
-        ('ADMIN'),
-        ('USER'),
-        ('SUPER_ADMIN')
-) AS roles_to_insert(role_name)
+        ('ADMIN', 'ADM'),
+        ('USER', 'USER'),
+        ('SUPER_ADMIN', 'SADM')
+) AS roles_to_insert(role_name, code_role)
 WHERE NOT EXISTS (
     SELECT 1
     FROM roles
@@ -258,7 +260,7 @@ SELECT
     u.firstname,
     u.lastname,
     u.is_active,
-    r.name AS role
+    r.code_role AS role
 FROM users u
 LEFT JOIN users_roles ur ON ur.users_users_id = u.users_id
 LEFT JOIN roles r ON r.roles_id = ur.roles_roles_id

@@ -67,8 +67,6 @@ public class DirectionServiceImpl implements DirectionService {
             return this.directionMapper.toDto(this.directionRepository.save(directionToSave));
         }
     }
-
-    @Override
     /**
      * Crée ou met à jour une direction.
      *

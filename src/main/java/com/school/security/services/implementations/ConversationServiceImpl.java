@@ -27,6 +27,36 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.*;
 
+/**
+ * Implémentation du service de messagerie (conversations privées et groupes).
+ *
+ * <p>Règles métier constatées (documentées, non modifiées) :
+ * <ul>
+ *   <li>l'utilisateur courant est résolu depuis le {@code SecurityContext}
+ *       par email ; absence d'authentification → {@code BadRequestException},
+ *       email inconnu → {@code ResourceNotFoundException} ;</li>
+ *   <li>l'appartenance à une conversation est systématiquement vérifiée via
+ *       {@link #verifyMember} pour les opérations de lecture/écriture liées
+ *       à une conversation ;</li>
+ *   <li>il n'existe PAS de hiérarchie propriétaire/admin de groupe : la
+ *       notion de "owner" se limite à la {@code ConversationMember} créée en
+ *       premier lors de {@link #createGroup}. Tout membre peut donc ajouter
+ *       des membres, en retirer (y compris d'autres membres) ou supprimer la
+ *       conversation ;</li>
+ *   <li>les opérations d'ajout/retrait de membres, {@code leaveGroup},
+ *       {@code markAsRead}, {@code togglePin} et {@code toggleArchive}
+ *       n'émettent AUCUNE notification et ne diffusent rien par WebSocket
+ *       (aucune dépendance à un broker dans ce service) ;</li>
+ *   <li>{@link #deleteConversation} est une suppression physique : la
+ *       relation {@code Conversation.members}/{@code Conversation.messages}
+ *       est en {@code CascadeType.ALL + orphanRemoval}, donc messages et
+ *       appartenances sont supprimés avec la conversation.</li>
+ * </ul>
+ *
+ * <p>L'annotation {@code @Transactional} de classe est en lecture-écriture ;
+ * les méthodes de lecture la surchargent par
+ * {@code @Transactional(readOnly = true)}.
+ */
 @Service
 @Transactional
 public class ConversationServiceImpl
@@ -70,6 +100,16 @@ public class ConversationServiceImpl
                 chatUserMapper;
     }
 
+    /**
+     * Résout l'identifiant de l'utilisateur authentifié courant.
+     *
+     * <p>Contrairement à {@code SecurityUtils.getCurrentUsername()}, cette
+     * méthode ne teste pas {@code isAuthenticated()} : elle se contente de
+     * vérifier que l'authentification et son nom ne sont pas nuls. Elle lève
+     * {@code BadRequestException} si aucun utilisateur n'est authentifié, et
+     * {@code ResourceNotFoundException} si l'email du contexte n'existe pas
+     * en base.
+     */
     private Long currentUserId() {
 
         Authentication authentication =
@@ -98,6 +138,11 @@ public class ConversationServiceImpl
         return user.getUsersId();
     }
 
+    /**
+     * Liste les interlocuteurs disponibles pour le chat :
+     * tous les autres utilisateurs ACTIFS uniquement (l'utilisateur courant
+     * est exclu, les comptes désactivés sont filtrés).
+     */
     @Override
     @Transactional(readOnly = true)
     public List<ChatUserResponse> getChatUsers() {
@@ -121,6 +166,15 @@ public class ConversationServiceImpl
                 .toList();
     }
 
+    /**
+     * Liste les conversations de l'utilisateur courant.
+     *
+     * <p>Le drapeau d'archivage étant porté par {@code ConversationMember}
+     * (donc propre à chaque participant), il est appliqué via le mapping
+     * individuel de la conversation : {@code includeArchived=false} masque
+     * celles que l'utilisateur a archivées. Tri : épinglées d'abord, puis
+     * {@code updatedAt} décroissant.
+     */
     @Override
     @Transactional(readOnly = true)
     public List<ConversationResponse> getConversations(
@@ -159,6 +213,12 @@ public class ConversationServiceImpl
                 .toList();
     }
 
+    /**
+     * Récupère une conversation par identifiant.
+     *
+     * <p>Refuse l'accès (via {@link #verifyMember}) si l'utilisateur courant
+     * n'est pas membre de la conversation.
+     */
     @Override
     @Transactional(readOnly = true)
     public ConversationResponse getConversation(
@@ -182,6 +242,25 @@ public class ConversationServiceImpl
         );
     }
 
+    /**
+     * Crée (ou récupère) une conversation privée entre l'utilisateur courant
+     * et un autre utilisateur.
+     *
+     * <p>Validations : {@code userId} obligatoire, interdiction de créer une
+     * conversation avec soi-même ; les deux utilisateurs doivent exister.
+     *
+     * <p>Recherche préalable d'une conversation privée existante entre les
+     * deux participants (requête symétrique, exactement 2 membres) : si elle
+     * existe, elle est RÉUTILISÉE au lieu d'en créer une nouvelle. Dans ce
+     * cas, seule la {@code ConversationMember} de l'utilisateur courant est
+     * désarchivée et {@code updatedAt} est rafraîchi ; le nom et l'avatar ne
+     * sont pas recalculés.
+     *
+     * <p>À la création : conversation de type {@code PRIVATE} nommée d'après
+     * l'autre utilisateur et reprenant son image, avec deux membres créés
+     * avec les valeurs par défaut ({@link #createMember}). Aucune
+     * notification n'est émise.
+     */
     @Override
     public ConversationResponse createPrivateConversation(
             CreateConversationRequest request
@@ -217,6 +296,8 @@ public class ConversationServiceImpl
                                 request.userId()
                         );
 
+        // Conversation privée déjà existante : on la réutilise plutôt que
+        // d'en créer un doublon.
         if (!existing.isEmpty()) {
 
             Conversation conversation =
@@ -230,6 +311,8 @@ public class ConversationServiceImpl
                             )
                             .orElseThrow();
 
+            // Réouverture côté utilisateur courant : la conversation
+            // réapparaît pour lui même s'il l'avait archivée.
             member.setArchived(false);
 
             conversation.setUpdatedAt(
@@ -293,6 +376,21 @@ public class ConversationServiceImpl
         );
     }
 
+    /**
+     * Crée une conversation de groupe.
+     *
+     * <p>Validations : nom obligatoire (non vide après {@code trim()}) et au
+     * moins un identifiant de membre fourni. Les identifiants sont dédupliqués
+     * ({@code LinkedHashSet}) et l'utilisateur courant en est retiré : s'il ne
+     * reste alors personne, une erreur est levée ("Ajoutez au moins un autre
+     * membre"). Chaque identifiant restant doit correspondre à un utilisateur
+     * existant.
+     *
+     * <p>L'utilisateur courant est ajouté comme premier membre. Aucun rôle
+     * propriétaire/admin n'est persisté : les membres du groupe sont
+     * strictement équivalents. L'avatar est laissé à {@code null} à la
+     * création. Aucune notification n'est émise.
+     */
     @Override
     public ConversationResponse createGroup(
             CreateGroupRequest request
@@ -320,6 +418,8 @@ public class ConversationServiceImpl
                         request.memberIds()
                 );
 
+        // L'utilisateur courant est ajouté séparément ci-dessous : on l'écarte
+        // de la liste fournie pour éviter un doublon de membre.
         ids.remove(currentUserId);
 
         if (ids.isEmpty()) {
@@ -347,6 +447,8 @@ public class ConversationServiceImpl
                         .updatedAt(now)
                         .build();
 
+        // Premier membre = créateur du groupe. Ce statut n'est pas persisté
+        // comme un rôle : il ne donne aucun privilège supplémentaire.
         ConversationMember owner =
                 createMember(
                         conversation,
@@ -382,6 +484,10 @@ public class ConversationServiceImpl
         );
     }
 
+    /**
+     * Liste les membres d'une conversation, après vérification que
+     * l'utilisateur courant en fait partie.
+     */
     @Override
     @Transactional(readOnly = true)
     public List<ConversationMemberResponse> getMembers(
@@ -410,6 +516,14 @@ public class ConversationServiceImpl
                 .toList();
     }
 
+    /**
+     * Ajoute des membres à une conversation de groupe.
+     *
+     * <p>Accessible à TOUT membre de la conversation (pas de contrôle de
+     * propriétaire/admin) ; refuse les conversations privées et une liste
+     * vide. Les identifiants déjà membres sont ignorés silencieusement, les
+     * autres sont résolus puis ajoutés. {@code updatedAt} est rafraîchi.
+     */
     @Override
     public ConversationResponse addMembers(
             Long conversationId,
@@ -443,6 +557,8 @@ public class ConversationServiceImpl
             );
         }
 
+        // Ensemble des membres déjà présents, utilisé pour ignorer les
+        // identifiants en doublon.
         Set<Long> existing =
                 conversation.getMembers()
                         .stream()
@@ -492,6 +608,15 @@ public class ConversationServiceImpl
         );
     }
 
+    /**
+     * Retire un membre d'une conversation de groupe.
+     *
+     * <p>Accessible à tout membre : rien n'empêche de retirer un AUTRE membre
+     * (le statut de créateur n'est pas contrôlé). La cible doit exister dans
+     * le groupe. La suppression est faite directement via le repository ;
+     * {@code updatedAt} est modifié sur l'entité gérée (persisté par
+     * dirty-checking de la transaction, sans {@code save} explicite).
+     */
     @Override
     public void removeMember(
             Long conversationId,
@@ -539,6 +664,13 @@ public class ConversationServiceImpl
         );
     }
 
+    /**
+     * Quitte un groupe : supprime l'appartenance de l'utilisateur courant.
+     *
+     * <p>Réservé aux groupes (une conversation privée ne peut pas être
+     * quittée). À noter : contrairement à {@link #removeMember}, cette méthode
+     * ne rafraîchit PAS {@code updatedAt} de la conversation.
+     */
     @Override
     public void leaveGroup(
             Long conversationId
@@ -571,6 +703,14 @@ public class ConversationServiceImpl
                 );
     }
 
+    /**
+     * Marque la conversation comme lue pour l'utilisateur courant.
+     *
+     * <p>Le compteur de non-lus et la date de lecture sont portés par la
+     * {@code ConversationMember}. L'absence d'appartenance est traitée comme
+     * "conversation introuvable" ({@code ResourceNotFoundException}) ; aucune
+     * vérification préalable d'appartenance n'est faite.
+     */
     @Override
     public void markAsRead(
             Long conversationId
@@ -599,6 +739,11 @@ public class ConversationServiceImpl
         memberRepository.save(member);
     }
 
+    /**
+     * Bascule l'épinglage de la conversation pour l'utilisateur courant
+     * (état propre à chaque membre). Refuse si l'utilisateur n'est pas
+     * membre (via {@link #getMember}).
+     */
     @Override
     public ConversationResponse togglePin(
             Long conversationId
@@ -626,6 +771,11 @@ public class ConversationServiceImpl
         );
     }
 
+    /**
+     * Bascule l'archivage de la conversation pour l'utilisateur courant
+     * (état propre à chaque membre). Refuse si l'utilisateur n'est pas
+     * membre (via {@link #getMember}).
+     */
     @Override
     public ConversationResponse toggleArchive(
             Long conversationId
@@ -653,6 +803,16 @@ public class ConversationServiceImpl
         );
     }
 
+    /**
+     * Supprime définitivement une conversation.
+     *
+     * <p>Accessible à tout membre (pas de contrôle de créateur). Il s'agit
+     * d'une suppression physique de l'entité : en raison du
+     * {@code CascadeType.ALL + orphanRemoval} mappé sur
+     * {@code Conversation.members} et {@code Conversation.messages}, les
+     * appartenances et TOUS les messages de la conversation sont supprimés
+     * pour l'ensemble des participants.
+     */
     @Override
     public void deleteConversation(
             Long conversationId
@@ -676,6 +836,13 @@ public class ConversationServiceImpl
         );
     }
 
+    /**
+     * Construit une appartenance de conversation avec les valeurs par défaut :
+     * non mutée, non archivée, non épinglée, aucun non-lu, {@code joinedAt}
+     * à maintenant. La conversation et l'utilisateur fournis doivent être des
+     * entités gérées/persistées (la relation est propagée à la sauvegarde de
+     * la conversation).
+     */
     private ConversationMember createMember(
             Conversation conversation,
             User user
@@ -694,6 +861,10 @@ public class ConversationServiceImpl
                 .build();
     }
 
+    /**
+     * Charge une conversation par identifiant ou lève
+     * {@code ResourceNotFoundException}.
+     */
     private Conversation findConversation(
             Long conversationId
     ) {
@@ -707,6 +878,10 @@ public class ConversationServiceImpl
                 );
     }
 
+    /**
+     * Charge un utilisateur par identifiant ou lève
+     * {@code ResourceNotFoundException}.
+     */
     private User findUser(
             Long userId
     ) {
@@ -720,6 +895,11 @@ public class ConversationServiceImpl
                 );
     }
 
+    /**
+     * Charge l'appartenance (conversation, utilisateur) via le repository ou
+     * lève {@code ResourceNotFoundException}. Utilisé par les bascules
+     * d'épinglage/archivage, qui ont besoin de l'entité persistée.
+     */
     private ConversationMember getMember(
             Long conversationId,
             Long userId
@@ -737,6 +917,11 @@ public class ConversationServiceImpl
                 );
     }
 
+    /**
+     * Vérifie que l'utilisateur fait partie de la conversation en parcourant
+     * la collection {@code conversation.getMembers()} déjà chargée (et non le
+     * repository). Lève {@code BadRequestException} sinon.
+     */
     private void verifyMember(
             Conversation conversation,
             Long userId

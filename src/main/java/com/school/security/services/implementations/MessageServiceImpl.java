@@ -25,6 +25,27 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Implémentation du service de messages d'une conversation.
+ *
+ * <p>Règles métier constatées (documentées, non modifiées) :
+ * <ul>
+ *   <li>l'utilisateur courant est résolu depuis le {@code SecurityContext}
+ *       par email ; absence d'authentification → {@code BadRequestException},
+ *       email inconnu → {@code ResourceNotFoundException} ;</li>
+ *   <li>l'appartenance à la conversation est vérifiée via
+ *       {@link #verifyMember} pour la lecture et l'envoi ;</li>
+ *   <li>il n'existe ici AUCUNE méthode de modification/édition de message
+ *       (le contrat {@code MessageService} n'expose que lecture, envoi et
+ *       suppression) ;</li>
+ *   <li>ce service n'émet AUCUNE notification et ne réalise AUCUNE diffusion
+ *       WebSocket (aucune dépendance à un broker ou à un repository de
+ *       notifications) ;</li>
+ *   <li>la suppression d'un message combine une suppression PHYSIQUE des
+ *       fichiers de pièces jointes et une suppression LOGIQUE du message
+ *       (drapeau {@code deleted}, contenu vidé).</li>
+ * </ul>
+ */
 @Service
 @Transactional
 public class MessageServiceImpl
@@ -71,6 +92,14 @@ public class MessageServiceImpl
                 fileStorageService;
     }
 
+    /**
+     * Résout l'identifiant de l'utilisateur authentifié courant par email.
+     *
+     * <p>Ne teste pas {@code isAuthenticated()} : seul le nom de
+     * l'authentification est vérifié. Lève {@code BadRequestException} si
+     * aucune authentification/nom, {@code ResourceNotFoundException} si
+     * l'email n'existe pas en base.
+     */
     private Long currentUserId() {
 
         Authentication authentication =
@@ -98,6 +127,11 @@ public class MessageServiceImpl
                 .getUsersId();
     }
 
+    /**
+     * Liste les messages d'une conversation, dans l'ordre chronologique
+     * croissant ({@code createdAt ASC}), après vérification que l'utilisateur
+     * courant est membre de la conversation.
+     */
     @Override
     @Transactional(readOnly = true)
     public List<MessageResponse> getMessages(
@@ -132,6 +166,14 @@ public class MessageServiceImpl
                 .toList();
     }
 
+    /**
+     * Récupère un message par identifiant.
+     *
+     * <p>L'appartenance est vérifiée à partir de la conversation du message
+     * ({@code message.getConversation()}) ; un message inexistant lève
+     * {@code ResourceNotFoundException}, un non-membre
+     * {@code BadRequestException}.
+     */
     @Override
     @Transactional(readOnly = true)
     public MessageResponse getMessage(
@@ -157,6 +199,33 @@ public class MessageServiceImpl
         );
     }
 
+    /**
+     * Envoie un message dans une conversation.
+     *
+     * <p>Validations et comportements :
+     * <ul>
+     *   <li>expéditeur et conversation doivent exister, et l'expéditeur doit
+     *       être membre de la conversation ;</li>
+     *   <li>le contenu est {@code trim()}é ; un message sans texte est refusé
+     *       seulement s'il n'a AUCUNE pièce jointe non vide (un message
+     *       composé uniquement de fichiers est donc accepté) ;</li>
+     *   <li>si {@code replyToId} est fourni, le message cité doit exister et
+     *       appartenir à la MÊME conversation, sinon
+     *       {@code BadRequestException} ;</li>
+     *   <li>le message est créé avec {@code deleted=false} et
+     *       {@code readBy} initialisé à l'expéditeur uniquement ;</li>
+     *   <li>chaque pièce jointe est d'abord écrite physiquement via
+     *       {@link FileStorageService#saveMessageAttachment}, puis référencée
+     *       dans {@code message.attachments} (cascade {@code ALL} +
+     *       {@code orphanRemoval}) ; nom/type ont des valeurs de repli si
+     *       absents ;</li>
+     *   <li>le compteur de non-lus de chaque AUTRE membre est incrémenté
+     *       (gestion du {@code null} → 1) ;</li>
+     *   <li>{@code updatedAt} de la conversation est rafraîchi ;</li>
+     *   <li>aucune notification ni diffusion WebSocket n'est déclenchée
+     *       ici.</li>
+     * </ul>
+     */
     @Override
     public MessageResponse sendMessage(
             Long conversationId,
@@ -200,6 +269,8 @@ public class MessageServiceImpl
                         ? ""
                         : content.trim();
 
+        // Un message vide n'est autorisé que s'il porte au moins une pièce
+        // jointe réellement non vide.
         boolean hasAttachments =
                 attachments != null
                         && attachments.stream()
@@ -231,6 +302,7 @@ public class MessageServiceImpl
                                     )
                             );
 
+            // Le message cité doit appartenir à la même conversation.
             if (!replyTo
                     .getConversation()
                     .getConversationId()
@@ -251,6 +323,7 @@ public class MessageServiceImpl
                                 LocalDateTime.now()
                         )
                         .replyTo(replyTo)
+                        // Expéditeur marqué comme l'ayant déjà lu.
                         .readBy(
                                 new ArrayList<>(
                                         List.of(sender)
@@ -272,6 +345,8 @@ public class MessageServiceImpl
                     continue;
                 }
 
+                // Écriture physique du fichier ; l'URL renvoyée est du type
+                // "uploads/messages/<uuid>".
                 String url =
                         fileStorageService
                                 .saveMessageAttachment(
@@ -345,6 +420,21 @@ public class MessageServiceImpl
         );
     }
 
+    /**
+     * Supprime un message.
+     *
+     * <p>Seul l'EXPÉDITEUR du message peut le supprimer ; l'appartenance à la
+     * conversation n'est pas revérifiée ici. La suppression combine deux
+     * mécanismes :
+     * <ul>
+     *   <li>suppression PHYSIQUE de chaque fichier de pièce jointe via
+     *       {@link FileStorageService#deleteMessageAttachment} ;</li>
+     *   <li>suppression LOGIQUE du message : {@code deleted=true}, contenu
+     *       vidé, et {@code attachments.clear()} qui, via
+     *       {@code orphanRemoval}, supprime les lignes de pièces jointes en
+     *       base. Le message lui-même reste présent (tombstone).</li>
+     * </ul>
+     */
     @Override
     public void deleteMessage(
             Long messageId
@@ -390,6 +480,7 @@ public class MessageServiceImpl
             }
         }
 
+        // Marqueur de suppression logique : le message est conservé mais vidé.
         message.setDeleted(true);
         message.setContent("");
         message.getAttachments().clear();
@@ -399,6 +490,11 @@ public class MessageServiceImpl
         );
     }
 
+    /**
+     * Vérifie que l'utilisateur fait partie de la conversation en parcourant
+     * la collection {@code conversation.getMembers()} déjà chargée. Lève
+     * {@code BadRequestException} sinon.
+     */
     private void verifyMember(
             Conversation conversation,
             Long userId

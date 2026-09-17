@@ -5,6 +5,16 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 import lombok.*;
 
+/**
+ * Pièce jointe de tâche.
+ *
+ * <p>Règles constatées (documentées, non modifiées) :
+ * <ul>
+ *   <li>tous les champs {@code @Column} sont non nuls.</li>
+ *   <li>{@code task}ManyToOne obligatoire.</li>
+ *   <li>{@code uploadedBy}ManyToOne obligatoire.</li>
+ * </ul>
+ */
 @Entity
 @Table(name = "task_attachments")
 @NoArgsConstructor

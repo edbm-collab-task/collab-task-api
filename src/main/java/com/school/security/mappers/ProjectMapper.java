@@ -6,6 +6,18 @@ import com.school.security.entities.Project;
 import com.school.security.repositories.UserRepository;
 import org.springframework.stereotype.Component;
 
+/**
+ * Mapper projet entre entité, DTO de demande et DTO de réponse.
+ *
+ * <p>Fonctionnement constaté (documenté, non modifié) :
+ * <ul>
+ *   <li>{@code fromDto} : seules les champs simples {@code title}, {@code description},
+ *       {@code startDate}, {@code endDate} sont copiés.</li>
+ *   <li>{@code setOwner} : résout l'entité {@code User} par {@code getReferenceById}.</li>
+ *   <li>{@code toDto(currentUserId)} : inclut un champ {@code isOwner} comparant
+ *       {@code currentUserId} à l'id du propriétaire.</li>
+ * </ul>
+ */
 @Component
 public class ProjectMapper implements Mapper<ProjectReqDto, Project, ProjectResDto> {
 

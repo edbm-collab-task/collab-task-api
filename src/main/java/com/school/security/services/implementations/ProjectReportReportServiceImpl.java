@@ -38,6 +38,26 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Implémentation du rapport PDF de suivi d'un projet (iText / OpenPDF).
+ *
+ * <p>Fonctionnement constaté (documenté, non modifié) :
+ * <ul>
+ *   <li>les données projet proviennent de {@link ProjectReportService} ; si le
+ *       projet n'est pas accessible, une {@code IllegalArgumentException}
+ *       ("Projet non accessible") est levée ;</li>
+ *   <li>le rôle est déduit du premier rôle de l'utilisateur (USER par défaut) ;</li>
+ *   <li>le document enchaîne : en-tête (logo EDBM optionnel, titre, projet, chef
+ *       de projet, période), contexte, évolution, contributeurs, tableau des
+ *       tâches par statut, tâches en retard puis pied de page ;</li>
+ *   <li>le logo est chargé depuis {@code /static/logoEDBM.png} ; son absence ou
+ *       une erreur de chargement est seulement journalisée sur la sortie
+ *       standard, sans échec de génération ;</li>
+ *   <li>{@link #addProjectEvolutionChart} avale silencieusement toute exception ;</li>
+ *   <li>{@code addOverdueSection} est un doublon de
+ *       {@link #addOverdueTasksSection} qui n'est jamais appelé (code mort).</li>
+ * </ul>
+ */
 @Service
 @Transactional(readOnly = true)
 @AllArgsConstructor
@@ -60,6 +80,10 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
     private static final DateTimeFormatter PDF_DATE_FORMAT = PdfConstants.PDF_DATE_FORMAT;
     private static final DateTimeFormatter PDF_GENERATED_FORMAT = PdfConstants.PDF_GENERATED_FORMAT;
 
+    /**
+     * Surcharge sans identifiant de projet : déduit le rôle de l'utilisateur puis
+     * délègue avec {@code projectId = null}.
+     */
     @Override
     public byte[] generateReport(Long userId, String period, String startDate, String endDate) {
         var user = userRepository.findById(userId).orElse(null);
@@ -69,6 +93,11 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
         return generateReport(userId, null, role, period, startDate, endDate);
     }
 
+    /**
+     * Génère le PDF ; lève une {@code IllegalArgumentException} si le projet
+     * n'est pas accessible. Toute autre erreur est encapsulée dans une
+     * {@code RuntimeException}.
+     */
     @Override
     public byte[] generateReport(Long userId, Long projectId, RoleType role, String period, String startDate, String endDate) {
         ProjectReportResDto data = projectReportService.getProjectReport(userId, projectId);
@@ -103,6 +132,7 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
     }
 
     // ================== HEADER ==================
+    /** En-tête : logo optionnel, titre, nom du projet, chef de projet, période et date d'édition. */
     private void addHeader(Document document, ProjectReportResDto data, RoleType role, String period, String startDate, String endDate) throws DocumentException, Exception {
         // Logo EDBM - chargement depuis les ressources
         try (InputStream logoStream = getClass().getResourceAsStream("/static/logoEDBM.png")) {
@@ -155,6 +185,7 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
     }
 
 // ================== TÂCHES EN RETARD ==================
+    /** Section "TÂCHES EN RETARD" : nombre, ou "vide" si aucune ; appelée par la génération. */
     private void addOverdueTasksSection(Document document, ProjectReportResDto data) throws DocumentException {
         Paragraph sectionTitle = new Paragraph("TÂCHES EN RETARD", FONT_SECTION);
         sectionTitle.setSpacingBefore(10);
@@ -174,6 +205,10 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
     }
 
 // ================== INTRODUCTION ==================
+    /**
+     * Section "Contexte" : description du projet (valeur générique si absente)
+     * puis répartition en pourcentage par statut.
+     */
     private void addIntroduction(Document document, ProjectReportResDto data) throws DocumentException {
         Paragraph ctxTitle = new Paragraph("Contexte", FONT_SECTION);
         ctxTitle.setSpacingBefore(10);
@@ -216,10 +251,15 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
         addHorizontalRule(document, PdfConstants.BLACK, 1f);
     }
 
+    /** Délègue à PeriodUtils le libellé de période avec dates. */
     private String formatPeriodWithDates(String period, String startDate, String endDate) {
         return PeriodUtils.formatPeriodWithDates(period, startDate, endDate);
     }
 
+    /**
+     * Graphique d'évolution des tâches du projet ; toute exception est ignorée
+     * silencieusement (section simplement omise).
+     */
     private void addProjectEvolutionChart(Document document, Long userId, Long projectId, String period, String startDate, String endDate) throws DocumentException {
         try {
             DashboardDataResDto dash = dashboardService.getDashboardStats(userId, period, startDate, endDate, projectId);
@@ -237,6 +277,7 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
         }
     }
 
+    /** Convertit les points en BarPoint et délègue le rendu à ChartRenderer. */
     private Image renderVerticalBarChart(java.util.List<DashboardEvolutionPointResDto> points) {
         // Délégué à ChartRenderer centralisé (évite duplication)
         java.util.List<ChartRenderer.BarPoint> barPoints = points.stream()
@@ -246,6 +287,10 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
     }
 
 // ================== TABLEAU DES TÂCHES PAR STATUT ==================
+    /**
+     * Tableau des tâches groupées par statut (un tableau par statut, ordre
+     * d'apparition conservé) ; message dédié si aucune tâche.
+     */
     private void addTasksTable(Document document, ProjectReportResDto data) throws DocumentException {
         Paragraph sectionTitle = new Paragraph("LISTE DES TÂCHES PAR STATUT", FONT_SECTION);
         sectionTitle.setSpacingBefore(12);
@@ -318,6 +363,7 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
 }
 
 // ================== TÂCHES EN RETARD ==================
+    /** Doublon non appelé de {@link #addOverdueTasksSection} (code mort). */
     private void addOverdueSection(Document document, ProjectReportResDto data) throws DocumentException {
         Paragraph sectionTitle = new Paragraph("TÂCHES EN RETARD", FONT_SECTION);
         sectionTitle.setSpacingBefore(10);
@@ -337,6 +383,10 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
     }
 
 // ================== LISTE DES CONTRIBUTEURS ==================
+    /**
+     * Liste dédupliquée des contributeurs, reconstruite à partir des noms
+     * d'assignés des tâches (séparés par des virgules) ; message si aucun.
+     */
     private void addContributorsList(Document document, ProjectReportResDto data) throws DocumentException {
         Paragraph sectionTitle = new Paragraph("LISTE DES CONTRIBUTEURS", FONT_SECTION);
         sectionTitle.setSpacingBefore(12);
@@ -379,6 +429,7 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
     }
 
 // ================== FOOTER ==================
+    /** Pied de page : mention de génération automatique et coordonnées EDBM. */
     private void addFooter(Document document) throws DocumentException {
         Paragraph footer = new Paragraph(
                 "Rapport généré automatiquement par Collab Task — " + LocalDateTime.now().format(PDF_GENERATED_FORMAT),
@@ -396,14 +447,17 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
     }
 
 // ================== MÉTHODES UTILITAIRES (déléguées à PdfHelper pour DRY) ==================
+    /** Délègue le trait de séparation à PdfHelper. */
     private void addHorizontalRule(Document document, Color color, float thickness) throws DocumentException {
         PdfHelper.addHorizontalRule(document, color, thickness);
     }
 
+    /** Délègue l'en-tête de tableau à PdfHelper (variante projet). */
     private void addTableHeader(PdfPTable table, String... headers) {
         PdfHelper.addTableHeaderProject(table, headers);
     }
 
+    /** Délègue la ligne de tableau à PdfHelper (variante projet). */
     private void addTableRow(PdfPTable table, String... cells) {
         PdfHelper.addTableRowProject(table, cells);
     }

@@ -12,6 +12,18 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+/**
+ * Entité utilisateur Spring Security.
+ *
+ * <p>Conventions JPA et règles métier constatées (documentées, non modifiées) :
+ * <ul>
+ *   <li>{@code isActive} est un flag distinct du statut {@code status} (boolean par défaut false) ;</li>
+ *   <li>{@code getAuthorities()} déduit les GrantedAuthority depuis les {@code Role} ;</li>
+ *   <li>{@code isEnabled()} retourne {@code isActive} ;</li>
+ *   <li>{@code pwd} n'est jamais exposé dans le DTO ; codage BCrypt assuré par {@link UserMapper}.</li>
+ *   <li>{@code ManyToMany roles} utilise {@code FetchType.EAGER} (non recommandé en production).</li>
+ * </ul>
+ */
 @Entity
 @Table(name = "users")
 @ToString

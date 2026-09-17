@@ -6,6 +6,19 @@ import lombok.*;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
+/**
+ * Appartenance à une conversation.
+ *
+ * <p>Contraintes et règles constatées (documentées, non modifiées) :
+ * <ul>
+ *   <li>{@code uniqueConstraint(name = "uk_conversation_user")} garantit qu'un
+ *       utilisateur n'a qu'une seule appartenance par conversation.</li>
+ *   <li>Tous les champs Boolean ({@code muted}, {@code archived}, {@code pinned})
+ *       ont pour défaut {@code false}.</li>
+ *   <li>{@code unreadCount} par défaut {@code 0}.</li>
+ *   <li>{@code joinedAt} est obligatoire (non nullable).</li>
+ * </ul>
+ */
 @Entity
 @Table(
         name = "conversation_members",

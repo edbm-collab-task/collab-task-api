@@ -32,6 +32,24 @@ import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Implémentation de la génération du rapport PDF du tableau de bord (iText /
+ * OpenPDF).
+ *
+ * <p>Fonctionnement constaté (documenté, non modifié) :
+ * <ul>
+ *   <li>les données proviennent de {@link DashboardService#getDashboardStats}
+ *       (mêmes règles de périmètre que le tableau de bord web) ; c'est le rôle
+ *       transmis qui détermine le titre et l'affichage de la carte "INSCRITS"
+ *       (SUPER_ADMIN/ADMIN uniquement) ;</li>
+ *   <li>le document enchaîne : en-tête, cartes KPI, graphique de statut des
+ *       tâches, répartition par statut, courbe d'évolution, tableau d'activité
+ *       récente, tableau des projets récents et pied de page ;</li>
+ *   <li>les couleurs/polices sont centralisées dans {@code PdfConstants} et les
+ *       helpers de table/barre délégués à {@code PdfHelper} / {@code ChartRenderer} ;</li>
+ *   <li>{@code computeNiceMax} est déclaré mais jamais appelé (code mort).</li>
+ * </ul>
+ */
 @Service
 @Transactional(readOnly = true)
 @AllArgsConstructor
@@ -76,6 +94,10 @@ public class DashboardReportServiceImpl implements DashboardReportService {
 
     // ─── Public entry ───────────────────────────────────────────
 
+    /**
+     * Génère le PDF complet en assemblant les sections dans l'ordre. Toute
+     * erreur iText est encapsulée dans une {@code RuntimeException}.
+     */
     @Override
     public byte[] generateReport(Long userId, RoleType role, String period, String startDate, String endDate, Long projectId) {
         DashboardDataResDto data =
@@ -107,6 +129,7 @@ public class DashboardReportServiceImpl implements DashboardReportService {
 
     // ─── Header ─────────────────────────────────────────────────
 
+    /** En-tête : titre selon le rôle, période et date de génération. */
     private void addHeader(Document document, RoleType role, String period) throws DocumentException {
         Paragraph title = new Paragraph(resolveTitle(role), FONT_TITLE);
         title.setAlignment(Element.ALIGN_LEFT);
@@ -147,6 +170,10 @@ public class DashboardReportServiceImpl implements DashboardReportService {
 
     // ─── KPI Cards ─────────────────────────────────────────────
 
+    /**
+     * Cartes KPI ; la carte "INSCRITS" (nombre total d'utilisateurs) n'est
+     * affichée que pour SUPER_ADMIN et ADMIN (5 colonnes au lieu de 4).
+     */
     private void addKpiCards(Document document, DashboardStatsResDto stats, RoleType role)
             throws DocumentException {
         Paragraph section = new Paragraph("Indicateurs clés", FONT_SECTION);
@@ -174,6 +201,7 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         addHorizontalRule(document, COLOR_BORDER, 0.5f);
     }
 
+    /** Largeurs égales pour les {@code cols} cartes KPI. */
     private float[] buildKpiWidths(int cols) {
         float[] w = new float[cols];
         float val = 100f / cols;
@@ -181,6 +209,7 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         return w;
     }
 
+    /** Ajoute une carte KPI (valeur puis libellé) ; le paramètre {@code accent} n'est pas utilisé. */
     private void addKpiCell(PdfPTable table, String label, String value, Color accent) {
         PdfPCell card = new PdfPCell();
         card.setPadding(10);
@@ -201,6 +230,10 @@ public class DashboardReportServiceImpl implements DashboardReportService {
 
     // ─── Task Status Chart (horizontal bar chart) ───────────────
 
+    /**
+     * Barres horizontales Total / Terminées / En retard / Restantes ; affiche un
+     * message si aucune tâche.
+     */
     private void addTaskStatusChart(Document document, DashboardStatsResDto stats)
             throws DocumentException {
         Paragraph section = new Paragraph("Vue d'ensemble des tâches", FONT_SECTION);
@@ -258,6 +291,7 @@ public class DashboardReportServiceImpl implements DashboardReportService {
 
     // ─── Distribution Chart (horizontal bar chart) ──────────────
 
+    /** Répartition par statut avec barres, ligne Total et légende ; ignorée si vide. */
     private void addDistributionChart(Document document, DashboardDataResDto data)
             throws DocumentException {
         if (data.distribution() == null || data.distribution().items() == null
@@ -332,12 +366,17 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         addHorizontalRule(document, COLOR_BORDER, 0.5f);
     }
 
+    /** Délègue la création d'une cellule de barre à PdfHelper. */
     private PdfPCell buildBarCell(long value, long maxVal, Color color) {
         return PdfHelper.buildBarCell(value, maxVal, color);
     }
 
     // ─── Evolution Chart (line chart, rendered as flow image) ──
 
+    /**
+     * Courbe d'évolution rendue sous forme d'image, avec titre et légende
+     * maintenus ensemble sur la même page ; ignorée si vide.
+     */
     private void addEvolutionChart(Document document, DashboardDataResDto data)
             throws DocumentException {
         if (data.evolution() == null || data.evolution().points() == null
@@ -394,16 +433,19 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         addHorizontalRule(document, COLOR_BORDER, 0.5f);
     }
 
+    /** Délègue le rendu de la courbe à ChartRenderer. */
     private Image renderLineChart(List<DashboardEvolutionPointResDto> points) {
         return ChartRenderer.renderLineChart(points);
     }
 
+    /** Délègue à ChartRenderer (déclaré mais jamais appelé dans ce service). */
     private int computeNiceMax(int value) {
         return ChartRenderer.computeNiceMax(value);
     }
 
     // ─── Recent Activity Table ──────────────────────────────────
 
+    /** Tableau de l'activité récente ; descriptions tronquées ; ignoré si vide. */
     private void addRecentActivityTable(Document document, DashboardDataResDto data)
             throws DocumentException {
         if (data.recentActivity() == null || data.recentActivity().isEmpty()) {
@@ -437,6 +479,7 @@ public class DashboardReportServiceImpl implements DashboardReportService {
 
     // ─── Projects Table ─────────────────────────────────────────
 
+    /** Tableau des projets récents avec progression ; ignoré si vide. */
     private void addProjectsTable(Document document, DashboardDataResDto data)
             throws DocumentException {
         if (data.recentProjects() == null || data.recentProjects().isEmpty()) {
@@ -470,6 +513,7 @@ public class DashboardReportServiceImpl implements DashboardReportService {
 
     // ─── Footer ─────────────────────────────────────────────────
 
+    /** Pied de page : numéro de page plus libellé de rôle et mention de génération. */
     private void addFooter(Document document, RoleType role, PdfWriter writer) throws DocumentException {
         addPageNumberFooter(writer, document);
 
@@ -495,6 +539,7 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         document.add(footerTable);
     }
 
+    /** Écrit le numéro de page centré au bas de la page courante. */
     private void addPageNumberFooter(PdfWriter writer, Document document) throws DocumentException {
         PdfContentByte cb = writer.getDirectContent();
         Paragraph footer = new Paragraph(
@@ -509,19 +554,23 @@ public class DashboardReportServiceImpl implements DashboardReportService {
 
     // ─── Shared table helpers ───────────────────────────────────
 
+    /** Délègue l'en-tête de tableau à PdfHelper. */
     private void addTableHeader(PdfPTable table, String text) {
         PdfHelper.addTableHeader(table, text);
     }
 
+    /** Délègue la ligne de tableau à PdfHelper. */
     private void addTableRow(PdfPTable table, String text) {
         PdfHelper.addTableRow(table, text);
     }
 
+    /** Délègue le trait de séparation à PdfHelper. */
     private void addHorizontalRule(Document document, Color color, float thickness)
             throws DocumentException {
         PdfHelper.addHorizontalRule(document, color, thickness);
     }
 
+    /** Légende du graphique de répartition (une pastille colorée par statut). */
     private void addStatusLegend(Document document, List<DashboardDistributionItemResDto> items)
             throws DocumentException {
         PdfPTable legend = new PdfPTable(items.size());
@@ -543,11 +592,13 @@ public class DashboardReportServiceImpl implements DashboardReportService {
 
     // ─── Resolution helpers ─────────────────────────────────────
 
+    /** Formate une date d'activité ; chaîne vide si nulle. */
     private String formatActivityDate(LocalDateTime dateTime) {
         if (dateTime == null) return "";
         return dateTime.format(PDF_DATE_FORMAT);
     }
 
+    /** Traduit un type d'activité en français ; type inconnu retourné tel quel. */
     private String translateActivityType(String type) {
         if (type == null) return "";
         return switch (type.toUpperCase()) {
@@ -563,6 +614,7 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         };
     }
 
+    /** Titre du rapport selon le rôle générateur. */
     private String resolveTitle(RoleType role) {
         return switch (role) {
             case SUPER_ADMIN -> "Rapport global de la plateforme";
@@ -571,6 +623,7 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         };
     }
 
+    /** Libellé du rôle en majuscules pour l'en-tête et le pied de page. */
     private String resolveRoleLabel(RoleType role) {
         return switch (role) {
             case SUPER_ADMIN -> "SUPER ADMINISTRATEUR";
@@ -579,6 +632,7 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         };
     }
 
+    /** Couleur associée à un statut ("Terminé" et "Termine" partagent le vert) ; gris par défaut. */
     private Color resolveStatusColor(String statusName) {
         return switch (statusName) {
             case "A faire"   -> COLOR_AMBER;
@@ -588,6 +642,7 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         };
     }
 
+    /** Libellé français de la période (sans les dates). */
     private String formatPeriodWithDates(String period) {
         return switch (period) {
             case "TODAY"       -> "Aujourd'hui";
@@ -600,6 +655,7 @@ public class DashboardReportServiceImpl implements DashboardReportService {
         };
     }
 
+    /** Tronque un texte à {@code maxLength} caractères en suffixant "...". */
     private String truncate(String text, int maxLength) {
         if (text == null) return "";
         return text.length() > maxLength ? text.substring(0, maxLength) + "..." : text;

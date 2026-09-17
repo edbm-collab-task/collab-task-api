@@ -28,6 +28,17 @@ import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Gère les règles métier liées aux tâches.
+ *
+ * <p>Une tâche est archivée ({@code isActive = false}) plutôt que physiquement
+ * supprimée, afin de préserver l'historique et la traçabilité. Le passage au
+ * statut "Termine" (nom exact en base, sans accent) fige la date de complétion
+ * ({@code completedAt}). Travailler une tâche d'un projet archivé réactive
+ * automatiquement le projet. Chaque création, mise à jour, assignation,
+ * changement de statut ou de priorité est journalisé dans le fil d'activité du
+ * projet et les assignés concernés sont notifiés.
+ */
 @Service
 @Transactional
 @AllArgsConstructor
@@ -47,6 +58,14 @@ public class TaskServiceImpl implements TaskService {
         return save(toSave, null);
     }
 
+    /**
+     * Crée ou met à jour une tâche.
+     *
+     * <p>La mise à jour compare l'état avec la version précédente : seule la
+     * complétion (statut "Termine") renseigne {@code completedAt}, et seuls les
+     * nouveaux assignés ou un changement de priorité déclenchent notification et
+     * activité. Un projet archivé est automatiquement réactivé.
+     */
     @Override
     public TaskResDto save(TaskReqDto toSave, Long id) {
         if (id != null) {
@@ -67,6 +86,9 @@ public class TaskServiceImpl implements TaskService {
                 Status newStatus = this.statusRepository.getReferenceById(toSave.statusId());
                 taskToUpdate.setStatus(newStatus);
 
+                // Statut "Termine" (sans accent, tel que seedé en base) : fige la
+                // date de complétion à la première occurrence ; quitter ce statut
+                // la réinitialise.
                 if ("Termine".equals(newStatus.getName()) && taskToUpdate.getCompletedAt() == null) {
                     taskToUpdate.setCompletedAt(LocalDateTime.now());
                 } else if (!"Termine".equals(newStatus.getName())) {
@@ -172,6 +194,12 @@ public class TaskServiceImpl implements TaskService {
         return archiver(id);
     }
 
+    /**
+     * Archive une tâche (soft delete) au lieu de la supprimer physiquement, afin
+     * de conserver l'historique. L'opération journalise une activité de type
+     * {@code TASK_DELETED} malgré le nom : il s'agit bien d'une suppression
+     * logique, la tâche reste en base avec {@code isActive = false}.
+     */
     @Override
     public TaskResDto archiver(Long id) {
         Optional<Task> taskOptional = this.taskRepository.findById(id);
@@ -187,6 +215,11 @@ public class TaskServiceImpl implements TaskService {
         throw new EntityException("Task not found");
     }
 
+    /**
+     * Change le statut d'une tâche et journalise l'activité correspondante avec
+     * l'ancien et le nouveau statut. Applique la même règle de complétion que la
+     * mise à jour (statut "Termine" fige {@code completedAt}).
+     */
     @Override
     public TaskResDto changerStatut(Long taskId, Long statusId) {
         Optional<Task> taskOptional = this.taskRepository.findById(taskId);
@@ -198,6 +231,8 @@ public class TaskServiceImpl implements TaskService {
                 Status newStatus = statusOptional.get();
                 task.setStatus(newStatus);
 
+                // Même règle que lors d'une mise à jour : "Termine" fige la date
+                // de complétion, tout autre statut la réinitialise.
                 if ("Termine".equals(newStatus.getName()) && task.getCompletedAt() == null) {
                     task.setCompletedAt(LocalDateTime.now());
                 } else if (!"Termine".equals(newStatus.getName())) {
@@ -235,6 +270,8 @@ public class TaskServiceImpl implements TaskService {
             String email = com.school.security.securities.utils.SecurityUtils.getCurrentUsername();
             return userRepository.findByEmail(email).map(User::getUsersId).orElse(null);
         } catch (Exception e) {
+            // Requête non authentifiée : retourne null afin de continuer le
+            // traitement, l'activité sera alors journalisée sans utilisateur.
             return null;
         }
     }
@@ -251,6 +288,8 @@ public class TaskServiceImpl implements TaskService {
 
         String notifMessage = "La priorité de la tâche \"" + task.getTitle() + "\" est passée de " + oldPriority.getName() + " à " + newPriority.getName();
 
+        // Notifie chacun des assignés actuels de la tâche sur un changement de
+        // priorité (pas uniquement le nouvel assigné).
         for (User assignee : task.getAssignees()) {
             notificationService.createNotification(
                     assignee.getUsersId(),
@@ -262,6 +301,11 @@ public class TaskServiceImpl implements TaskService {
         }
     }
 
+    /**
+     * Contraintes de hiérarchie d'une tâche : elle ne peut pas être son propre
+     * parent et son parent doit exister et appartenir au même projet, afin de
+     * garantir la cohérence de l'arbre de tâches à l'intérieur d'un projet.
+     */
     private void checkParentRules(Task task, Long parentTaskId) {
         if (parentTaskId.equals(task.getTaskId())) {
             throw new EntityException("A task cannot be its own parent");
@@ -280,6 +324,15 @@ public class TaskServiceImpl implements TaskService {
         }
     }
 
+    /**
+     * Remplace intégralement la liste des assignés de la tâche (il ne s'agit pas
+     * d'un ajout incrémental). Les utilisateurs sont résolus individuellement ;
+     * un identifiant inconnu est simplement ignoré.
+     *
+     * <p>Le comportement actuel ne vérifie pas explicitement que les utilisateurs
+     * ajoutés sont membres ou contributeurs du projet auquel la tâche est
+     * associée.
+     */
     private void updateAssignees(Task task, List<Long> assigneeIds) {
         if (assigneeIds == null) {
             return;
@@ -291,6 +344,12 @@ public class TaskServiceImpl implements TaskService {
         task.setAssignees(assignees);
     }
 
+    /**
+     * Réactive automatiquement un projet archivé dès qu'une tâche y est créée,
+     * modifiée ou voit son statut changer : un projet est considéré comme actif
+     * dès qu'on y travaille, il ne doit pas rester désactivé avec des tâches
+     * manipulées.
+     */
     private void autoUnarchiveProject(Project project) {
         if (Boolean.FALSE.equals(project.getIsActive())) {
             project.setIsActive(true);
@@ -298,6 +357,12 @@ public class TaskServiceImpl implements TaskService {
         }
     }
 
+    /**
+     * Contrôle la date d'échéance : elle est obligatoire et ne peut pas être
+     * passée, sauf si elle n'a pas été modifiée depuis l'enregistrement précédent
+     * (ce qui permet de mettre à jour une tâche existante sans être bloqué par
+     * une échéance déjà écoulée).
+     */
     private void validateDueDate(LocalDate dueDate, LocalDate originalDueDate) {
         if (dueDate == null) {
             throw new BadRequestException(

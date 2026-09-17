@@ -11,6 +11,23 @@ import com.school.security.repositories.DirectionRepository;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 
+/**
+ * Mapper utilisateur entre entité, DTOs de demande et DTOs de réponse.
+ *
+ * <p>Fonctionnement constaté (documenté, non modifié) :
+ * <ul>
+ *   <li>{@code fromDto} : l'email est trimé et mis en minuscule ; la {@code Direction}
+ *       est résolue par {@code getReferenceById} ; le mot de passe est stocké en clair
+ *       (codage BCrypt assuré par l'appelant dans {@link #toUpdate}).</li>
+ *   <li>{@code toDto} : le libellé du rôle provient du premier élément de la liste
+ *       {@code roles} ( {@code .getFirst() } ); {@code imagePath} est inclus.</li>
+ *   <li>{@code toUserReq} : conversion partielle vers le DTO de demande.</li>
+ *   <li>{@code toUpdate} : mise à jour partielle ; si le mot de passe est fourni,
+ *       il est codé via {@code BCryptPasswordEncoder}.</li>
+ *   <li>dépendance injected : {@code RoleMapper}, {@code DirectionRepository},
+ *       {@code BCryptPasswordEncoder}.</li>
+ * </ul>
+ */
 @Component
 public class UserMapper implements Mapper<UserReqDto, User, UserResDto> {
     private final RoleMapper roleMapper;

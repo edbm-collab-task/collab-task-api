@@ -8,6 +8,19 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Entité message (conversation privée ou groupe).
+ *
+ * <p>Conventions JPA et règles métier constatées (documentées, non modifiées) :
+ * <ul>
+ *   <li>{@code readBy}ManyToMany via table {@code message_reads} ; valeur par défaut
+ *       {@code @BuilderDefault} liste vide ;</li>
+ *   <li>{@code deleted} Boolean par défaut {@code false} (drapeau suppression logique).</li>
+ *   <li>{@code attachments}OneToMany avec {@code cascade = CascadeType.ALL, orphanRemoval = true} ;</li>
+ *   <li>{@code replyTo}auto-référence ManyToOne LAZY ; pas de cascade.</li>
+ *   <li>{@code content} stocké en colonne {@code TEXT}.</li>
+ * </ul>
+ */
 @Entity
 @Table(name = "messages")
 @NoArgsConstructor

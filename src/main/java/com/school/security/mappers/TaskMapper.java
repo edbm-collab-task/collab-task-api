@@ -16,6 +16,22 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Mapper tâche entre entité, DTO de demande et DTO de réponse.
+ *
+ * <p>Fonctionnement constaté (documenté, non modifié) :
+ * <ul>
+ *   <li>{@code fromDto} : les références {@code projectId}, {@code priorityId},
+ *       {@code statusId} sont résolues par {@code getReferenceById} ; {@code
+ *       parentTaskId} est optionnel ; les {@code assigneeIds} déclenchent une
+ *       recherche {@code findById} par utilisateur.</li>
+ *   <li>{@code toDto} : les assignees sont transformés en {@code
+ *       TaskResDto.AssigneeResDto} (id/prénom/nom/email/image) ; le parent et les
+ *       noms de statut/priority sont inclus.</li>
+ *   <li>dépendances injectées : {@code ProjectRepository}, {@code PriorityRepository},
+ *       {@code StatusRepository}, {@code TaskRepository}, {@code UserRepository}.</li>
+ * </ul>
+ */
 @Component
 public class TaskMapper implements Mapper<TaskReqDto, Task, TaskResDto> {
 

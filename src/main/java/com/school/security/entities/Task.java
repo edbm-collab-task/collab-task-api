@@ -8,6 +8,17 @@ import java.util.ArrayList;
 import java.util.List;
 import lombok.*;
 
+/**
+ * Entité tâche.
+ *
+ * <p>Conventions JPA et règles métier constatées (documentées, non modifiées) :
+ * <ul>
+ *   <li>{@code isActive} est un flag de suppression logique (non {@code @Column delete});</li>
+ *   <li>{@code subTasks} n'a pas d'annotation {@code cascade} ni {@code orphanRemoval} ;</li>
+ *   <li>{@code assignees}ManyToMany via table de jointure {@code task_assignees} ;</li>
+ *   <li>{@code parent} est nullable ; la relation auto-référencée ne possède pas de contrainte de suppression en base.</li>
+ * </ul>
+ */
 @Entity
 @Table(name = "tasks")
 @NoArgsConstructor

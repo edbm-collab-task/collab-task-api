@@ -5,6 +5,15 @@ import lombok.*;
 
 import java.io.Serializable;
 
+/**
+ * Pièce jointe de message.
+ *
+ * <p>Règles constatées (documentées, non modifiées) :
+ * <ul>
+ *   <li>tous les champs {@code @Column} sont non nuls.</li>
+ *   <li>{@code message}ManyToOne LAZY, obligatoire.</li>
+ * </ul>
+ */
 @Entity
 @Table(name = "message_attachments")
 @NoArgsConstructor

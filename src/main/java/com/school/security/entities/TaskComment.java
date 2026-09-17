@@ -7,6 +7,20 @@ import java.util.ArrayList;
 import java.util.List;
 import lombok.*;
 
+/**
+ * Commentaire de tâche.
+ *
+ * <p>Relations et règles constatées (documentées, non modifiées) :
+ * <ul>
+ *   <li>{@code replies} OneToMany {@code mappedBy = "parentComment"} avec
+ *       {@code cascade = CascadeType.ALL, orphanRemoval = true} ;</li>
+ *   <li>{@code reactions} OneToMany {@code mappedBy = "comment"} avec
+ *       {@code cascade = CascadeType.ALL, orphanRemoval = true} ;</li>
+ *   <li>{@code content} stocké en colonne {@code TEXT}, non nullable.</li>
+ *   <li>{@code createdAt} initialisé par {@code @PrePersist}, {@code updatedAt}
+ *       par {@code @PreUpdate}.</li>
+ * </ul>
+ */
 @Entity
 @Table(name = "task_comments")
 @NoArgsConstructor

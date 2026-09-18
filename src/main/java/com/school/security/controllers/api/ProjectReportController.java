@@ -81,7 +81,7 @@ public class ProjectReportController {
     private RoleType resolvePrimaryRole(User user) {
         return user.getRoles().stream()
                 .findFirst()
-                .map(role -> role.getName())
+                .map(role -> RoleType.fromNameOrUser(role.getName()))
                 .orElse(RoleType.USER);
     }
 

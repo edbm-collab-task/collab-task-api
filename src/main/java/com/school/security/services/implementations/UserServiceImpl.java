@@ -5,7 +5,6 @@ import com.school.security.dtos.requests.UserReqDto;
 import com.school.security.dtos.responses.UserResDto;
 import com.school.security.entities.Role;
 import com.school.security.entities.User;
-import com.school.security.enums.RoleType;
 import com.school.security.exceptions.BadRequestException;
 import com.school.security.exceptions.EntityException;
 import com.school.security.mappers.UserMapper;
@@ -81,7 +80,7 @@ public class UserServiceImpl implements UserService {
             user.setStatus(false);
             user.setCreatedAt(LocalDate.now());
             var userToSave = userRepository.save(user);
-            attachRole(email,RoleType.USER);
+            attachRole(email,"USER");
             return userMapper.toDto(userToSave);
         }
     }
@@ -114,7 +113,7 @@ public class UserServiceImpl implements UserService {
             user.setLastname(toSave.lastname());
             User savedUser = userRepository.save(user);
 
-            attachRole(savedUser.getEmail(), RoleType.USER);
+            attachRole(savedUser.getEmail(), "USER");
             emailService.createPwdForUser(
                     savedUser.getEmail(),
                     savedUser.getFirstname(),
@@ -231,7 +230,7 @@ public class UserServiceImpl implements UserService {
      * pratique, un utilisateur ne porte donc qu'un seul rôle à la fois.
      */
     @Override
-    public UserResDto attachRole(String email, RoleType name) {
+    public UserResDto attachRole(String email, String name) {
         Optional<User> optionalUser = userRepository.findByEmail(email);
         Optional<Role> optionalRole = roleRepository.findByName(name);
 
@@ -247,7 +246,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserResDto detachRole(String email, RoleType name) {
+    public UserResDto detachRole(String email, String name) {
         Optional<User> optionalUser = userRepository.findByEmail(email);
         Optional<Role> optionalRole = roleRepository.findByName(name);
 
@@ -373,10 +372,10 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public List<UserResDto> findAllByRole(RoleType roleType) {
+    public List<UserResDto> findAllByRole(String roleType) {
         return userRepository.findAll().stream()
                 .filter(user -> user.getRoles().stream()
-                        .anyMatch(role -> role.getName() == roleType))
+                        .anyMatch(role -> role.getName().equals(roleType)))
                 .map(userMapper::toDto)
                 .collect(Collectors.toList());
     }

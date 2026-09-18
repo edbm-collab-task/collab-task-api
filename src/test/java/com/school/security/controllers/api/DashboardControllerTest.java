@@ -325,7 +325,7 @@ class DashboardControllerTest {
         direction.setName("DSI");
 
         Role role = new Role();
-        role.setName(roleType);
+        role.setName(roleType.name());
 
         User user = new User();
         user.setUsersId(roleType == RoleType.SUPER_ADMIN ? 2L : roleType == RoleType.USER ? 3L : 1L);
@@ -344,7 +344,7 @@ class DashboardControllerTest {
         direction.setName("DSI");
 
         Role role = new Role();
-        role.setName(RoleType.ADMIN);
+        role.setName(RoleType.ADMIN.name());
 
         User user = new User();
         user.setUsersId(1L);

@@ -164,6 +164,7 @@ public class AuthController {
                 new LoginResDto(
                         user.getUsersId(),
                         user.getRoles().getFirst().getName(),
+                        user.getRoles().getFirst().getCodeRole(),
                         user.getFirstname(),
                         user.getLastname(),
                         user.getEmail(),
@@ -325,6 +326,7 @@ public class AuthController {
                     new LoginResDto(
                             user.getUsersId(),
                             user.getRoles().getFirst().getName(),
+                            user.getRoles().getFirst().getCodeRole(),
                             user.getFirstname(),
                             user.getLastname(),
                             user.getEmail(),
@@ -590,6 +592,7 @@ public class AuthController {
                 new LoginResDto(
                         user.getUsersId(),
                         user.getRoles().getFirst().getName(),
+                        user.getRoles().getFirst().getCodeRole(),
                         user.getFirstname(),
                         user.getLastname(),
                         user.getEmail(),

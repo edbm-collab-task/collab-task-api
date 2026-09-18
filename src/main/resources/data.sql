@@ -19,21 +19,10 @@ WHERE NOT EXISTS (
 -- 2. Créer les rôles s'ils n'existent pas
 -- =========================================================
 
-ALTER TABLE roles ADD COLUMN IF NOT EXISTS code_role VARCHAR(10);
-
-INSERT INTO roles (name, code_role)
-SELECT role_name, code_role
-FROM (
-    VALUES
-        ('ADMIN', 'ADM'),
-        ('USER', 'USER'),
-        ('SUPER_ADMIN', 'SADM')
-) AS roles_to_insert(role_name, code_role)
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM roles
-    WHERE roles.name = roles_to_insert.role_name
-);
+-- Mise à jour des codes rôles pour les rôles existants
+UPDATE roles SET code_role = 'A1D' WHERE name = 'ADMIN';
+UPDATE roles SET code_role = 'U1S' WHERE name = 'USER';
+UPDATE roles SET code_role = 'S1ADM' WHERE name = 'SUPER_ADMIN';
 
 -- =========================================================
 -- 3. Créer les permissions si elles n'existent pas

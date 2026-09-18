@@ -1,6 +1,7 @@
 package com.school.security.securities.config;
 
 import com.school.security.services.contracts.UserService;
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -124,6 +125,21 @@ public class SecurityConfig {
         // Par défaut : toute requête non couverte par les règles ci-dessus
         // exige un token JWT valide (utilisateur authentifié).
         .anyRequest().authenticated())
+                // Distingue 401 (non authentifié) de 403 (authentifié mais refusé).
+                // Sans cette configuration, Spring renvoie 403 même pour un token
+                // absent/expiré : le refresh automatique du frontend (déclenché
+                // uniquement sur 401) ne fonctionnerait jamais.
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"message\":\"Non authentifie\"}");
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"message\":\"Acces refuse\"}");
+                        }))
                 // Le filtre JWT est placé AVANT UsernamePasswordAuthenticationFilter
                 // afin de peupler le SecurityContext dès réception de la requête,
                 // avant que les @PreAuthorize des contrôleurs ne soient évalués.

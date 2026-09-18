@@ -3,6 +3,7 @@ package com.school.security.services.contracts;
 import com.school.security.dtos.requests.RoleReqDto;
 import com.school.security.dtos.responses.PermissionResDto;
 import com.school.security.dtos.responses.RoleResDto;
+import com.school.security.enums.PermissionType;
 import java.util.List;
 
 public interface RoleService {
@@ -12,4 +13,5 @@ public interface RoleService {
     RoleResDto update(Long id, RoleReqDto dto);
     void delete(Long id);
     List<PermissionResDto> findAllPermissions();
+    void addPermissions(Long roleId, List<PermissionType> permissionNames);
 }

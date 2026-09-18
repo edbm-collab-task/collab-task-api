@@ -79,10 +79,10 @@ public class DashboardServiceImpl implements DashboardService {
         }
 
         boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getName() == RoleType.SUPER_ADMIN);
+                .anyMatch(role -> role.getName().equals(RoleType.SUPER_ADMIN.name()));
         boolean isPersonal = user.getRoles().stream()
-                .noneMatch(role -> role.getName() == RoleType.SUPER_ADMIN
-                                || role.getName() == RoleType.ADMIN);
+                .noneMatch(role -> role.getName().equals(RoleType.SUPER_ADMIN.name())
+                                || role.getName().equals(RoleType.ADMIN.name()));
 
         List<Project> accessibleProjects = isSuperAdmin
                 ? projectRepository.findByIsActiveTrue()

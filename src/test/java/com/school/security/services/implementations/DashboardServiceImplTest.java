@@ -604,7 +604,7 @@ class DashboardServiceImplTest {
 
         Role role = new Role();
         role.setRolesId(roleType == RoleType.ADMIN ? 1L : 2L);
-        role.setName(roleType);
+        role.setName(roleType.name());
 
         User user = new User();
         user.setUsersId(id);

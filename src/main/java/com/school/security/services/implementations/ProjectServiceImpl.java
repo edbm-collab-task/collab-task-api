@@ -166,7 +166,7 @@ public class ProjectServiceImpl implements ProjectService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         boolean isAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getName() == RoleType.ADMIN || role.getName() == RoleType.SUPER_ADMIN);
+                .anyMatch(role -> role.getName().equals(RoleType.ADMIN.name()) || role.getName().equals(RoleType.SUPER_ADMIN.name()));
 
         List<Project> projects;
         if (isAdmin) {
@@ -192,7 +192,7 @@ public class ProjectServiceImpl implements ProjectService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         boolean isAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getName() == RoleType.ADMIN || role.getName() == RoleType.SUPER_ADMIN);
+                .anyMatch(role -> role.getName().equals(RoleType.ADMIN.name()) || role.getName().equals(RoleType.SUPER_ADMIN.name()));
 
         List<Project> projects;
         if (isAdmin) {

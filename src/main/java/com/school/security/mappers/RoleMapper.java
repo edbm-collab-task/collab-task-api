@@ -24,6 +24,6 @@ public class RoleMapper implements Mapper<RoleReqDto, Role, RoleResDto> {
                 .map(p -> p.getName())
                 .collect(Collectors.toList())
             : new ArrayList<>();
-        return new RoleResDto(entity.getRolesId(), entity.getName(), perms);
+        return new RoleResDto(entity.getRolesId(), entity.getName(), entity.getCodeRole(), perms);
     }
 }

@@ -88,7 +88,7 @@ public class ProjectReportReportServiceImpl implements ProjectReportReportServic
     public byte[] generateReport(Long userId, String period, String startDate, String endDate) {
         var user = userRepository.findById(userId).orElse(null);
         RoleType role = user != null
-                ? user.getRoles().stream().findFirst().map(Role::getName).orElse(RoleType.USER)
+                ? user.getRoles().stream().findFirst().map(r -> RoleType.fromNameOrUser(r.getName())).orElse(RoleType.USER)
                 : RoleType.USER;
         return generateReport(userId, null, role, period, startDate, endDate);
     }

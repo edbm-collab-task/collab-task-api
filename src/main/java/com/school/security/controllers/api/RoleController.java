@@ -3,6 +3,7 @@ package com.school.security.controllers.api;
 import com.school.security.dtos.requests.RoleReqDto;
 import com.school.security.dtos.responses.PermissionResDto;
 import com.school.security.dtos.responses.RoleResDto;
+import com.school.security.enums.PermissionType;
 import com.school.security.services.contracts.RoleService;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
@@ -98,6 +99,20 @@ public class RoleController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         roleService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Ajout de permissions à un rôle existant ({@code POST /roles/{id}/permissions}).
+     *
+     * <p>Protégé par la filter-chain : autorité {@code SUPER_ADMIN}
+     * uniquement. Le service associe les permissions spécifiées par leur nom
+     * au rôle identifié par {@code id}. Délègue à
+     * {@code RoleService.addPermissions(id, permissionNames)}.
+     */
+    @PostMapping("/{id}/permissions")
+    public ResponseEntity<Void> addPermissions(@PathVariable Long id, @RequestBody List<PermissionType> permissionNames) {
+        roleService.addPermissions(id, permissionNames);
+        return ResponseEntity.ok().build();
     }
 
     /**

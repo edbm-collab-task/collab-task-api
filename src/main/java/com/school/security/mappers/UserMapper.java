@@ -70,6 +70,7 @@ public class UserMapper implements Mapper<UserReqDto, User, UserResDto> {
                 entity.getIsActive(),
                 entity.getCreatedAt(),
                 entity.getRoles().getFirst().getName(),
+                entity.getRoles().getFirst().getCodeRole(),
                 entity.getImagePath());
     }
 

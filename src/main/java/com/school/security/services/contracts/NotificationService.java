@@ -7,7 +7,7 @@ import java.util.List;
 public interface NotificationService {
     List<NotificationResDto> findByUserId(Long userId);
     long countUnread(Long userId);
-    NotificationResDto markAsRead(Long notificationId);
+    NotificationResDto markAsRead(Long notificationId, Long userId);
     void markAllAsRead(Long userId);
     void createNotification(Long userId, String message, NotificationType type, Long projectId, Long taskId);
 }

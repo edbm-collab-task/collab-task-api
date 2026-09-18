@@ -126,6 +126,9 @@ public class RoleServiceImpl implements RoleService {
     public void delete(Long id) {
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new EntityException("Role not found with ID " + id));
+        if (!role.getUsers().isEmpty()) {
+            throw new EntityException("Impossible de supprimer un rôle qui est affecté à des utilisateurs.");
+        }
         roleRepository.delete(role);
     }
 

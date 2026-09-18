@@ -16,6 +16,7 @@ import com.school.security.securities.utils.CookieUtils;
 import com.school.security.services.contracts.DirectionService;
 import com.school.security.services.contracts.UserService;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -60,7 +61,9 @@ import java.util.stream.Collectors;
  * <p>Les contrôleurs {@code /auth} étant en {@code permitAll} dans la
  * filter-chain (voir {@code SecurityConfig}), les endpoints de ce contrôleur
  * ne reposent que sur les vérifications internes (votes
- * {@code authenticationManager}, contrôle du refresh token...).
+ * {@code authenticationManager}, contrôle du refresh token...). Exception :
+ * {@code POST /auth/create} est soumis à {@code @PreAuthorize(MANAGE_USERS)}
+ * pour réserver la création de compte à l'administration.
  */
 @RestController
 @Slf4j
@@ -190,12 +193,18 @@ public class AuthController {
     /**
      * Création d'un utilisateur par un administrateur : délégation à
      * {@code UserService.create} (mot de passe temporaire généré,
-     * voir {@link #generateRandomNumericString}). Endpoint public.
+     * voir {@link #generateRandomNumericString}).
+     *
+     * <p>Bien que la filter-chain déclare {@code POST /auth/create} en
+     * {@code permitAll}, l'accès est restreint à la permission métier
+     * {@code MANAGE_USERS} par {@code @PreAuthorize} (refusée aux requêtes
+     * non authentifiées).
      */
     /**
      * CREATE
      */
     @PostMapping("/create")
+    @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_USERS')")
     public UserResDto create(@RequestBody UserReqDto userReqDto) {return userService.create(userReqDto);}
 
     /**

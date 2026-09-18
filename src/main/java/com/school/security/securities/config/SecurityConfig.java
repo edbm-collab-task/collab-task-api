@@ -83,13 +83,21 @@ public class SecurityConfig {
         // (création par admin), logout, refresh (rotation du refresh token),
         // code (envoi de code de récupération par email).
         .requestMatchers(HttpMethod.POST, "/auth/login","/auth/create", "/auth/register", "/auth/logout", "/auth/refresh", "/auth/code").permitAll()
-        // Upload et lecture d'images utilisateur — public pour affichage de
-        // profils sans authentification.
-        .requestMatchers(HttpMethod.POST,"/users/{id}/image").permitAll()
-        .requestMatchers(HttpMethod.GET, "/users", "/users/*", "/users/email","/users/active","/users/disable").permitAll()
+        // Lecture d'images utilisateur — public pour affichage de profils sans
+        // authentification. L'ÉCRITURE d'image ({@code POST /users/{id}/image})
+        // n'est PAS en permitAll : elle relève de {@code anyRequest().authenticated()}
+        // (remplacer l'avatar d'un utilisateur exige d'être connecté).
         .requestMatchers(HttpMethod.GET, "/users/{id}/image").permitAll()
-        // Changement de mot de passe et attribution de rôle — endpoints publics
-        // (la logique métier s'applique au niveau du service/contrôleur).
+        // Liste des administrateurs : réservée au SUPER_ADMIN. Cette règle doit
+        // être déclarée AVANT le permitAll générique "/users/*" ci-dessous, sinon
+        // le first-match-wins la rendrait inatteignable.
+        .requestMatchers(HttpMethod.GET, "/users/admins").hasAuthority("SUPER_ADMIN")
+        .requestMatchers(HttpMethod.GET, "/users", "/users/*", "/users/email","/users/active","/users/disable").permitAll()
+        // Changement de mot de passe (récupération de compte) et attribution de
+        // rôle — déclarés permitAll car la récupération s'effectue sans session ;
+        // les contrôles réels s'appliquent au niveau des contrôleurs
+        // (cookie recoveryToken pour /users/pwd, @PreAuthorize MANAGE_USERS
+        // pour /users/role).
         .requestMatchers(HttpMethod.PUT,"/users/pwd","/users/role").permitAll()
         // Activation/désactivation de compte : réservé aux ADMIN et SUPER_ADMIN
         // au niveau de la filter-chain (authority Spring Security).
@@ -110,12 +118,10 @@ public class SecurityConfig {
         .requestMatchers(HttpMethod.GET, "/uploads/messages/{filename}").permitAll()
         .requestMatchers(HttpMethod.GET, "/uploads/comments/{filename}").permitAll()
         .requestMatchers(HttpMethod.GET, "/roles", "/roles/permissions").permitAll()
-        // Gestion des rôles réservée exclusivement au SUPER_ADMIN.
+        // Gestion des rôles (POST/PUT/DELETE) : réservée exclusivement au SUPER_ADMIN.
         .requestMatchers(HttpMethod.POST, "/roles").hasAuthority("SUPER_ADMIN")
         .requestMatchers(HttpMethod.PUT, "/roles/{id}").hasAuthority("SUPER_ADMIN")
         .requestMatchers(HttpMethod.DELETE, "/roles/{id}").hasAuthority("SUPER_ADMIN")
-        // Liste des administrateurs : réservée au SUPER_ADMIN.
-        .requestMatchers(HttpMethod.GET, "/users/admins").hasAuthority("SUPER_ADMIN")
         // Rapports projet : publics au niveau filter-chain, mais la logique
         // d'accès (super-admin, admin, owner ou contributeur) est vérifiée
         // dans le service ProjectReportServiceImpl.

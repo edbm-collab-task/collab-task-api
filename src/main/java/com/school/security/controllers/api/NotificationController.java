@@ -24,10 +24,8 @@ import org.springframework.web.bind.annotation.*;
  *       de {@code SecurityConfig} s'appliquent (utilisateur authentifié
  *       requis) ;</li>
  *   <li>le marquage "lu" d'une notification ({@code PATCH /notifications/{id}/read})
- *       se fait UNIQUEMENT par identifiant : NI le contrôleur NI le service ne
- *       vérifient que la notification appartient bien à l'utilisateur courant —
- *       tout utilisateur authentifié connaissant l'identifiant peut marquer
- *       n'importe quelle notification comme lue ;</li>
+ *       vérifie désormais que la notification appartient à l'utilisateur
+ *       courant via {@code NotificationService.markAsRead(id, currentUserId)} ;</li>
  *   <li>les trois autres endpoints ({@code GET}, {@code /unread-count},
  *       {@code /read-all}) sont bien scopés à l'utilisateur courant.</li>
  * </ul>
@@ -86,16 +84,17 @@ public class NotificationController {
     /**
      * Marque une notification comme lue ({@code PATCH /notifications/{id}/read}).
      *
-     * <p>POINT D'ATTENTION : l'opération est adressée uniquement par
-     * {@code id} — NI ce contrôleur NI {@code NotificationServiceImpl} ne
-     * vérifient que la notification appartient à l'utilisateur courant. Il
-     * n'y a donc pas de contrôle d'accès par propriétaire ici. Une
-     * notification inexistante provoque une exception
-     * {@code RuntimeException} ("Notification non trouvée").
+     * <p>L'identifiant de l'utilisateur courant est résolu puis transmis à
+     * {@code NotificationService.markAsRead(id, currentUserId)} : le service
+     * vérifie que la notification appartient à l'utilisateur courant. Une
+     * notification inexistante provoque une exception {@code RuntimeException}
+     * ("Notification non trouvée") ; une notification appartenant à un autre
+     * utilisateur provoque une {@code EntityException} (→ 404).
      */
     @PatchMapping("/{id}/read")
     public ResponseEntity<NotificationResDto> markAsRead(@PathVariable Long id) {
-        return ResponseEntity.ok(notificationService.markAsRead(id));
+        Long currentUserId = getCurrentUserId();
+        return ResponseEntity.ok(notificationService.markAsRead(id, currentUserId));
     }
 
     /**

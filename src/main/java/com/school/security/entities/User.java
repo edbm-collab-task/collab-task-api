@@ -77,7 +77,7 @@ public class User implements Serializable, UserDetails {
     public Collection<? extends GrantedAuthority> getAuthorities() {
         List<GrantedAuthority> authorities = new ArrayList<>();
         for (Role role : this.roles) {
-            authorities.add(new SimpleGrantedAuthority(role.getName().name()));
+            authorities.add(new SimpleGrantedAuthority(role.getName()));
         }
         return authorities;
     }

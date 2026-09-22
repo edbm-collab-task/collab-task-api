@@ -2,6 +2,7 @@ package com.school.security.controllers.api;
 
 import com.school.security.dtos.responses.DashboardDataResDto;
 import com.school.security.entities.User;
+import com.school.security.enums.PermissionType;
 import com.school.security.enums.RoleType;
 import com.school.security.exceptions.ResourceNotFoundException;
 import com.school.security.repositories.UserRepository;
@@ -173,7 +174,7 @@ public class DashboardController {
         }
 
         User user = getCurrentUser();
-        RoleType role = resolvePrimaryRole(user);
+        String role = resolvePrimaryRole(user);
 
         byte[] pdfBytes =
                 dashboardReportService.generateReport(
@@ -213,11 +214,11 @@ public class DashboardController {
      * la collection (ordre de la base). En l'absence de rôle, le fallback est
      * {@code RoleType.USER}.
      */
-    private RoleType resolvePrimaryRole(User user) {
+    private String resolvePrimaryRole(User user) {
         return user.getRoles().stream()
                 .findFirst()
-                .map(role -> role.getName())
-                .orElse(RoleType.USER);
+                .map(role -> RoleType.fromNameOrUser(role.getName()).name())
+                .orElse("USER");
     }
 
     /**
@@ -229,12 +230,13 @@ public class DashboardController {
      *   <li>USER -> {@code mon-rapport-activite-<mois>.pdf}.</li>
      * </ul>
      */
-    private String resolvePdfFilename(RoleType role, LocalDate now) {
+    private String resolvePdfFilename(String role, LocalDate now) {
         String datePart = now.format(DateTimeFormatter.ofPattern("yyyy-MM"));
         return switch (role) {
-            case SUPER_ADMIN -> "rapport-plateforme-" + datePart + ".pdf";
-            case ADMIN -> "rapport-administration-" + datePart + ".pdf";
-            case USER -> "mon-rapport-activite-" + datePart + ".pdf";
+            case "SUPER_ADMIN" -> "rapport-plateforme-" + datePart + ".pdf";
+            case "ADMIN" -> "rapport-administration-" + datePart + ".pdf";
+            case "USER" -> "mon-rapport-activite-" + datePart + ".pdf";
+            default -> "mon-rapport-activite-" + datePart + ".pdf";
         };
     }
 }

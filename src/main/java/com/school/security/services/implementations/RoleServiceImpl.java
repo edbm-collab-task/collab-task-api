@@ -3,9 +3,10 @@ package com.school.security.services.implementations;
 import com.school.security.dtos.requests.RoleReqDto;
 import com.school.security.dtos.responses.PermissionResDto;
 import com.school.security.dtos.responses.RoleResDto;
+import com.school.security.enums.PermissionType;
 import com.school.security.entities.Permission;
 import com.school.security.entities.Role;
-import com.school.security.enums.RoleType;
+import com.school.security.exceptions.BadRequestException;
 import com.school.security.exceptions.EntityException;
 import com.school.security.mappers.RoleMapper;
 import com.school.security.repositories.PermissionRepository;
@@ -75,13 +76,14 @@ public class RoleServiceImpl implements RoleService {
      */
     @Override
     public RoleResDto create(RoleReqDto dto) {
-        RoleType roleType = RoleType.valueOf(dto.name());
-        if (roleRepository.findByName(roleType).isPresent()) {
-            throw new EntityException("Role already exists: " + dto.name());
+        String name = normalizeName(dto.name());
+        if (roleRepository.findByName(name).isPresent()) {
+            throw new EntityException("Role already exists: " + name);
         }
 
         Role role = new Role();
-        role.setName(roleType);
+        role.setName(name);
+        role.setCodeRole(dto.codeRole());
 
         if (dto.permissions() != null) {
             List<Permission> permissions = dto.permissions().stream()
@@ -138,5 +140,34 @@ public class RoleServiceImpl implements RoleService {
         return permissionRepository.findAll().stream()
                 .map(p -> new PermissionResDto(p.getPermissionId(), p.getName().name(), p.getDescription()))
                 .collect(Collectors.toList());
+    }
+
+    /** Ajoute des permissions à un rôle existant.
+     *
+     * @param roleId Identifiant du rôle
+     * @param permissionNames Noms des permissions à associer (enum PermissionType)
+     * @throws EntityException si le rôle ou une permission n'existe pas
+     */
+    @Transactional
+    public void addPermissions(Long roleId, List<PermissionType> permissionNames) {
+        Role role = roleRepository.findById(roleId)
+                .orElseThrow(() -> new EntityException("Role not found: " + roleId));
+        List<Permission> permissions = permissionNames.stream()
+                .map(p -> permissionRepository.findByName(p)
+                        .orElseThrow(() -> new EntityException("Permission not found: " + p)))
+                .collect(Collectors.toList());
+        role.setPermissions(permissions);
+        roleRepository.save(role);
+    }
+
+    /**
+     * Normalise un nom de rôle : vide/nul refusé ({@code BadRequestException}),
+     * sinon trim + majuscules pour éviter les doublons de casse.
+     */
+    private String normalizeName(String name) {
+        if (name == null || name.isBlank()) {
+            throw new BadRequestException("Le nom du rôle est requis");
+        }
+        return name.trim().toUpperCase();
     }
 }

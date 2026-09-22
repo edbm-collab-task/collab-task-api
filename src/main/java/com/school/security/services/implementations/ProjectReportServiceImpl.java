@@ -74,9 +74,9 @@ public class ProjectReportServiceImpl implements ProjectReportService {
 
         // Check access
         boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getName() == RoleType.SUPER_ADMIN);
+                .anyMatch(role -> role.getName().equals(RoleType.SUPER_ADMIN.name()));
         boolean isAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getName() == RoleType.ADMIN);
+                .anyMatch(role -> role.getName().equals(RoleType.ADMIN.name()));
         boolean isOwner = project.getOwner().getUsersId().equals(userId);
         boolean isContributor = project.getContributors().stream()
                 .anyMatch(c -> c.getUser().getUsersId().equals(userId));

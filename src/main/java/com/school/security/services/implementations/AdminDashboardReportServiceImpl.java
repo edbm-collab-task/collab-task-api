@@ -96,25 +96,25 @@ public class AdminDashboardReportServiceImpl implements AdminDashboardReportServ
     private static final DateTimeFormatter PDF_DATE_FORMAT = PdfConstants.PDF_DATE_LONG;
     private static final DateTimeFormatter PDF_GENERATED_FORMAT = PdfConstants.PDF_GENERATED_FORMAT;
 
-    /**
-     * Surcharge sans rôle : déduit le rôle de l'utilisateur puis délègue à
-     * {@link #generateReport(Long, RoleType, String, String, String)}.
+/**
+     * Surcharge sans r��le : dǸduit le r��le de l'utilisateur puis dǸl��gue ��
+     * {@link #generateReport(Long, String, String, String, String)}.
      */
     @Override
     public byte[] generateReport(Long userId, String period, String startDate, String endDate) {
         var user = userRepository.findById(userId).orElse(null);
-        RoleType role = user != null
-                ? user.getRoles().stream().findFirst().map(Role::getName).orElse(RoleType.USER)
-                : RoleType.USER;
+        String role = user != null
+                ? user.getRoles().stream().findFirst().map(r -> RoleType.fromNameOrUser(r.getName()).name()).orElse("USER")
+                : "USER";
         return generateReport(userId, role, period, startDate, endDate);
     }
 
     /**
-     * Génère le PDF administrateur ; toute erreur iText est encapsulée dans une
+     * GǸn��re le PDF administrateur ; toute erreur iText est encapsulǸe dans une
      * {@code RuntimeException}.
      */
     @Override
-    public byte[] generateReport(Long userId, RoleType role, String period, String startDate, String endDate) {
+    public byte[] generateReport(Long userId, String role, String period, String startDate, String endDate) {
         AdminDashboardStatsResDto data =
                 adminDashboardService.getAdminDashboardStats(userId, period, startDate, endDate);
         User admin = userRepository.findById(userId).orElse(null);
@@ -143,7 +143,7 @@ public class AdminDashboardReportServiceImpl implements AdminDashboardReportServ
     }
 
     /** En-tête : logo optionnel (erreur ignorée), titre, générateur, période et date. */
-    private void addHeader(Document document, RoleType role, String period, String startDate, String endDate, String adminName) throws DocumentException {
+    private void addHeader(Document document, String role, String period, String startDate, String endDate, String adminName) throws DocumentException {
         // Logo
         try (java.io.InputStream is = getClass().getResourceAsStream("/static/logoEDBM.png")) {
             if (is != null) {

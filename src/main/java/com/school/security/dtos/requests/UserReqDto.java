@@ -12,4 +12,5 @@ public record UserReqDto(
         String number,
         Boolean status,
         String password,
-        Gender gender) {}
+        Gender gender,
+        String role) {}

@@ -71,6 +71,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String jwt = null;
         String authHeader = request.getHeader("Authorization");
+        System.out.println("[JWT-FILTER] Authorization header: " + (authHeader != null ? "Bearer ..." : "null"));
         // Le header Authorization Bearer a la priorité sur le cookie accessToken.
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             jwt = authHeader.substring(7);
@@ -88,6 +89,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
 
             String email = jwtService.extractUsername(jwt);
+            System.out.println("[JWT-FILTER] extractUsername: " + email);
 
             // On ne charge l'utilisateur que si l'email est présent et qu'aucune
             // authentification n'est déjà établie dans le contexte.
@@ -96,8 +98,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 UserDetails userDetails =
                         userService.userDetailsService().loadUserByUsername(email);
+                System.out.println("[JWT-FILTER] loadUserByUsername OK: " + userDetails.getUsername());
 
                 if (jwtService.isTokenValid(jwt, userDetails)) {
+                    System.out.println("[JWT-FILTER] isTokenValid: true");
 
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(
@@ -112,10 +116,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     // c'est ce qui rend la requête "authentifiée".
                     SecurityContextHolder.getContext()
                             .setAuthentication(authentication);
+                    System.out.println("[JWT-FILTER] Authentication SET: " + authentication.getAuthorities());
+                } else {
+                    System.out.println("[JWT-FILTER] isTokenValid: FALSE");
                 }
             }
 
         } catch (Exception e) {
+            System.out.println("[JWT-FILTER] EXCEPTION: " + e.getClass().getName() + " - " + e.getMessage());
+            e.printStackTrace();
             // Token invalide ou expiré : on laisse Spring Security gérer
             // Toute erreur (token invalide/expiré, utilisateur introuvable,
             // email mal formé...) fait tomber la requête dans l'accès non

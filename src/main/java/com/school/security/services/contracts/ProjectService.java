@@ -5,7 +5,7 @@ import com.school.security.dtos.responses.ProjectResDto;
 import java.util.List;
 
 public interface ProjectService extends Service<ProjectReqDto, ProjectResDto, Long> {
-    ProjectResDto save(ProjectReqDto toSave, Long id);
+    ProjectResDto save(ProjectReqDto toSave, Long id, Long currentUserId);
 
     ProjectResDto archiver(Long id);
 

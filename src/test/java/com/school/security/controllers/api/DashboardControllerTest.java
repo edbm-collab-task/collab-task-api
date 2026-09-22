@@ -171,10 +171,10 @@ class DashboardControllerTest {
     @Test
     void adminPdfShouldReturn200WithPdfContent() throws Exception {
         authenticateUser("ADMIN");
-        mockUserRepository("test@test.com", RoleType.ADMIN);
+        mockUserRepository("test@test.com", "ADMIN");
         byte[] fakePdf = "%PDF-1.4 admin content".getBytes();
         when(dashboardReportService.generateReport(
-                        eq(1L), eq(RoleType.ADMIN), eq("TODAY"), isNull(), isNull(), null))
+                        eq(1L), eq("ADMIN"), eq("TODAY"), isNull(), isNull(), null))
                 .thenReturn(fakePdf);
 
         mockMvc.perform(get("/dashboard/reports/pdf")
@@ -189,10 +189,10 @@ class DashboardControllerTest {
     @Test
     void adminPdfWithCustomPeriodAndValidDatesShouldReturn200() throws Exception {
         authenticateUser("ADMIN");
-        mockUserRepository("test@test.com", RoleType.ADMIN);
+        mockUserRepository("test@test.com", "ADMIN");
         byte[] fakePdf = "%PDF-1.4 admin custom".getBytes();
         when(dashboardReportService.generateReport(
-                        eq(1L), eq(RoleType.ADMIN), eq("CUSTOM"), eq("2026-08-01"), eq("2026-08-25"), null))
+                        eq(1L), eq("ADMIN"), eq("CUSTOM"), eq("2026-08-01"), eq("2026-08-25"), null))
                 .thenReturn(fakePdf);
 
         mockMvc.perform(get("/dashboard/reports/pdf")
@@ -209,10 +209,10 @@ class DashboardControllerTest {
     @Test
     void superAdminPdfShouldReturn200WithPdfContent() throws Exception {
         authenticateUser("SUPER_ADMIN");
-        mockUserRepository("test@test.com", RoleType.SUPER_ADMIN);
+        mockUserRepository("test@test.com", "SUPER_ADMIN");
         byte[] fakePdf = "%PDF-1.4 super admin content".getBytes();
         when(dashboardReportService.generateReport(
-                        eq(2L), eq(RoleType.SUPER_ADMIN), eq("TODAY"), isNull(), isNull(), null))
+                        eq(2L), eq("SUPER_ADMIN"), eq("TODAY"), isNull(), isNull(), null))
                 .thenReturn(fakePdf);
 
         mockMvc.perform(get("/dashboard/reports/pdf")
@@ -229,10 +229,10 @@ class DashboardControllerTest {
     @Test
     void userPdfShouldReturn200WithPdfContent() throws Exception {
         authenticateUser("USER");
-        mockUserRepository("test@test.com", RoleType.USER);
+        mockUserRepository("test@test.com", "USER");
         byte[] fakePdf = "%PDF-1.4 user content".getBytes();
         when(dashboardReportService.generateReport(
-                        eq(3L), eq(RoleType.USER), eq("TODAY"), isNull(), isNull(), null))
+                        eq(3L), eq("USER"), eq("TODAY"), isNull(), isNull(), null))
                 .thenReturn(fakePdf);
 
         mockMvc.perform(get("/dashboard/reports/pdf")
@@ -247,10 +247,10 @@ class DashboardControllerTest {
     @Test
     void userPdfWithCustomPeriodShouldReturn200() throws Exception {
         authenticateUser("USER");
-        mockUserRepository("test@test.com", RoleType.USER);
+        mockUserRepository("test@test.com", "USER");
         byte[] fakePdf = "%PDF-1.4 user custom".getBytes();
         when(dashboardReportService.generateReport(
-                        eq(3L), eq(RoleType.USER), eq("CUSTOM"), eq("2026-08-01"), eq("2026-08-15"), null))
+                        eq(3L), eq("USER"), eq("CUSTOM"), eq("2026-08-01"), eq("2026-08-15"), null))
                 .thenReturn(fakePdf);
 
         mockMvc.perform(get("/dashboard/reports/pdf")
@@ -295,10 +295,10 @@ class DashboardControllerTest {
     @Test
     void userPdfShouldUseOwnUserIdNotArbitraryOne() throws Exception {
         authenticateUser("USER");
-        mockUserRepository("test@test.com", RoleType.USER);
+        mockUserRepository("test@test.com", "USER");
         byte[] fakePdf = "%PDF-1.4".getBytes();
         when(dashboardReportService.generateReport(
-                        eq(3L), eq(RoleType.USER), eq("TODAY"), isNull(), isNull(), null))
+                        eq(3L), eq("USER"), eq("TODAY"), isNull(), isNull(), null))
                 .thenReturn(fakePdf);
 
         mockMvc.perform(get("/dashboard/reports/pdf")
@@ -306,7 +306,7 @@ class DashboardControllerTest {
                         .accept(MediaType.APPLICATION_PDF))
                 .andExpect(status().isOk());
 
-        verify(dashboardReportService).generateReport(eq(3L), eq(RoleType.USER), anyString(), isNull(), isNull(), null);
+        verify(dashboardReportService).generateReport(eq(3L), eq("USER"), anyString(), isNull(), isNull(), null);
     }
 
     // ─── Helpers ──────────────────────────────────────────────────
@@ -319,16 +319,16 @@ class DashboardControllerTest {
         SecurityContextHolder.setContext(context);
     }
 
-    private void mockUserRepository(String email, RoleType roleType) {
+    private void mockUserRepository(String email, String roleName) {
         Direction direction = new Direction();
         direction.setDirectionId(1L);
         direction.setName("DSI");
 
         Role role = new Role();
-        role.setName(roleType);
+        role.setName(roleName);
 
         User user = new User();
-        user.setUsersId(roleType == RoleType.SUPER_ADMIN ? 2L : roleType == RoleType.USER ? 3L : 1L);
+        user.setUsersId("SUPER_ADMIN".equals(roleName) ? 2L : "USER".equals(roleName) ? 3L : 1L);
         user.setFirstname("Test");
         user.setLastname("User");
         user.setEmail(email);
@@ -344,7 +344,7 @@ class DashboardControllerTest {
         direction.setName("DSI");
 
         Role role = new Role();
-        role.setName(RoleType.ADMIN);
+        role.setName("ADMIN");
 
         User user = new User();
         user.setUsersId(1L);

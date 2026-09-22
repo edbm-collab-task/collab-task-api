@@ -69,7 +69,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
         }
 
         boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getName() == RoleType.SUPER_ADMIN);
+                .anyMatch(role -> role.getName().equals(RoleType.SUPER_ADMIN.name()));
 
         // Get accessible projects
         List<Project> accessibleProjects = isSuperAdmin
@@ -144,7 +144,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
         List<User> allUsers = userRepository.findAll();
 
         return allUsers.stream()
-                .filter(u -> u.getRoles().stream().noneMatch(r -> r.getName() == RoleType.SUPER_ADMIN))
+                .filter(u -> u.getRoles().stream().noneMatch(r -> r.getName().equals(RoleType.SUPER_ADMIN.name())))
                 .map(user -> {
                     long assignedTasks = taskRepository.countActiveByUserAndProjects(projectIds, user.getUsersId());
                     long completedTasks = taskRepository.countCompletedByUserAndPeriod(
@@ -158,7 +158,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                             user.getFirstname(),
                             user.getLastname(),
                             user.getEmail(),
-                            user.getRoles().stream().findFirst().map(Role::getName).map(Enum::name).orElse("USER"),
+                            user.getRoles().stream().findFirst().map(Role::getName).orElse("USER"),
                             user.getDirection() != null ? user.getDirection().getName() : "—",
                             assignedTasks,
                             completedTasks,

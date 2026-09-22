@@ -81,7 +81,7 @@ public class UserServiceImpl implements UserService {
             user.setStatus(false);
             user.setCreatedAt(LocalDate.now());
             var userToSave = userRepository.save(user);
-            attachRole(email,RoleType.USER);
+            attachRole(email,"USER");
             return userMapper.toDto(userToSave);
         }
     }
@@ -114,7 +114,8 @@ public class UserServiceImpl implements UserService {
             user.setLastname(toSave.lastname());
             User savedUser = userRepository.save(user);
 
-            attachRole(savedUser.getEmail(), RoleType.USER);
+            String roleName = (toSave.role() != null && !toSave.role().isBlank()) ? toSave.role() : "USER";
+            attachRole(savedUser.getEmail(), roleName);
             emailService.createPwdForUser(
                     savedUser.getEmail(),
                     savedUser.getFirstname(),
@@ -231,9 +232,9 @@ public class UserServiceImpl implements UserService {
      * pratique, un utilisateur ne porte donc qu'un seul rôle à la fois.
      */
     @Override
-    public UserResDto attachRole(String email, RoleType name) {
+    public UserResDto attachRole(String email, String roleRef) {
         Optional<User> optionalUser = userRepository.findByEmail(email);
-        Optional<Role> optionalRole = roleRepository.findByName(name);
+        Optional<Role> optionalRole = findRole(roleRef);
 
         if (optionalUser.isPresent() && optionalRole.isPresent()) {
             User user = optionalUser.get();
@@ -247,9 +248,9 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserResDto detachRole(String email, RoleType name) {
+    public UserResDto detachRole(String email, String roleRef) {
         Optional<User> optionalUser = userRepository.findByEmail(email);
-        Optional<Role> optionalRole = roleRepository.findByName(name);
+        Optional<Role> optionalRole = findRole(roleRef);
 
         if (optionalUser.isPresent() && optionalRole.isPresent()) {
             User user = optionalUser.get();
@@ -259,6 +260,17 @@ public class UserServiceImpl implements UserService {
         } else {
             throw new EntityException("User or Role not found");
         }
+    }
+
+    private Optional<Role> findRole(String roleRef) {
+        if (roleRef == null || roleRef.isBlank()) {
+            return Optional.empty();
+        }
+        Optional<Role> byCode = roleRepository.findByCodeRole(roleRef.trim());
+        if (byCode.isPresent()) {
+            return byCode;
+        }
+        return roleRepository.findByName(roleRef.trim());
     }
 
     @Override
@@ -373,10 +385,10 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public List<UserResDto> findAllByRole(RoleType roleType) {
+    public List<UserResDto> findAllByRole(String roleType) {
         return userRepository.findAll().stream()
                 .filter(user -> user.getRoles().stream()
-                        .anyMatch(role -> role.getName() == roleType))
+                        .anyMatch(role -> role.getName().equals(roleType)))
                 .map(userMapper::toDto)
                 .collect(Collectors.toList());
     }

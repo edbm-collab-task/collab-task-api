@@ -229,7 +229,7 @@ public class UserController {
      */
     @GetMapping("/admins")
     public ResponseEntity<List<UserResDto>> findAllAdmins() {
-        return ResponseEntity.ok(userService.findAllByRole(com.school.security.enums.RoleType.ADMIN));
+        return ResponseEntity.ok(userService.findAllByRole("ADMIN"));
     }
 
     /**

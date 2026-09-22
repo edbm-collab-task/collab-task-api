@@ -21,6 +21,9 @@ WHERE NOT EXISTS (
 
 ALTER TABLE roles ADD COLUMN IF NOT EXISTS code_role VARCHAR(10);
 
+-- Supprimer la contrainte qui limite les noms de rôles (pour permettre l'ajout de rôles personnalisés)
+ALTER TABLE roles DROP CONSTRAINT IF EXISTS roles_name_check;
+
 INSERT INTO roles (name, code_role)
 SELECT role_name, code_role
 FROM (

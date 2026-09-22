@@ -49,7 +49,7 @@ public class ProjectServiceImpl implements ProjectService {
 
     @Override
     public ProjectResDto createOrUpdate(ProjectReqDto toSave) {
-        return save(toSave, null);
+        return save(toSave, null, null);
     }
 
     /**
@@ -121,13 +121,21 @@ public class ProjectServiceImpl implements ProjectService {
      * Crée ou met à jour un projet : si {@code id} est renseigné et existe,
      * les champs modifiables sont appliqués sur l'entité existante, sinon un
      * nouveau projet est créé. Les dates sont contrôlées avant enregistrement.
+     *
+     * <p>Pour une mise à jour ({@code id} présent), seuls l'utilisateur qui
+     * possède le projet (le {@code currentUserId}) peut modifier ; tout autre
+     * utilisateur reçoit une {@code EntityException}. La création (sans
+     * {@code id}) n'applique aucune vérification d'owner.
      */
     @Override
-    public ProjectResDto save(ProjectReqDto toSave, Long id) {
+    public ProjectResDto save(ProjectReqDto toSave, Long id, Long currentUserId) {
         if (id != null) {
             Optional<Project> projectOptional = this.projectRepository.findById(id);
             if (projectOptional.isPresent()) {
                 Project projectToUpdate = projectOptional.get();
+                if (!projectToUpdate.getOwner().getUsersId().equals(currentUserId)) {
+                    throw new EntityException("Seul le chef de projet peut modifier ce projet");
+                }
                 validateDates(
                         toSave.startDate(),
                         toSave.endDate(),
@@ -166,7 +174,7 @@ public class ProjectServiceImpl implements ProjectService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         boolean isAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getName() == RoleType.ADMIN || role.getName() == RoleType.SUPER_ADMIN);
+                .anyMatch(role -> role.getName().equals(RoleType.ADMIN.name()) || role.getName().equals(RoleType.SUPER_ADMIN.name()));
 
         List<Project> projects;
         if (isAdmin) {
@@ -192,7 +200,7 @@ public class ProjectServiceImpl implements ProjectService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         boolean isAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getName() == RoleType.ADMIN || role.getName() == RoleType.SUPER_ADMIN);
+                .anyMatch(role -> role.getName().equals(RoleType.ADMIN.name()) || role.getName().equals(RoleType.SUPER_ADMIN.name()));
 
         List<Project> projects;
         if (isAdmin) {

@@ -1,8 +1,9 @@
 package com.school.security.controllers.api;
 
 import com.school.security.dtos.responses.AdminDashboardStatsResDto;
-import com.school.security.entities.User;
 import com.school.security.enums.RoleType;
+import com.school.security.entities.User;
+
 import com.school.security.repositories.UserRepository;
 import com.school.security.securities.utils.SecurityUtils;
 import com.school.security.services.contracts.AdminDashboardReportService;
@@ -87,11 +88,11 @@ public class AdminDashboardController {
      * la collection (ordre de la base). En l'absence de rôle, le fallback est
      * {@code RoleType.USER}.
      */
-    private RoleType resolvePrimaryRole(User user) {
+    private String resolvePrimaryRole(User user) {
         return user.getRoles().stream()
                 .findFirst()
-                .map(role -> role.getName())
-                .orElse(RoleType.USER);
+                .map(role -> RoleType.fromNameOrUser(role.getName()).name())
+                .orElse("USER");
     }
 
     private static final Set<String> VALID_PERIODS = Set.of(
@@ -180,7 +181,7 @@ public class AdminDashboardController {
 
         Long currentUserId = getCurrentUserId();
         User user = getCurrentUser();
-        RoleType role = resolvePrimaryRole(user);
+        String role = resolvePrimaryRole(user);
         byte[] pdfBytes = adminDashboardReportService.generateReport(
                 currentUserId, role, period, startDate, endDate);
 

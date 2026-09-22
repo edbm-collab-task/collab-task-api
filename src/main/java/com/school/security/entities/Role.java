@@ -1,6 +1,5 @@
 package com.school.security.entities;
 
-import com.school.security.enums.RoleType;
 import jakarta.persistence.*;
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -19,8 +18,11 @@ public class Role implements Serializable {
     @Column(name = "roles_id")
     protected Long rolesId;
 
-    @Enumerated(EnumType.STRING)
-    private RoleType name;
+    @Column(name = "name", nullable = false, unique = true)
+    private String name;
+
+    @Column(name = "code_role", nullable = false, unique = true)
+    private String codeRole;
 
     @ManyToMany(mappedBy = "roles")
     private List<User> users = new ArrayList<>();
@@ -41,12 +43,20 @@ public class Role implements Serializable {
         this.rolesId = rolesId;
     }
 
-    public RoleType getName() {
+    public String getName() {
         return name;
     }
 
-    public void setName(RoleType name) {
+    public void setName(String name) {
         this.name = name;
+    }
+
+    public String getCodeRole() {
+        return codeRole;
+    }
+
+    public void setCodeRole(String codeRole) {
+        this.codeRole = codeRole;
     }
 
     public List<User> getUsers() {

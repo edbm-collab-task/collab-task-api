@@ -52,8 +52,8 @@ class DashboardServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        adminUser = buildUser(1L, "Admin", "User", RoleType.ADMIN);
-        regularUser = buildUser(2L, "Regular", "User", RoleType.USER);
+        adminUser = buildUser(1L, "Admin", "User", "ADMIN");
+        regularUser = buildUser(2L, "Regular", "User", "USER");
 
         projectOne = buildProject(1L, "Project Alpha", adminUser);
         projectTwo = buildProject(2L, "Project Beta", adminUser);
@@ -260,7 +260,7 @@ class DashboardServiceImplTest {
 
     @Test
     void getDashboardStatsShouldLimitRecentProjectsToFive() {
-        User owner = buildUser(1L, "Owner", "User", RoleType.ADMIN);
+        User owner = buildUser(1L, "Owner", "User", "ADMIN");
         List<Project> manyProjects = new ArrayList<>();
         for (int i = 1; i <= 8; i++) {
             manyProjects.add(buildProject((long) i, "Project " + i, owner));
@@ -289,7 +289,7 @@ class DashboardServiceImplTest {
 
     @Test
     void getDashboardStatsShouldReturnDataForSuperAdmin() {
-        User superAdmin = buildUser(3L, "Super", "Admin", RoleType.SUPER_ADMIN);
+        User superAdmin = buildUser(3L, "Super", "Admin", "SUPER_ADMIN");
         when(userRepository.findById(3L)).thenReturn(Optional.of(superAdmin));
         when(projectRepository.findByIsActiveTrue()).thenReturn(adminProjects);
         when(taskRepository.countByIsActiveTrueAndProjectProjectIdIn(anyList())).thenReturn(20L);
@@ -374,7 +374,7 @@ class DashboardServiceImplTest {
 
     @Test
     void getDashboardStatsShouldCalculateProgressCorrectly() {
-        User owner = buildUser(1L, "Owner", "User", RoleType.ADMIN);
+        User owner = buildUser(1L, "Owner", "User", "ADMIN");
         List<Project> projects = List.of(buildProject(1L, "Project A", owner));
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
@@ -403,7 +403,7 @@ class DashboardServiceImplTest {
 
     @Test
     void superAdminShouldSeeAllProjects() {
-        User superAdmin = buildUser(3L, "Super", "Admin", RoleType.SUPER_ADMIN);
+        User superAdmin = buildUser(3L, "Super", "Admin", "SUPER_ADMIN");
         when(userRepository.findById(3L)).thenReturn(Optional.of(superAdmin));
         when(projectRepository.findByIsActiveTrue()).thenReturn(adminProjects);
         when(taskRepository.countByIsActiveTrueAndProjectProjectIdIn(anyList())).thenReturn(20L);
@@ -597,14 +597,14 @@ class DashboardServiceImplTest {
         assertEquals(1, result.recentProjects().size());
     }
 
-    private User buildUser(Long id, String firstname, String lastname, RoleType roleType) {
+    private User buildUser(Long id, String firstname, String lastname, String roleName) {
         Direction direction = new Direction();
         direction.setDirectionId(1L);
         direction.setName("DSI");
 
         Role role = new Role();
-        role.setRolesId(roleType == RoleType.ADMIN ? 1L : 2L);
-        role.setName(roleType);
+        role.setRolesId("ADMIN".equals(roleName) ? 1L : 2L);
+        role.setName(roleName);
 
         User user = new User();
         user.setUsersId(id);

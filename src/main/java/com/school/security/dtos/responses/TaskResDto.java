@@ -17,7 +17,8 @@ public record TaskResDto(
         String statusName,
         Long parentTaskId,
         Integer sortOrder,
-        List<AssigneeResDto> assignees) {
+        List<AssigneeResDto> assignees,
+        Long commentCount) {
 
     public record AssigneeResDto(
             Long userId,

@@ -14,6 +14,7 @@ import com.school.security.mappers.TaskMapper;
 import com.school.security.repositories.PriorityRepository;
 import com.school.security.repositories.ProjectRepository;
 import com.school.security.repositories.StatusRepository;
+import com.school.security.repositories.TaskCommentRepository;
 import com.school.security.repositories.TaskRepository;
 import com.school.security.repositories.UserRepository;
 import com.school.security.services.contracts.NotificationService;
@@ -21,7 +22,9 @@ import com.school.security.services.contracts.TaskService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
@@ -52,6 +55,7 @@ public class TaskServiceImpl implements TaskService {
     private NotificationService notificationService;
     private com.school.security.services.contracts.ActivityService activityService;
     private ProjectRepository projectRepository;
+    private TaskCommentRepository taskCommentRepository;
 
     @Override
     public TaskResDto createOrUpdate(TaskReqDto toSave) {
@@ -131,7 +135,7 @@ public class TaskServiceImpl implements TaskService {
                             "Priorité changée pour la tâche \"" + saved.getTitle() + "\"", saved.getTaskId());
                 }
 
-                return this.taskMapper.toDto(saved);
+                return this.taskMapper.toDto(saved, this.taskCommentRepository.countByTaskTaskId(saved.getTaskId()));
             }
         }
         validateDueDate(toSave.dueDate(), null);
@@ -157,26 +161,32 @@ public class TaskServiceImpl implements TaskService {
             }
         }
 
-        return this.taskMapper.toDto(saved);
+        return this.taskMapper.toDto(saved, this.taskCommentRepository.countByTaskTaskId(saved.getTaskId()));
     }
 
     @Override
     public List<TaskResDto> findAll() {
-        return this.taskRepository.findByIsActiveTrue().stream()
-                .map(this.taskMapper::toDto)
+        List<Task> tasks = this.taskRepository.findByIsActiveTrue();
+        Map<Long, Long> counts = commentCountMap(tasks);
+        return tasks.stream()
+                .map(task -> this.taskMapper.toDto(task, counts.getOrDefault(task.getTaskId(), 0L)))
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<TaskResDto> findByProject(Long projectId) {
-        return this.taskRepository.findByProjectProjectIdAndIsActiveTrue(projectId).stream()
-                .map(this.taskMapper::toDto)
+        List<Task> tasks = this.taskRepository.findByProjectProjectIdAndIsActiveTrue(projectId);
+        Map<Long, Long> counts = commentCountMap(tasks);
+        return tasks.stream()
+                .map(task -> this.taskMapper.toDto(task, counts.getOrDefault(task.getTaskId(), 0L)))
                 .collect(Collectors.toList());
     }
 
     public List<TaskResDto> findTasksByProjectAndStatusOrderBySortOrder(Long projectId, Long statusId) {
-        return this.taskRepository.findByProjectProjectIdAndStatusIdOrderBySortOrderAsc(projectId, statusId).stream()
-                .map(this.taskMapper::toDto)
+        List<Task> tasks = this.taskRepository.findByProjectProjectIdAndStatusIdOrderBySortOrderAsc(projectId, statusId);
+        Map<Long, Long> counts = commentCountMap(tasks);
+        return tasks.stream()
+                .map(task -> this.taskMapper.toDto(task, counts.getOrDefault(task.getTaskId(), 0L)))
                 .collect(Collectors.toList());
     }
 
@@ -184,7 +194,8 @@ public class TaskServiceImpl implements TaskService {
     public TaskResDto findById(Long id) {
         Optional<Task> taskOptional = this.taskRepository.findById(id);
         if (taskOptional.isPresent()) {
-            return this.taskMapper.toDto(taskOptional.get());
+            Task task = taskOptional.get();
+            return this.taskMapper.toDto(task, this.taskCommentRepository.countByTaskTaskId(task.getTaskId()));
         }
         throw new EntityException("Task not found");
     }
@@ -210,7 +221,8 @@ public class TaskServiceImpl implements TaskService {
             activityService.logActivity(task.getProject().getProjectId(), currentUserId,
                     com.school.security.enums.ActivityType.TASK_DELETED,
                     "La tâche \"" + task.getTitle() + "\" a été supprimée", task.getTaskId());
-            return this.taskMapper.toDto(this.taskRepository.save(task));
+            Task saved = this.taskRepository.save(task);
+            return this.taskMapper.toDto(saved, this.taskCommentRepository.countByTaskTaskId(saved.getTaskId()));
         }
         throw new EntityException("Task not found");
     }
@@ -246,7 +258,7 @@ public class TaskServiceImpl implements TaskService {
                         task.getTaskId());
                 Task saved = this.taskRepository.save(task);
                 autoUnarchiveProject(saved.getProject());
-                return this.taskMapper.toDto(saved);
+                return this.taskMapper.toDto(saved, this.taskCommentRepository.countByTaskTaskId(saved.getTaskId()));
             }
             throw new EntityException("Status not found");
         }
@@ -260,7 +272,7 @@ public class TaskServiceImpl implements TaskService {
             Task task = taskOptional.get();
             task.setSortOrder(sortOrder);
             Task saved = this.taskRepository.save(task);
-            return this.taskMapper.toDto(saved);
+            return this.taskMapper.toDto(saved, this.taskCommentRepository.countByTaskTaskId(saved.getTaskId()));
         }
         throw new EntityException("Task not found");
     }
@@ -274,6 +286,23 @@ public class TaskServiceImpl implements TaskService {
             // traitement, l'activité sera alors journalisée sans utilisateur.
             return null;
         }
+    }
+
+    /**
+     * Compte les commentaires (racines + réponses) de toutes les tâches de la
+     * liste en UNE seule requête GROUP BY, puis retourne une map
+     * {@code taskId -> count}. Les tâches sans commentaire sont simplement
+     * absentes de la map (valeur par défaut {@code 0} chez l'appelant).
+     */
+    private Map<Long, Long> commentCountMap(List<Task> tasks) {
+        if (tasks == null || tasks.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> taskIds = tasks.stream().map(Task::getTaskId).collect(Collectors.toList());
+        return this.taskCommentRepository.countByTaskIds(taskIds).stream()
+                .collect(Collectors.toMap(
+                        TaskCommentRepository.TaskCommentCount::getTaskId,
+                        TaskCommentRepository.TaskCommentCount::getCnt));
     }
 
     private void notifyAssignee(Long userId, Task task, String message) {

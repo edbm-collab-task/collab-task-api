@@ -21,6 +21,7 @@ import com.school.security.repositories.PriorityRepository;
 import com.school.security.repositories.StatusRepository;
 import com.school.security.repositories.TaskCommentRepository;
 import com.school.security.repositories.TaskRepository;
+import com.school.security.services.contracts.ActivityService;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -43,6 +44,8 @@ class TaskServiceImplTest {
     @Mock private TaskMapper taskMapper;
 
     @Mock private TaskCommentRepository taskCommentRepository;
+
+    @Mock private ActivityService activityService;
 
     @InjectMocks private TaskServiceImpl taskService;
 
@@ -100,7 +103,7 @@ class TaskServiceImplTest {
                 new TaskReqDto(
                         "New Task",
                         "New task description",
-                        LocalDate.of(2026, 6, 15),
+                        LocalDate.now().plusDays(30),
                         10L,
                         3L,
                         2L,
@@ -169,7 +172,7 @@ class TaskServiceImplTest {
                         3L,
                         "New Task",
                         "New task description",
-                        LocalDate.of(2026, 6, 15),
+                        LocalDate.now().plusDays(30),
                         true,
                         10L,
                         "Project Alpha",
@@ -200,7 +203,7 @@ class TaskServiceImplTest {
                 new TaskReqDto(
                         "Updated Task",
                         "Updated description",
-                        LocalDate.of(2026, 7, 1),
+                        LocalDate.now().plusDays(30),
                         10L,
                         3L,
                         2L,
@@ -211,7 +214,7 @@ class TaskServiceImplTest {
                         1L,
                         "Updated Task",
                         "Updated description",
-                        LocalDate.of(2026, 7, 1),
+                        LocalDate.now().plusDays(30),
                         true,
                         10L,
                         "Project Alpha",
@@ -234,7 +237,7 @@ class TaskServiceImplTest {
         assertEquals(updatedDto, result);
         assertEquals("Updated Task", taskOne.getTitle());
         assertEquals("Updated description", taskOne.getDescription());
-        assertEquals(LocalDate.of(2026, 7, 1), taskOne.getDueDate());
+        assertEquals(LocalDate.now().plusDays(30), taskOne.getDueDate());
         verify(taskRepository, times(1)).findById(1L);
         verify(priorityRepository, times(1)).getReferenceById(3L);
         verify(statusRepository, times(1)).getReferenceById(2L);
@@ -249,7 +252,7 @@ class TaskServiceImplTest {
                 new TaskReqDto(
                         "Fallback Task",
                         "Fallback description",
-                        LocalDate.of(2026, 8, 1),
+                        LocalDate.now().plusDays(30),
                         10L,
                         3L,
                         2L,
@@ -260,7 +263,7 @@ class TaskServiceImplTest {
                         4L,
                         "Fallback Task",
                         "Fallback description",
-                        LocalDate.of(2026, 8, 1),
+                        LocalDate.now().plusDays(30),
                         true,
                         10L,
                         "Project Alpha",
@@ -289,9 +292,11 @@ class TaskServiceImplTest {
     @Test
     void saveShouldThrowWhenParentIsSelf() {
         TaskReqDto invalidRequest =
-                new TaskReqDto("Task", "Desc", LocalDate.of(2026, 9, 1), 10L, 3L, 2L, 1L, List.of());
+                new TaskReqDto("Task", "Desc", LocalDate.now().plusDays(14), 10L, 3L, 2L, 1L, List.of());
         Task existingTask = buildTask(1L, "Task One", project, priority, status, null, true);
         when(taskRepository.findById(1L)).thenReturn(Optional.of(existingTask));
+        when(priorityRepository.getReferenceById(3L)).thenReturn(priority);
+        when(statusRepository.getReferenceById(2L)).thenReturn(status);
 
         EntityException exception =
                 assertThrows(EntityException.class, () -> taskService.save(invalidRequest, 1L));
@@ -306,7 +311,7 @@ class TaskServiceImplTest {
     @Test
     void saveShouldThrowWhenParentTaskDoesNotExist() {
         TaskReqDto invalidRequest =
-                new TaskReqDto("Task", "Desc", LocalDate.of(2026, 9, 1), 10L, 3L, 2L, 99L, List.of());
+                new TaskReqDto("Task", "Desc", LocalDate.now().plusDays(14), 10L, 3L, 2L, 99L, List.of());
         Task existingTask = buildTask(1L, "Task One", project, priority, status, null, true);
         when(taskRepository.findById(1L)).thenReturn(Optional.of(existingTask));
         when(priorityRepository.getReferenceById(3L)).thenReturn(priority);
@@ -330,7 +335,7 @@ class TaskServiceImplTest {
         Task parentTask = buildTask(99L, "Parent Task", otherProject, priority, status, null, true);
         Task existingTask = buildTask(1L, "Task One", project, priority, status, null, true);
         TaskReqDto invalidRequest =
-                new TaskReqDto("Task", "Desc", LocalDate.of(2026, 9, 1), 10L, 3L, 2L, 99L, List.of());
+                new TaskReqDto("Task", "Desc", LocalDate.now().plusDays(14), 10L, 3L, 2L, 99L, List.of());
         when(taskRepository.findById(1L)).thenReturn(Optional.of(existingTask));
         when(priorityRepository.getReferenceById(3L)).thenReturn(priority);
         when(statusRepository.getReferenceById(2L)).thenReturn(status);

@@ -121,6 +121,7 @@ class DashboardServiceImplTest {
                 new Object[]{"Termine", 3L}));
         when(taskRepository.findCreatedDatesBetweenAndAssignedTo(anyList(), any(LocalDateTime.class), any(LocalDateTime.class), eq(2L))).thenReturn(List.of());
         when(taskRepository.findCompletedDatesBetweenAndAssignedTo(anyList(), any(LocalDateTime.class), any(LocalDateTime.class), eq(2L))).thenReturn(List.of());
+        when(taskRepository.countActiveByUserAndProjects(anyList(), eq(2L))).thenReturn(1L);
         when(activityRepository.findRecentByProjectIdsAndPeriod(anyList(), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(List.of());
         when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.<Object[]>of(
@@ -459,6 +460,7 @@ class DashboardServiceImplTest {
                 new Object[]{"Termine", 3L}));
         when(taskRepository.findCreatedDatesBetweenAndAssignedTo(anyList(), any(LocalDateTime.class), any(LocalDateTime.class), eq(2L))).thenReturn(List.of());
         when(taskRepository.findCompletedDatesBetweenAndAssignedTo(anyList(), any(LocalDateTime.class), any(LocalDateTime.class), eq(2L))).thenReturn(List.of());
+        when(taskRepository.countActiveByUserAndProjects(anyList(), eq(2L))).thenReturn(1L);
         when(activityRepository.findRecentByProjectIdsAndPeriod(anyList(), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(List.of());
         when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.<Object[]>of(
@@ -488,6 +490,7 @@ class DashboardServiceImplTest {
         when(taskRepository.countByStatusGroupedAndAssignedTo(anyList(), eq(2L))).thenReturn(List.of());
         when(taskRepository.findCreatedDatesBetweenAndAssignedTo(anyList(), any(LocalDateTime.class), any(LocalDateTime.class), eq(2L))).thenReturn(List.of());
         when(taskRepository.findCompletedDatesBetweenAndAssignedTo(anyList(), any(LocalDateTime.class), any(LocalDateTime.class), eq(2L))).thenReturn(List.of());
+        when(taskRepository.countActiveByUserAndProjects(anyList(), eq(2L))).thenReturn(1L);
         when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.of());
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
         when(userRepository.count()).thenReturn(20L);
@@ -523,6 +526,7 @@ class DashboardServiceImplTest {
         when(taskRepository.countByStatusGroupedAndAssignedTo(anyList(), eq(2L))).thenReturn(List.of());
         when(taskRepository.findCreatedDatesBetweenAndAssignedTo(anyList(), any(LocalDateTime.class), any(LocalDateTime.class), eq(2L))).thenReturn(List.of());
         when(taskRepository.findCompletedDatesBetweenAndAssignedTo(anyList(), any(LocalDateTime.class), any(LocalDateTime.class), eq(2L))).thenReturn(List.of());
+        when(taskRepository.countActiveByUserAndProjects(anyList(), eq(2L))).thenReturn(1L);
         when(activityRepository.findRecentByProjectIdsAndPeriod(anyList(), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(List.of());
         when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.<Object[]>of(
@@ -576,12 +580,9 @@ class DashboardServiceImplTest {
         when(taskRepository.countByStatusGroupedAndAssignedTo(anyList(), eq(2L))).thenReturn(List.of());
         when(taskRepository.findCreatedDatesBetweenAndAssignedTo(anyList(), any(LocalDateTime.class), any(LocalDateTime.class), eq(2L))).thenReturn(List.of());
         when(taskRepository.findCompletedDatesBetweenAndAssignedTo(anyList(), any(LocalDateTime.class), any(LocalDateTime.class), eq(2L))).thenReturn(List.of());
+        when(taskRepository.countActiveByUserAndProjects(anyList(), eq(2L))).thenReturn(0L);
         when(activityRepository.findRecentByProjectIdsAndPeriod(anyList(), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(List.of());
-        when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.<Object[]>of(
-                new Object[]{1L, 10L}));
-        when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of(
-                new Object[]{1L, 3L}));
         when(userRepository.count()).thenReturn(5L);
 
         DashboardDataResDto result = dashboardService.getDashboardStats(2L, "LAST_30_DAYS", null, null, null);
@@ -594,7 +595,7 @@ class DashboardServiceImplTest {
         assertEquals(0, result.evolution().points().size());
         assertEquals(0, result.distribution().items().size());
         assertEquals(1, result.stats().projects());
-        assertEquals(1, result.recentProjects().size());
+        assertEquals(0, result.recentProjects().size());
     }
 
     private User buildUser(Long id, String firstname, String lastname, String roleName) {

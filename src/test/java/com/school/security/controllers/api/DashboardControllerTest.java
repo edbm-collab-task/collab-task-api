@@ -13,6 +13,8 @@ import com.school.security.enums.RoleType;
 import com.school.security.repositories.UserRepository;
 import com.school.security.services.contracts.DashboardReportService;
 import com.school.security.services.contracts.DashboardService;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
@@ -174,7 +176,7 @@ class DashboardControllerTest {
         mockUserRepository("test@test.com", "ADMIN");
         byte[] fakePdf = "%PDF-1.4 admin content".getBytes();
         when(dashboardReportService.generateReport(
-                        eq(1L), eq("ADMIN"), eq("TODAY"), isNull(), isNull(), null))
+                        eq(1L), eq("ADMIN"), eq("TODAY"), isNull(), isNull(), isNull()))
                 .thenReturn(fakePdf);
 
         mockMvc.perform(get("/dashboard/reports/pdf")
@@ -182,7 +184,7 @@ class DashboardControllerTest {
                         .accept(MediaType.APPLICATION_PDF))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "application/pdf"))
-                .andExpect(header().string("Content-Disposition", "form-data; name=\"attachment\"; filename=\"rapport-administration-2026-08.pdf\""))
+                .andExpect(header().string("Content-Disposition", "form-data; name=\"attachment\"; filename=\"rapport-administration-" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM")) + ".pdf\""))
                 .andExpect(content().bytes(fakePdf));
     }
 
@@ -192,7 +194,7 @@ class DashboardControllerTest {
         mockUserRepository("test@test.com", "ADMIN");
         byte[] fakePdf = "%PDF-1.4 admin custom".getBytes();
         when(dashboardReportService.generateReport(
-                        eq(1L), eq("ADMIN"), eq("CUSTOM"), eq("2026-08-01"), eq("2026-08-25"), null))
+                        eq(1L), eq("ADMIN"), eq("CUSTOM"), eq("2026-08-01"), eq("2026-08-25"), isNull()))
                 .thenReturn(fakePdf);
 
         mockMvc.perform(get("/dashboard/reports/pdf")
@@ -212,7 +214,7 @@ class DashboardControllerTest {
         mockUserRepository("test@test.com", "SUPER_ADMIN");
         byte[] fakePdf = "%PDF-1.4 super admin content".getBytes();
         when(dashboardReportService.generateReport(
-                        eq(2L), eq("SUPER_ADMIN"), eq("TODAY"), isNull(), isNull(), null))
+                        eq(2L), eq("SUPER_ADMIN"), eq("TODAY"), isNull(), isNull(), isNull()))
                 .thenReturn(fakePdf);
 
         mockMvc.perform(get("/dashboard/reports/pdf")
@@ -220,7 +222,7 @@ class DashboardControllerTest {
                         .accept(MediaType.APPLICATION_PDF))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "application/pdf"))
-                .andExpect(header().string("Content-Disposition", "form-data; name=\"attachment\"; filename=\"rapport-plateforme-2026-08.pdf\""))
+                .andExpect(header().string("Content-Disposition", "form-data; name=\"attachment\"; filename=\"rapport-plateforme-" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM")) + ".pdf\""))
                 .andExpect(content().bytes(fakePdf));
     }
 
@@ -232,7 +234,7 @@ class DashboardControllerTest {
         mockUserRepository("test@test.com", "USER");
         byte[] fakePdf = "%PDF-1.4 user content".getBytes();
         when(dashboardReportService.generateReport(
-                        eq(3L), eq("USER"), eq("TODAY"), isNull(), isNull(), null))
+                        eq(3L), eq("USER"), eq("TODAY"), isNull(), isNull(), isNull()))
                 .thenReturn(fakePdf);
 
         mockMvc.perform(get("/dashboard/reports/pdf")
@@ -240,7 +242,7 @@ class DashboardControllerTest {
                         .accept(MediaType.APPLICATION_PDF))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "application/pdf"))
-                .andExpect(header().string("Content-Disposition", "form-data; name=\"attachment\"; filename=\"mon-rapport-activite-2026-08.pdf\""))
+                .andExpect(header().string("Content-Disposition", "form-data; name=\"attachment\"; filename=\"mon-rapport-activite-" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM")) + ".pdf\""))
                 .andExpect(content().bytes(fakePdf));
     }
 
@@ -250,7 +252,7 @@ class DashboardControllerTest {
         mockUserRepository("test@test.com", "USER");
         byte[] fakePdf = "%PDF-1.4 user custom".getBytes();
         when(dashboardReportService.generateReport(
-                        eq(3L), eq("USER"), eq("CUSTOM"), eq("2026-08-01"), eq("2026-08-15"), null))
+                        eq(3L), eq("USER"), eq("CUSTOM"), eq("2026-08-01"), eq("2026-08-15"), isNull()))
                 .thenReturn(fakePdf);
 
         mockMvc.perform(get("/dashboard/reports/pdf")
@@ -298,7 +300,7 @@ class DashboardControllerTest {
         mockUserRepository("test@test.com", "USER");
         byte[] fakePdf = "%PDF-1.4".getBytes();
         when(dashboardReportService.generateReport(
-                        eq(3L), eq("USER"), eq("TODAY"), isNull(), isNull(), null))
+                        eq(3L), eq("USER"), eq("TODAY"), isNull(), isNull(), isNull()))
                 .thenReturn(fakePdf);
 
         mockMvc.perform(get("/dashboard/reports/pdf")
@@ -306,7 +308,7 @@ class DashboardControllerTest {
                         .accept(MediaType.APPLICATION_PDF))
                 .andExpect(status().isOk());
 
-        verify(dashboardReportService).generateReport(eq(3L), eq("USER"), anyString(), isNull(), isNull(), null);
+        verify(dashboardReportService).generateReport(eq(3L), eq("USER"), anyString(), isNull(), isNull(), isNull());
     }
 
     // ─── Helpers ──────────────────────────────────────────────────
@@ -355,7 +357,7 @@ class DashboardControllerTest {
         user.setRoles(List.of(role));
 
         when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
-        when(dashboardService.getDashboardStats(eq(1L), eq(period), eq(startDate), eq(endDate), null))
+        when(dashboardService.getDashboardStats(eq(1L), eq(period), eq(startDate), eq(endDate), isNull()))
                 .thenReturn(sampleResponse);
     }
 

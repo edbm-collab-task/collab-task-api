@@ -750,6 +750,30 @@ public class ConversationServiceImpl
     }
 
     /**
+     * Nombre total de messages non lus de l'utilisateur courant, toutes
+     * conversations confondues.
+     *
+     * <p>Le non-lu est porté par {@code ConversationMember.unreadCount} :
+     * incrémenté à chaque message reçu, remis à zéro par {@link #markAsRead}.
+     * La somme commute en base en une seule requête agrégée ({@code SUM}),
+     * sans chargement des appartenances en mémoire.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public int getUnreadCount() {
+
+        Long currentUserId =
+                currentUserId();
+
+        return Math.toIntExact(
+                memberRepository
+                        .sumUnreadCountByUserUsersId(
+                                currentUserId
+                        )
+        );
+    }
+
+    /**
      * Bascule l'épinglage de la conversation pour l'utilisateur courant
      * (état propre à chaque membre). Refuse si l'utilisateur n'est pas
      * membre (via {@link #getMember}).

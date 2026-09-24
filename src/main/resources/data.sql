@@ -224,20 +224,30 @@ WHERE u.email = 'superadmin@edbm.com'
 -- 10. Priorités et statuts
 -- =========================================================
 
-INSERT INTO priorities (name)
-SELECT priority_name
+-- Les priorités sont seedées avec leur ordre métier explicite (sort_order) :
+-- Urgente = 1, Haute = 2, Moyenne = 3, Basse = 4. L'identifiant (priority_id,
+-- auto-incrément) ne doit jamais être utilisé comme règle d'ordre.
+INSERT INTO priorities (name, sort_order)
+SELECT priority_name, priority_sort_order
 FROM (
     VALUES
-        ('Basse'),
-        ('Moyenne'),
-        ('Haute'),
-        ('Urgente')
-) AS priorities_to_insert(priority_name)
+        ('Basse', 4),
+        ('Moyenne', 3),
+        ('Haute', 2),
+        ('Urgente', 1)
+) AS priorities_to_insert(priority_name, priority_sort_order)
 WHERE NOT EXISTS (
     SELECT 1
     FROM priorities
     WHERE priorities.name = priorities_to_insert.priority_name
 );
+
+-- Rattrapage idempotent pour les bases existantes : renseigne le sort_order des
+-- priorités déjà présentes (colonne ajoutée a posteriori, donc nullable).
+UPDATE priorities SET sort_order = 4 WHERE name = 'Basse' AND sort_order IS NULL;
+UPDATE priorities SET sort_order = 3 WHERE name = 'Moyenne' AND sort_order IS NULL;
+UPDATE priorities SET sort_order = 2 WHERE name = 'Haute' AND sort_order IS NULL;
+UPDATE priorities SET sort_order = 1 WHERE name = 'Urgente' AND sort_order IS NULL;
 
 INSERT INTO statuses (name, sort_order)
 SELECT status_name, status_order

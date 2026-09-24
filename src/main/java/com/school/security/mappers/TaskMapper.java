@@ -103,6 +103,7 @@ public class TaskMapper implements Mapper<TaskReqDto, Task, TaskResDto> {
                 entity.getProject().getTitle(),
                 entity.getPriority().getPriorityId(),
                 entity.getPriority().getName(),
+                entity.getPriority().getSortOrder(),
                 entity.getStatus().getStatusId(),
                 entity.getStatus().getName(),
                 entity.getParent() != null ? entity.getParent().getTaskId() : null,

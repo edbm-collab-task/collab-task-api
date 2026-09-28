@@ -27,10 +27,12 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
+import io.jsonwebtoken.JwtException;
 import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
 
@@ -263,7 +265,12 @@ public class AuthController {
      *       token (un access token ou un token de récupération placé dans le
      *       cookie serait aussi accepté) ;</li>
      *   <li>sur validation refusée ({@code isTokenValid == false}), les cookies
-     *       ne sont PAS supprimés (seule l'exception de la rotation les efface).</li>
+     *       ne sont PAS supprimés ;</li>
+     *   <li>les cookies ne sont effacés que sur une invalidation réelle de la
+     *       session ({@code JwtException}, compte supprimé, compte sans rôle). Les
+     *       erreurs serveur (indisponibilité de la base, erreur de
+     *       configuration) remontent en 500 et préservent la session, qui reste
+     *       récupérable ;</li>
      * </ul>
      */
     /**
@@ -291,17 +298,10 @@ public class AuthController {
 
             String email = jwtService.extractUsername(refreshToken);
 
+            // findByEmail lève une IllegalArgumentException si la ligne a disparu
+            // (jamais de null) : l'ancien test « if (user == null) » était donc
+            // du code mort et ce cas retombait dans le message « expiré ».
             var user = userService.findByEmail(email);
-
-            if (user == null) {
-
-                return ResponseEntity.status(401).body(
-                        Map.of(
-                                "message",
-                                "User not found"
-                        )
-                );
-            }
 
             if (!jwtService.isTokenValid(refreshToken, user)) {
 
@@ -343,7 +343,13 @@ public class AuthController {
                     )
             );
 
-        } catch (Exception e) {
+        } catch (JwtException | IllegalArgumentException e) {
+
+            // Session réellement invalide : jeton expiré, malformé, signature
+            // invalide, ou compte supprimé. Ces cas-là seuls justifient la
+            // suppression des cookies.
+            log.warn("[AUTH-REFRESH] refresh token rejeté : {} - {}",
+                    e.getClass().getSimpleName(), e.getMessage());
 
             response.addCookie(CookieUtils.deleteAccessTokenCookie());
             response.addCookie(CookieUtils.deleteRefreshTokenCookie());
@@ -351,7 +357,23 @@ public class AuthController {
             return ResponseEntity.status(401).body(
                     Map.of(
                             "message",
-                            "Refresh token expired"
+                            "Refresh token invalide ou expiré"
+                    )
+            );
+
+        } catch (NoSuchElementException e) {
+
+            // Compte sans rôle : getFirst() échoue sur une liste vide. Ce n'est
+            // pas une expiration ; le dire plutôt que de le masquer.
+            log.warn("[AUTH-REFRESH] aucun rôle associé au compte");
+
+            response.addCookie(CookieUtils.deleteAccessTokenCookie());
+            response.addCookie(CookieUtils.deleteRefreshTokenCookie());
+
+            return ResponseEntity.status(401).body(
+                    Map.of(
+                            "message",
+                            "Aucun rôle associé à ce compte"
                     )
             );
         }

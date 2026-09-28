@@ -38,6 +38,16 @@ WHERE NOT EXISTS (
     WHERE roles.name = roles_to_insert.role_name
 );
 
+-- Rattrapage : ces rôles ont été créés avant l'ajout de code_role, donc leur
+-- code_role est resté NULL. Sans ce backfill, findByCodeRole
+-- (UserServiceImpl) ne trouve jamais rien et l'écran d'attribution de rôle
+-- renvoie 404. Le AND code_role IS NULL évite d'écraser un code personnalisé.
+-- Pas d'ON CONFLICT ici : roles n'a aucun index unique sur name ni sur
+-- code_role, Postgres refuserait la clause.
+UPDATE roles SET code_role = 'ADM'      WHERE name = 'ADMIN'       AND code_role IS NULL;
+UPDATE roles SET code_role = 'USER'     WHERE name = 'USER'        AND code_role IS NULL;
+UPDATE roles SET code_role = 'SADM'     WHERE name = 'SUPER_ADMIN' AND code_role IS NULL;
+
 -- =========================================================
 -- 3. Créer les permissions si elles n'existent pas
 -- =========================================================
@@ -45,6 +55,10 @@ WHERE NOT EXISTS (
 -- La colonne est de toute façon ajoutée par Hibernate (ddl-auto=update) avant
 -- ce script ; on la déclare ici pour rester cohérent avec roles.code_role.
 ALTER TABLE permissions ADD COLUMN IF NOT EXISTS category_permission VARCHAR(50);
+
+-- Sécurité pour les bases déjà peuplées : une ancienne version de l'entité
+-- déclarait nullable = false, ce qui aurait pu poser un NOT NULL en base.
+ALTER TABLE permissions ALTER COLUMN category_permission DROP NOT NULL;
 
 ALTER TABLE permissions DROP CONSTRAINT IF EXISTS permissions_name_check;
 ALTER TABLE permissions ADD CONSTRAINT permissions_name_check CHECK (name IN ('VIEW_USERS','MANAGE_USERS','MANAGE_ADMINS','MANAGE_ROLES','MANAGE_PROJECTS','MANAGE_PROJECT_CONTRIBUTORS','MANAGE_DIRECTIONS','MANAGE_STATUSES','VIEW_REPORTS'));
@@ -69,7 +83,16 @@ WHERE NOT EXISTS (
     WHERE permissions.name = permissions_to_insert.perm_name
 );
 
--- Rattrapage pour les permissions déjà présentes en base (colonne ajoutée a posteriori)
+-- Rattrapage idempotent des permissions déjà présentes en base.
+-- Couvre deux cas : les lignes dont la colonne est NULL (colonne ajoutée a
+-- posteriori) ET les lignes contenant une valeur hors énumération (ex. une
+-- saisie manuelle 'PROJETSTS'). Ce second cas est bloquant : avec
+-- @Enumerated(EnumType.STRING), Hibernate lève
+-- IllegalArgumentException: No enum constant ... dès qu'il matérialise une
+-- ligne dont la valeur n'existe pas dans PermissionCategoryType, ce qui fait
+-- échouer le chargement de TOUT utilisateur porteur de la permission.
+-- DOIT précéder l'ajout de la contrainte CHECK ci-dessous, sinon la création
+-- de la contrainte échoue sur la ligne fautive et data.sql avorte.
 UPDATE permissions SET category_permission = CASE name
      WHEN 'VIEW_USERS' THEN 'UTILISATEURS'
      WHEN 'MANAGE_USERS' THEN 'UTILISATEURS'
@@ -80,13 +103,19 @@ UPDATE permissions SET category_permission = CASE name
      WHEN 'MANAGE_PROJECT_CONTRIBUTORS' THEN 'PROJETS'
      WHEN 'MANAGE_STATUSES' THEN 'AUTRES'
      WHEN 'VIEW_REPORTS' THEN 'RAPPORTS'
+     ELSE 'AUTRES'
     END
-WHERE category_permission IS NULL;
+WHERE category_permission IS NULL
+   OR category_permission NOT IN ('UTILISATEURS', 'PROJETS', 'ORGANISATION', 'RAPPORTS', 'AUTRES');
 
--- L'enum a été renommé REPORTING -> RAPPORTS : rattrape les bases déjà amorcées
--- avec l'ancien nom, sans quoi EnumType.STRING échoue à la lecture des
--- permissions.
-UPDATE permissions SET category_permission = 'RAPPORTS' WHERE category_permission = 'REPORTING';
+-- Empêche la réintroduction d'une valeur hors énumération.
+-- Le DROP IF EXISTS est obligatoire : ce script s'exécute à chaque démarrage
+-- (spring.sql.init.mode=always) et un simple ADD CONSTRAINT ferait échouer le
+-- boot du deuxième démarrage.
+ALTER TABLE permissions DROP CONSTRAINT IF EXISTS permissions_category_check;
+ALTER TABLE permissions ADD CONSTRAINT permissions_category_check
+    CHECK (category_permission IS NULL
+           OR category_permission IN ('UTILISATEURS', 'PROJETS', 'ORGANISATION', 'RAPPORTS', 'AUTRES'));
 
 -- =========================================================
 -- 4. Associer toutes les permissions au rôle SUPER_ADMIN

@@ -39,7 +39,10 @@ public class RoleController {
      * Liste tous les rôles ({@code GET /roles}).
      *
      * <p>Lecture publique au niveau de la filter-chain
-     * ({@code permitAll}). Délègue à {@code RoleService.findAll()}.
+     * ({@code permitAll}). Chaque rôle expose ses permissions sous leur forme
+     * complète (nom, description et catégorie), ce qui évite un second appel à
+     * {@code GET /roles/permissions} pour les regrouper. Délègue à
+     * {@code RoleService.findAll()}.
      */
     @GetMapping
     public ResponseEntity<List<RoleResDto>> getAll() {
@@ -104,7 +107,10 @@ public class RoleController {
      * Liste des permissions disponibles ({@code GET /roles/permissions}).
      *
      * <p>Lecture publique au niveau de la filter-chain
-     * ({@code permitAll}). Délègue à
+     * ({@code permitAll}). Chaque élément expose {@code id}, {@code name},
+     * {@code description} et {@code categoryPermission} ; la liste est triée
+     * par catégorie puis par nom afin que le regroupement par catégorie soit
+     * stable côté client. Délègue à
      * {@code RoleService.findAllPermissions()}.
      */
     @GetMapping("/permissions")

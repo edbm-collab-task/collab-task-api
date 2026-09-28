@@ -1,6 +1,7 @@
 package com.school.security.securities.config;
 
 import com.school.security.services.contracts.UserService;
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -75,7 +76,28 @@ public class SecurityConfig {
                                 response.setHeader("Content-Security-Policy", "frame-ancestors *");
                             }
                         }))
-.authorizeHttpRequests(auth -> auth
+                // Sans AuthenticationEntryPoint explicite, Spring Security retombe
+                // sur Http403ForbiddenEntryPoint : une requête non authentifiée reçoit
+                // 403 au lieu de 401, et le client ne peut pas distinguer « pas
+                // connecté / token expiré » de « droits insuffisants ». Le frontend ne
+                // déclenche son POST /auth/refresh que sur 401, donc ce 403 rend la
+                // rotation de jeton inopérante. Le corps est écrit directement plutôt
+                // que via sendError() pour éviter un forward ERROR vers /error.
+                .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(
+                        (request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.getWriter()
+                                    .write(
+                                            "{\"status\":401,\"error\":\"Unauthorized\""
+                                                    + ",\"message\":\"Access token manquant ou expiré\"}");
+                        }))
+                .authorizeHttpRequests(auth -> auth
+        // Dispatch interne d'erreur (forward vers /error) : sans cette règle, un
+        // appelant non authentifié qui passe par sendError() se voit renvoyer un
+        // second 403 par anyRequest().authenticated() au lieu de la page d'erreur.
+        // Le matcher est relatif au context-path (/api), donc "/error" et non "/api/error".
+        .requestMatchers("/error").permitAll()
         // Endpoint WebSocket public (STOMP handshake) : l'authentification
         // n'est pas requise pour l'ouverture initiale de la connexion.
         .requestMatchers("/ws").permitAll()

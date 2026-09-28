@@ -138,7 +138,7 @@ public class RoleServiceImpl implements RoleService {
     @Override
     public List<PermissionResDto> findAllPermissions() {
         return permissionRepository.findAll().stream()
-                .map(p -> new PermissionResDto(p.getPermissionId(), p.getName().name(), p.getDescription()))
+                .map(p -> new PermissionResDto(p.getPermissionId(), p.getName().name(), p.getDescription(), p.getCategoryPermission()))
                 .collect(Collectors.toList());
     }
 

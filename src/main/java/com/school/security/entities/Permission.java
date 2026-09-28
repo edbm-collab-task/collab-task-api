@@ -1,5 +1,6 @@
 package com.school.security.entities;
 
+import com.school.security.enums.PermissionCategoryType;
 import com.school.security.enums.PermissionType;
 import jakarta.persistence.*;
 import java.io.Serializable;
@@ -20,6 +21,10 @@ public class Permission implements Serializable {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, unique = true)
     private PermissionType name;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, name= "category_permission")
+    private PermissionCategoryType categoryPermission;
 
     private String description;
 
@@ -46,4 +51,9 @@ public class Permission implements Serializable {
     public void setDescription(String description) {
         this.description = description;
     }
+
+    public PermissionCategoryType getCategoryPermission(){return categoryPermission; }
+
+    public void setCategoryPermission(PermissionCategoryType category){this.categoryPermission = category;}
+
 }

@@ -1,6 +1,7 @@
 package com.school.security.dtos.responses;
 
+import com.school.security.enums.PermissionCategoryType;
 import com.school.security.enums.PermissionType;
 import java.util.List;
 
-public record PermissionResDto(Long id, String name, String description) {}
+public record PermissionResDto(Long id, String name, String description, PermissionCategoryType category) {}

@@ -45,7 +45,7 @@ WHERE NOT EXISTS (
 ALTER TABLE permissions DROP CONSTRAINT IF EXISTS permissions_name_check;
 ALTER TABLE permissions ADD CONSTRAINT permissions_name_check CHECK (name IN ('VIEW_USERS','MANAGE_USERS','MANAGE_ADMINS','MANAGE_ROLES','MANAGE_PROJECTS','MANAGE_PROJECT_CONTRIBUTORS','MANAGE_DIRECTIONS','MANAGE_STATUSES','VIEW_REPORTS'));
 
-INSERT INTO permissions (name, description)
+INSERT INTO permissions (name, description, category_permission)
 SELECT perm_name, perm_desc
 FROM (
     VALUES

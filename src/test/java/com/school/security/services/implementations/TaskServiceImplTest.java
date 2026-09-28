@@ -76,6 +76,7 @@ class TaskServiceImplTest {
                         "Project Alpha",
                         3L,
                         "High",
+                        2,
                         2L,
                         "In progress",
                         null,
@@ -93,6 +94,7 @@ class TaskServiceImplTest {
                         "Project Alpha",
                         3L,
                         "High",
+                        2,
                         2L,
                         "In progress",
                         null,
@@ -178,6 +180,7 @@ class TaskServiceImplTest {
                         "Project Alpha",
                         3L,
                         "High",
+                        2,
                         2L,
                         "In progress",
                         null,
@@ -220,6 +223,7 @@ class TaskServiceImplTest {
                         "Project Alpha",
                         3L,
                         "High",
+                        2,
                         2L,
                         "In progress",
                         null,
@@ -269,6 +273,7 @@ class TaskServiceImplTest {
                         "Project Alpha",
                         3L,
                         "High",
+                        2,
                         2L,
                         "In progress",
                         null,
@@ -366,6 +371,7 @@ class TaskServiceImplTest {
                         "Project Alpha",
                         3L,
                         "High",
+                        2,
                         2L,
                         "In progress",
                         null,
@@ -412,6 +418,7 @@ class TaskServiceImplTest {
                         "Project Alpha",
                         3L,
                         "High",
+                        2,
                         3L,
                         "Done",
                         null,
@@ -510,6 +517,7 @@ class TaskServiceImplTest {
         Priority priority = new Priority();
         priority.setPriorityId(id);
         priority.setName(name);
+        priority.setSortOrder(2);
         return priority;
     }
 

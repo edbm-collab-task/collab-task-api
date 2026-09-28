@@ -13,6 +13,7 @@ public record TaskResDto(
         String projectTitle,
         Long priorityId,
         String priorityName,
+        Integer prioritySortOrder,
         Long statusId,
         String statusName,
         Long parentTaskId,

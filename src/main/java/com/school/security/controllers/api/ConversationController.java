@@ -74,6 +74,24 @@ public class ConversationController {
     }
 
         /**
+     * Nombre total de messages non lus de l'utilisateur courant, toutes
+     * conversations confondues ({@code GET /conversations/unread-count}).
+     *
+     * <p>Retourne un entier brut (0 s'il n'y a aucun non-lu). Le calcul est
+     * scopé à l'utilisateur authentifié par le service, qui somme
+     * {@code unreadCount} sur ses appartenances.
+     */
+    @GetMapping("/unread-count")
+    public ResponseEntity<Integer>
+    getUnreadCount() {
+
+        return ResponseEntity.ok(
+                conversationService
+                        .getUnreadCount()
+        );
+    }
+
+        /**
          * Retourne une conversation précise.
          *
          * <p>Le contrôle d'appartenance à la conversation est effectué dans le

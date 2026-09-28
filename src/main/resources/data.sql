@@ -42,28 +42,51 @@ WHERE NOT EXISTS (
 -- 3. Créer les permissions si elles n'existent pas
 -- =========================================================
 
+-- La colonne est de toute façon ajoutée par Hibernate (ddl-auto=update) avant
+-- ce script ; on la déclare ici pour rester cohérent avec roles.code_role.
+ALTER TABLE permissions ADD COLUMN IF NOT EXISTS category_permission VARCHAR(50);
+
 ALTER TABLE permissions DROP CONSTRAINT IF EXISTS permissions_name_check;
 ALTER TABLE permissions ADD CONSTRAINT permissions_name_check CHECK (name IN ('VIEW_USERS','MANAGE_USERS','MANAGE_ADMINS','MANAGE_ROLES','MANAGE_PROJECTS','MANAGE_PROJECT_CONTRIBUTORS','MANAGE_DIRECTIONS','MANAGE_STATUSES','VIEW_REPORTS'));
 
 INSERT INTO permissions (name, description, category_permission)
-SELECT perm_name, perm_desc
+SELECT perm_name, perm_desc, perm_cat
 FROM (
-    VALUES
-        ('VIEW_USERS', 'Voir la liste des utilisateurs'),
-        ('MANAGE_USERS', 'Créer, modifier, supprimer des utilisateurs'),
-        ('MANAGE_ADMINS', 'Gérer les comptes administrateurs'),
-        ('MANAGE_ROLES', 'Gérer les rôles et permissions'),
-        ('MANAGE_PROJECTS', 'Créer et gérer les projets'),
-        ('MANAGE_PROJECT_CONTRIBUTORS', 'Gérer les contributeurs d''un projet'),
-        ('MANAGE_DIRECTIONS', 'Gérer les directions'),
-        ('MANAGE_STATUSES', 'Gérer les statuts'),
-        ('VIEW_REPORTS', 'Voir les rapports et statistiques')
-) AS permissions_to_insert(perm_name, perm_desc)
+         VALUES
+             ('VIEW_USERS', 'Voir la liste des utilisateurs', 'UTILISATEURS'),
+             ('MANAGE_USERS', 'Créer, modifier, supprimer des utilisateurs', 'UTILISATEURS'),
+             ('MANAGE_ADMINS', 'Gérer les comptes administrateurs', 'UTILISATEURS'),
+             ('MANAGE_ROLES', 'Gérer les rôles et permissions', 'ORGANISATION'),
+             ('MANAGE_DIRECTIONS', 'Gérer les directions', 'ORGANISATION'),
+             ('MANAGE_PROJECTS', 'Créer et gérer les projets', 'PROJETS'),
+             ('MANAGE_PROJECT_CONTRIBUTORS', 'Gérer les contributeurs d''un projet', 'PROJETS'),
+             ('MANAGE_STATUSES', 'Gérer les statuts', 'AUTRES'),
+             ('VIEW_REPORTS', 'Voir les rapports et statistiques', 'RAPPORTS')
+     ) AS permissions_to_insert(perm_name, perm_desc, perm_cat)
 WHERE NOT EXISTS (
     SELECT 1
     FROM permissions
     WHERE permissions.name = permissions_to_insert.perm_name
 );
+
+-- Rattrapage pour les permissions déjà présentes en base (colonne ajoutée a posteriori)
+UPDATE permissions SET category_permission = CASE name
+     WHEN 'VIEW_USERS' THEN 'UTILISATEURS'
+     WHEN 'MANAGE_USERS' THEN 'UTILISATEURS'
+     WHEN 'MANAGE_ADMINS' THEN 'UTILISATEURS'
+     WHEN 'MANAGE_ROLES' THEN 'ORGANISATION'
+     WHEN 'MANAGE_DIRECTIONS' THEN 'ORGANISATION'
+     WHEN 'MANAGE_PROJECTS' THEN 'PROJETS'
+     WHEN 'MANAGE_PROJECT_CONTRIBUTORS' THEN 'PROJETS'
+     WHEN 'MANAGE_STATUSES' THEN 'AUTRES'
+     WHEN 'VIEW_REPORTS' THEN 'RAPPORTS'
+    END
+WHERE category_permission IS NULL;
+
+-- L'enum a été renommé REPORTING -> RAPPORTS : rattrape les bases déjà amorcées
+-- avec l'ancien nom, sans quoi EnumType.STRING échoue à la lecture des
+-- permissions.
+UPDATE permissions SET category_permission = 'RAPPORTS' WHERE category_permission = 'REPORTING';
 
 -- =========================================================
 -- 4. Associer toutes les permissions au rôle SUPER_ADMIN

@@ -22,8 +22,18 @@ public class Permission implements Serializable {
     @Column(nullable = false, unique = true)
     private PermissionType name;
 
+    /**
+     * Catégorie d'appartenance de la permission, utilisée pour regrouper les
+     * permissions dans l'interface d'administration.
+     *
+     * <p>Volontairement nullable : la colonne est ajoutée par Hibernate
+     * ({@code ddl-auto=update}) <em>avant</em> l'exécution de {@code data.sql},
+     * qui la renseigne ensuite (même stratégie que {@code Priority.sortOrder}).
+     * Un {@code nullable = false} ferait échouer le démarrage sur une base
+     * contenant déjà des permissions.
+     */
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, name= "category_permission")
+    @Column(name = "category_permission", length = 50)
     private PermissionCategoryType categoryPermission;
 
     private String description;
@@ -52,8 +62,11 @@ public class Permission implements Serializable {
         this.description = description;
     }
 
-    public PermissionCategoryType getCategoryPermission(){return categoryPermission; }
+    public PermissionCategoryType getCategoryPermission() {
+        return categoryPermission;
+    }
 
-    public void setCategoryPermission(PermissionCategoryType category){this.categoryPermission = category;}
-
+    public void setCategoryPermission(PermissionCategoryType categoryPermission) {
+        this.categoryPermission = categoryPermission;
+    }
 }

@@ -35,6 +35,9 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>les permissions sont résolues via {@link PermissionRepository} à partir
  *       de leur nom ({@code PermissionType.name}) ; une {@code EntityException}
  *       est levée si une permission sollicitée est introuvable.</li>
+ *   <li>la catégorie d'une permission ({@code PermissionCategoryType}) est une
+ *       donnée de référence, alimentée par {@code data.sql} et exposée en
+ *       lecture seule ; aucune méthode de ce service ne la modifie.</li>
  *   <li>Aucune vérification {@code @PreAuthorize} {@code SUPER_ADMIN} n'est
  *       effectuée dans ce service ; les contrôles d'accès s'appliquent au niveau
  *       des contrôleurs ou de la filter-chain {@code SecurityConfig}.</li>
@@ -134,10 +137,15 @@ public class RoleServiceImpl implements RoleService {
         roleRepository.delete(role);
     }
 
-    /** Retourne la liste de toutes les permissions du système. */
+    /**
+     * Retourne la liste de toutes les permissions du système.
+     *
+     * <p>Les permissions sont triées par catégorie puis par nom afin que le
+     * regroupement affiché par le client soit déterministe.
+     */
     @Override
     public List<PermissionResDto> findAllPermissions() {
-        return permissionRepository.findAll().stream()
+        return permissionRepository.findAllByOrderByCategoryPermissionAscNameAsc().stream()
                 .map(p -> new PermissionResDto(p.getPermissionId(), p.getName().name(), p.getDescription(), p.getCategoryPermission()))
                 .collect(Collectors.toList());
     }

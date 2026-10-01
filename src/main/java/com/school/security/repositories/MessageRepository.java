@@ -76,6 +76,7 @@ public interface MessageRepository
             )
         )
         AND (:beforeId IS NULL OR m.messageId < :beforeId)
+        ORDER BY m.messageId DESC
         """)
     List<Message> search(
             @Param("conversationId") Long conversationId,

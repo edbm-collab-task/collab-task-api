@@ -28,6 +28,24 @@ public interface MessageService {
             Long messageId
     );
 
+    /**
+     * Page de messages d'une conversation correspondant à un terme, du plus
+     * ancien au plus récent.
+     *
+     * @param conversationId conversation interrogée
+     * @param query          terme recherché, sur le contenu du message ou le
+     *                       nom de ses pièces jointes
+     * @param limit          nombre maximal de messages renvoyés
+     * @param before         identifiant du curseur, {@code null} pour la page
+     *                       la plus récente
+     */
+    MessagePageResponse searchMessages(
+            Long conversationId,
+            String query,
+            int limit,
+            Long before
+    );
+
     MessageResponse sendMessage(
             Long conversationId,
             String content,

@@ -226,6 +226,57 @@ public class MessageServiceImpl
     }
 
     /**
+     * Page de messages correspondant à un terme, après vérification que
+     * l'utilisateur courant est membre de la conversation.
+     *
+     * <p>La requête est exécutée du plus récent au plus ancien puis
+     * ré-inversée, comme {@link #getMessages(Long, int, Long)}.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public MessagePageResponse searchMessages(
+            Long conversationId,
+            String query,
+            int limit,
+            Long before
+    ) {
+
+        requireConversation(
+                conversationId
+        );
+
+        List<Message> fetched =
+                messageRepository.search(
+                        conversationId,
+                        query.trim(),
+                        before,
+                        PageRequest.of(
+                                0,
+                                limit + 1
+                        )
+                );
+
+        boolean hasMore =
+                fetched.size() > limit;
+
+        List<Message> page =
+                hasMore
+                        ? fetched.subList(
+                                0,
+                                limit
+                        )
+                        : fetched;
+
+        return new MessagePageResponse(
+                page.reversed()
+                        .stream()
+                        .map(messageMapper::toResponse)
+                        .toList(),
+                hasMore
+        );
+    }
+
+    /**
      * Récupère un message par identifiant.
      *
      * <p>L'appartenance est vérifiée à partir de la conversation du message

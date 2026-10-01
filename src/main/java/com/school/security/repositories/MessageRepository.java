@@ -3,6 +3,8 @@ package com.school.security.repositories;
 import com.school.security.entities.Message;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -44,5 +46,41 @@ public interface MessageRepository
     Optional<Message>
     findTopByConversationConversationIdOrderByCreatedAtDesc(
             Long conversationId
+    );
+
+    /**
+     * Messages d'une conversation correspondant à {@code term}, du plus récent
+     * au plus ancien.
+     *
+     * <p>Un message correspond si son contenu contient le terme, ou si l'une de
+     * ses pièces jointes porte ce nom. La recherche est donc insensible à la
+     * casse et la sous-requête {@code EXISTS} évite de dupliquer un message
+     * possédant plusieurs pièces jointes correspondantes.
+     *
+     * <p>Les messages supprimés (suppression logique) sont exclus, et
+     * {@code beforeId} permet de paginer les résultats comme la liste des
+     * messages.
+     */
+    @Query("""
+        SELECT m
+        FROM Message m
+        WHERE m.conversation.conversationId = :conversationId
+        AND m.deleted = false
+        AND (
+            LOWER(m.content) LIKE LOWER(CONCAT('%', :term, '%'))
+            OR EXISTS (
+                SELECT 1
+                FROM MessageAttachment a
+                WHERE a.message = m
+                AND LOWER(a.name) LIKE LOWER(CONCAT('%', :term, '%'))
+            )
+        )
+        AND (:beforeId IS NULL OR m.messageId < :beforeId)
+        """)
+    List<Message> search(
+            @Param("conversationId") Long conversationId,
+            @Param("term") String term,
+            @Param("beforeId") Long beforeId,
+            Pageable pageable
     );
 }

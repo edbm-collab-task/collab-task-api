@@ -146,23 +146,8 @@ public class MessageServiceImpl
             Long before
     ) {
 
-        Long currentUserId =
-                currentUserId();
-
-        Conversation conversation =
-                conversationRepository
-                        .findById(
-                                conversationId
-                        )
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException(
-                                        "Conversation introuvable."
-                                )
-                        );
-
-        verifyMember(
-                conversation,
-                currentUserId
+        requireConversation(
+                conversationId
         );
 
         /*
@@ -207,6 +192,37 @@ public class MessageServiceImpl
                         .toList(),
                 hasMore
         );
+    }
+
+    /**
+     * Charge une conversation et vérifie que l'utilisateur courant en est
+     * membre. Point d'entrée unique de tout accès aux messages d'une
+     * conversation.
+     */
+    private Conversation requireConversation(
+            Long conversationId
+    ) {
+
+        Long currentUserId =
+                currentUserId();
+
+        Conversation conversation =
+                conversationRepository
+                        .findById(
+                                conversationId
+                        )
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "Conversation introuvable."
+                                )
+                        );
+
+        verifyMember(
+                conversation,
+                currentUserId
+        );
+
+        return conversation;
     }
 
     /**

@@ -28,6 +28,10 @@ import java.util.List;
  */
 public class MessageController {
 
+    private static final int MIN_LIMIT = 1;
+
+    private static final int MAX_LIMIT = 100;
+
     private final MessageService messageService;
 
     private final SimpMessagingTemplate messagingTemplate;
@@ -41,22 +45,88 @@ public class MessageController {
     }
 
     /**
-     * Retourne les messages d'une conversation.
+     * Retourne une page de messages d'une conversation, du plus ancien au plus
+     * récent.
      *
      * <p>La vérification de l'appartenance de l'utilisateur courant à la
      * conversation est effectuée dans le service avant l'accès aux messages.
+     *
+     * @param limit  taille de page, bornée à {@code [1, 100]}
+     * @param before identifiant du curseur ; absent pour renvoyer la page la
+     *               plus récente, sinon les messages plus anciens que ce
+     *               message
      */
     @GetMapping("/{conversationId}/messages")
     public ResponseEntity<MessagePageResponse> getMessages(
-            @PathVariable Long conversationId
+            @PathVariable Long conversationId,
+
+            @RequestParam(
+                    defaultValue = "15"
+            )
+            int limit,
+
+            @RequestParam(
+                    required = false
+            )
+            Long before
     ) {
 
         return ResponseEntity.ok(
                 messageService.getMessages(
                         conversationId,
-                        15,
-                        null
+                        clampLimit(
+                                limit
+                        ),
+                        before
                 )
+        );
+    }
+
+    /**
+     * Recherche des messages d'une conversation par terme, sur leur contenu ou
+     * le nom de leurs pièces jointes.
+     *
+     * <p>Les messages supprimés sont exclus des résultats. L'appartenance de
+     * l'utilisateur courant à la conversation est vérifiée dans le service,
+     * comme pour la lecture.
+     */
+    @GetMapping("/{conversationId}/messages/search")
+    public ResponseEntity<MessagePageResponse> searchMessages(
+            @PathVariable Long conversationId,
+
+            @RequestParam String query,
+
+            @RequestParam(
+                    defaultValue = "15"
+            )
+            int limit,
+
+            @RequestParam(
+                    required = false
+            )
+            Long before
+    ) {
+
+        return ResponseEntity.ok(
+                messageService.searchMessages(
+                        conversationId,
+                        query,
+                        clampLimit(
+                                limit
+                        ),
+                        before
+                )
+        );
+    }
+
+    private int clampLimit(
+            int limit
+    ) {
+
+        return Math.clamp(
+                limit,
+                MIN_LIMIT,
+                MAX_LIMIT
         );
     }
 

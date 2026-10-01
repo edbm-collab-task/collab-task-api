@@ -1,5 +1,6 @@
 package com.school.security.controllers.api;
 
+import com.school.security.dtos.responses.MessagePageResponse;
 import com.school.security.dtos.responses.MessageResponse;
 import com.school.security.services.contracts.MessageService;
 import org.springframework.http.HttpStatus;
@@ -46,13 +47,15 @@ public class MessageController {
      * conversation est effectuée dans le service avant l'accès aux messages.
      */
     @GetMapping("/{conversationId}/messages")
-    public ResponseEntity<List<MessageResponse>> getMessages(
+    public ResponseEntity<MessagePageResponse> getMessages(
             @PathVariable Long conversationId
     ) {
 
         return ResponseEntity.ok(
                 messageService.getMessages(
-                        conversationId
+                        conversationId,
+                        15,
+                        null
                 )
         );
     }

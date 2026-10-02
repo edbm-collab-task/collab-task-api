@@ -4,6 +4,8 @@ package com.school.security.controllers.api;
 import com.school.security.dtos.requests.AttachRoleReqDto;
 import com.school.security.dtos.requests.PwdReqDto;
 import com.school.security.dtos.responses.UserResDto;
+import com.school.security.exceptions.EntityException;
+import com.school.security.securities.services.JwtService;
 import com.school.security.services.contracts.UserService;
 
 import java.io.IOException;
@@ -29,22 +31,23 @@ import org.springframework.web.multipart.MultipartFile;
  *   <li>publics (aucune sécurité, via {@code permitAll}) : {@code GET
  *       /users} reste toutefois soumis à {@code @PreAuthorize(VIEW_USERS)},
  *       {@code GET /users/email}, {@code GET /users/active},
- *       {@code GET /users/disable}, {@code GET /users/{id}/image},
- *       {@code POST /users/{id}/image}, {@code PUT /users/pwd} et
- *       {@code PUT /users/role} (ce dernier reste soumis à
- *       {@code @PreAuthorize(MANAGE_USERS)}) ;</li>
+ *       {@code GET /users/disable} et {@code GET /users/{id}/image} ;</li>
+ *   <li>{@code PUT /users/pwd} reste {@code permitAll} (récupération de
+ *       compte, utilisateur non connecté) mais exige le cookie
+ *       {@code recoveryToken} valide et correspondant à l'email du corps ;</li>
  *   <li>limites directement en filter-chain (sans {@code @PreAuthorize}) :
  *       {@code PUT /users/account} exige {@code ADMIN} ou
  *       {@code SUPER_ADMIN}, et {@code GET /users/admins} exige
  *       {@code SUPER_ADMIN} ;</li>
  *   <li>protégés par {@code @PreAuthorize} : {@code GET /users}
  *       ({@code VIEW_USERS}), {@code DELETE /users/{id}}
- *       ({@code MANAGE_USERS}) et
+ *       ({@code MANAGE_USERS}), {@code PUT /users/role} et
+ *       {@code DELETE /users/role} ({@code MANAGE_USERS}) ainsi que
  *       {@code GET /users/project/{id}/contributors}
  *       ({@code MANAGE_PROJECT_CONTRIBUTORS} sur le projet) ;</li>
- *   <li>sans {@code @PreAuthorize} mais soumis à une exigence
- *       d'authentification via {@code anyRequest().authenticated()} :
- *       {@code DELETE /users/role}.</li>
+ *   <li>{@code POST /users/{id}/image} : n'est plus {@code permitAll},
+ *       soumis à une exigence d'authentification via
+ *       {@code anyRequest().authenticated()}.</li>
  * </ul>
  */
 @RestController
@@ -53,9 +56,11 @@ import org.springframework.web.multipart.MultipartFile;
 public class UserController {
 
     private final UserService userService;
+    private final JwtService jwtService;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, JwtService jwtService) {
         this.userService = userService;
+        this.jwtService = jwtService;
     }
 
     /**
@@ -109,15 +114,30 @@ public class UserController {
     }
 
     /**
-     * Mise à jour du mot de passe ({@code PUT /users/pwd}).
+     * Finalisation de la récupération de mot de passe ({@code PUT /users/pwd}).
      *
-     * <p>Aucune {@code @PreAuthorize} et {@code permitAll} en filter-chain :
-     * endpoint public, accessible sans authentification, permettant de
-     * changer le mot de passe d'un utilisateur en connaissant son email.
-     * Délègue à {@code UserService.updatePassword(email, password)}.
+     * <p>Endpoint déclaré {@code permitAll} en filter-chain car il sert au flux
+     * de récupération de compte (utilisateur non connecté). Pour empêcher la
+     * réinitialisation frauduleuse du mot de passe de n'importe quel compte, la
+     * requête doit porter le cookie de récupération {@code recoveryToken} (posé
+     * par {@code POST /auth/code} pour l'email concerné, voir
+     * {@code AuthController.generateCode}) : si le cookie est absent ou invalide/
+     * expiré, ou si l'email du corps ne correspond pas à celui du token, une
+     * {@code EntityException} est levée. Délègue à
+     * {@code UserService.updatePassword(email, password)}.
      */
     @PutMapping("/pwd")
-    public UserResDto updatePassword(@RequestBody PwdReqDto pwdReqDto) {
+    public UserResDto updatePassword(
+            @RequestBody PwdReqDto pwdReqDto,
+            @CookieValue(value = "recoveryToken", required = false) String recoveryToken) {
+        if (recoveryToken == null || !jwtService.isRecoveryTokenValid(recoveryToken)) {
+            throw new EntityException("Token de récupération invalide ou expiré.");
+        }
+        String tokenEmail = jwtService.extractUsername(recoveryToken);
+        String requestEmail = pwdReqDto.email() == null ? "" : pwdReqDto.email().trim();
+        if (!tokenEmail.equalsIgnoreCase(requestEmail)) {
+            throw new EntityException("L'email ne correspond pas à la session de récupération.");
+        }
         return userService.updatePassword(pwdReqDto.email(), pwdReqDto.password());
     }
 
@@ -140,13 +160,14 @@ public class UserController {
     /**
      * Retrait d'un rôle ({@code DELETE /users/role}).
      *
-     * <p>Aucune {@code @PreAuthorize} ; la filter-chain ne déclare aucun
-     * {@code permitAll} pour ce chemin, il tombe donc sous
-     * {@code anyRequest().authenticated()}. Tout utilisateur authentifié peut
-     * retirer un rôle à n'importe quel utilisateur. Délègue à
+     * <p>Protégé par la permission métier {@code MANAGE_USERS}
+     * ({@code @PreAuthorize}) — symétrique de {@code PUT /users/role}. Le
+     * chemin n'est pas {@code permitAll} en filter-chain : il tombe sous
+     * {@code anyRequest().authenticated()}. Délègue à
      * {@code UserService.detachRole(email, role)}.
      */
     @DeleteMapping("/role")
+    @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_USERS')")
     public ResponseEntity<UserResDto> deleteRole(@RequestBody AttachRoleReqDto attachRoleRegDto) {
         UserResDto userResDto =
                 userService.detachRole(attachRoleRegDto.email(), attachRoleRegDto.role());

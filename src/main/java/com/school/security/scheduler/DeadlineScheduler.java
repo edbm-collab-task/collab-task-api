@@ -15,6 +15,7 @@ import java.util.List;
 import lombok.AllArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Tâche planifiée de vérification quotidienne des échéances (projets et
@@ -54,8 +55,15 @@ public class DeadlineScheduler {
     /**
      * Point d'entrée planifié : exécute successivement la vérification des
      * échéances de projets puis celles des tâches, chaque jour à 09:00.
+     *
+     * <p>La méthode est transactionnelle afin d'autoriser l'accès aux
+     * collections paresseuses (LAZY) telles que {@code Task.assignees} :
+     * sans transaction, l'accès hors session entièrement chargée lève une
+     * {@code LazyInitializationException} et aucune notification n'était
+     * créée.
      */
     @Scheduled(cron = "0 0 9 * * *")
+    @Transactional
     public void checkDeadlines() {
         checkProjectDeadlines();
         checkTaskDeadlines();

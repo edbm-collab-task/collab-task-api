@@ -127,16 +127,17 @@ public class ProjectController {
     /**
      * Mise à jour d'un projet existant ({@code PUT /projects/{id}}).
      *
-     * <p>Délègue à {@code ProjectService.save(toSave, id)}. Les règles de
-     * dates (validation, régression) sont appliquées dans le service.
-     * Aucune permission liée au projet n'est vérifiée ici (permission globale
-     * {@code MANAGE_PROJECTS} uniquement).
+     * <p>Délègue à {@code ProjectService.save(toSave, id, currentUserId)}.
+     * Les règles de dates (validation, régression) sont appliquées dans le
+     * service, et seule l'utilisateur qui possède le projet (chef de projet)
+     * peut le modifier (contrôle d'owner dans {@code ProjectServiceImpl}).
      */
     @PutMapping("/{id}")
     @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_PROJECTS')")
     public ProjectResDto updateProject(
             @Valid @RequestBody ProjectReqDto toSave, @PathVariable Long id) {
-        return this.projectService.save(toSave, id);
+        Long currentUserId = getCurrentUserId();
+        return this.projectService.save(toSave, id, currentUserId);
     }
 
     /**

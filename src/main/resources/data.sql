@@ -19,37 +19,103 @@ WHERE NOT EXISTS (
 -- 2. Créer les rôles s'ils n'existent pas
 -- =========================================================
 
--- Mise à jour des codes rôles pour les rôles existants
-UPDATE roles SET code_role = 'A1D' WHERE name = 'ADMIN';
-UPDATE roles SET code_role = 'U1S' WHERE name = 'USER';
-UPDATE roles SET code_role = 'S1ADM' WHERE name = 'SUPER_ADMIN';
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS code_role VARCHAR(10);
+
+-- Supprimer la contrainte qui limite les noms de rôles (pour permettre l'ajout de rôles personnalisés)
+ALTER TABLE roles DROP CONSTRAINT IF EXISTS roles_name_check;
+
+INSERT INTO roles (name, code_role)
+SELECT role_name, code_role
+FROM (
+    VALUES
+        ('ADMIN', 'ADM'),
+        ('USER', 'USER'),
+        ('SUPER_ADMIN', 'SADM')
+) AS roles_to_insert(role_name, code_role)
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM roles
+    WHERE roles.name = roles_to_insert.role_name
+);
+
+-- Rattrapage : ces rôles ont été créés avant l'ajout de code_role, donc leur
+-- code_role est resté NULL. Sans ce backfill, findByCodeRole
+-- (UserServiceImpl) ne trouve jamais rien et l'écran d'attribution de rôle
+-- renvoie 404. Le AND code_role IS NULL évite d'écraser un code personnalisé.
+-- Pas d'ON CONFLICT ici : roles n'a aucun index unique sur name ni sur
+-- code_role, Postgres refuserait la clause.
+UPDATE roles SET code_role = 'ADM'      WHERE name = 'ADMIN'       AND code_role IS NULL;
+UPDATE roles SET code_role = 'USER'     WHERE name = 'USER'        AND code_role IS NULL;
+UPDATE roles SET code_role = 'SADM'     WHERE name = 'SUPER_ADMIN' AND code_role IS NULL;
 
 -- =========================================================
 -- 3. Créer les permissions si elles n'existent pas
 -- =========================================================
 
+-- La colonne est de toute façon ajoutée par Hibernate (ddl-auto=update) avant
+-- ce script ; on la déclare ici pour rester cohérent avec roles.code_role.
+ALTER TABLE permissions ADD COLUMN IF NOT EXISTS category_permission VARCHAR(50);
+
+-- Sécurité pour les bases déjà peuplées : une ancienne version de l'entité
+-- déclarait nullable = false, ce qui aurait pu poser un NOT NULL en base.
+ALTER TABLE permissions ALTER COLUMN category_permission DROP NOT NULL;
+
 ALTER TABLE permissions DROP CONSTRAINT IF EXISTS permissions_name_check;
 ALTER TABLE permissions ADD CONSTRAINT permissions_name_check CHECK (name IN ('VIEW_USERS','MANAGE_USERS','MANAGE_ADMINS','MANAGE_ROLES','MANAGE_PROJECTS','MANAGE_PROJECT_CONTRIBUTORS','MANAGE_DIRECTIONS','MANAGE_STATUSES','VIEW_REPORTS'));
 
-INSERT INTO permissions (name, description)
-SELECT perm_name, perm_desc
+INSERT INTO permissions (name, description, category_permission)
+SELECT perm_name, perm_desc, perm_cat
 FROM (
-    VALUES
-        ('VIEW_USERS', 'Voir la liste des utilisateurs'),
-        ('MANAGE_USERS', 'Créer, modifier, supprimer des utilisateurs'),
-        ('MANAGE_ADMINS', 'Gérer les comptes administrateurs'),
-        ('MANAGE_ROLES', 'Gérer les rôles et permissions'),
-        ('MANAGE_PROJECTS', 'Créer et gérer les projets'),
-        ('MANAGE_PROJECT_CONTRIBUTORS', 'Gérer les contributeurs d''un projet'),
-        ('MANAGE_DIRECTIONS', 'Gérer les directions'),
-        ('MANAGE_STATUSES', 'Gérer les statuts'),
-        ('VIEW_REPORTS', 'Voir les rapports et statistiques')
-) AS permissions_to_insert(perm_name, perm_desc)
+         VALUES
+             ('VIEW_USERS', 'Voir la liste des utilisateurs', 'UTILISATEURS'),
+             ('MANAGE_USERS', 'Créer, modifier, supprimer des utilisateurs', 'UTILISATEURS'),
+             ('MANAGE_ADMINS', 'Gérer les comptes administrateurs', 'UTILISATEURS'),
+             ('MANAGE_ROLES', 'Gérer les rôles et permissions', 'ORGANISATION'),
+             ('MANAGE_DIRECTIONS', 'Gérer les directions', 'ORGANISATION'),
+             ('MANAGE_PROJECTS', 'Créer et gérer les projets', 'PROJETS'),
+             ('MANAGE_PROJECT_CONTRIBUTORS', 'Gérer les contributeurs d''un projet', 'PROJETS'),
+             ('MANAGE_STATUSES', 'Gérer les statuts', 'AUTRES'),
+             ('VIEW_REPORTS', 'Voir les rapports et statistiques', 'RAPPORTS')
+     ) AS permissions_to_insert(perm_name, perm_desc, perm_cat)
 WHERE NOT EXISTS (
     SELECT 1
     FROM permissions
     WHERE permissions.name = permissions_to_insert.perm_name
 );
+
+-- Rattrapage idempotent des permissions déjà présentes en base.
+-- Couvre deux cas : les lignes dont la colonne est NULL (colonne ajoutée a
+-- posteriori) ET les lignes contenant une valeur hors énumération (ex. une
+-- saisie manuelle 'PROJETSTS'). Ce second cas est bloquant : avec
+-- @Enumerated(EnumType.STRING), Hibernate lève
+-- IllegalArgumentException: No enum constant ... dès qu'il matérialise une
+-- ligne dont la valeur n'existe pas dans PermissionCategoryType, ce qui fait
+-- échouer le chargement de TOUT utilisateur porteur de la permission.
+-- DOIT précéder l'ajout de la contrainte CHECK ci-dessous, sinon la création
+-- de la contrainte échoue sur la ligne fautive et data.sql avorte.
+UPDATE permissions SET category_permission = CASE name
+     WHEN 'VIEW_USERS' THEN 'UTILISATEURS'
+     WHEN 'MANAGE_USERS' THEN 'UTILISATEURS'
+     WHEN 'MANAGE_ADMINS' THEN 'UTILISATEURS'
+     WHEN 'MANAGE_ROLES' THEN 'ORGANISATION'
+     WHEN 'MANAGE_DIRECTIONS' THEN 'ORGANISATION'
+     WHEN 'MANAGE_PROJECTS' THEN 'PROJETS'
+     WHEN 'MANAGE_PROJECT_CONTRIBUTORS' THEN 'PROJETS'
+     WHEN 'MANAGE_STATUSES' THEN 'AUTRES'
+     WHEN 'VIEW_REPORTS' THEN 'RAPPORTS'
+     ELSE 'AUTRES'
+    END
+WHERE category_permission IS NULL
+   OR category_permission NOT IN ('UTILISATEURS', 'PROJETS', 'ORGANISATION', 'RAPPORTS', 'AUTRES');
+
+-- Empêche la réintroduction d'une valeur hors énumération.
+-- Le DROP IF EXISTS est obligatoire : ce script s'exécute à chaque démarrage
+-- (spring.sql.init.mode=always) et un simple ADD CONSTRAINT ferait échouer le
+-- boot du deuxième démarrage.
+ALTER TABLE permissions DROP CONSTRAINT IF EXISTS permissions_category_check;
+ALTER TABLE permissions ADD CONSTRAINT permissions_category_check
+    CHECK (category_permission IS NULL
+           OR category_permission IN ('UTILISATEURS', 'PROJETS', 'ORGANISATION', 'RAPPORTS', 'AUTRES'));
 
 -- =========================================================
 -- 4. Associer toutes les permissions au rôle SUPER_ADMIN
@@ -210,20 +276,30 @@ WHERE u.email = 'superadmin@edbm.com'
 -- 10. Priorités et statuts
 -- =========================================================
 
-INSERT INTO priorities (name)
-SELECT priority_name
+-- Les priorités sont seedées avec leur ordre métier explicite (sort_order) :
+-- Urgente = 1, Haute = 2, Moyenne = 3, Basse = 4. L'identifiant (priority_id,
+-- auto-incrément) ne doit jamais être utilisé comme règle d'ordre.
+INSERT INTO priorities (name, sort_order)
+SELECT priority_name, priority_sort_order
 FROM (
     VALUES
-        ('Basse'),
-        ('Moyenne'),
-        ('Haute'),
-        ('Urgente')
-) AS priorities_to_insert(priority_name)
+        ('Basse', 4),
+        ('Moyenne', 3),
+        ('Haute', 2),
+        ('Urgente', 1)
+) AS priorities_to_insert(priority_name, priority_sort_order)
 WHERE NOT EXISTS (
     SELECT 1
     FROM priorities
     WHERE priorities.name = priorities_to_insert.priority_name
 );
+
+-- Rattrapage idempotent pour les bases existantes : renseigne le sort_order des
+-- priorités déjà présentes (colonne ajoutée a posteriori, donc nullable).
+UPDATE priorities SET sort_order = 4 WHERE name = 'Basse' AND sort_order IS NULL;
+UPDATE priorities SET sort_order = 3 WHERE name = 'Moyenne' AND sort_order IS NULL;
+UPDATE priorities SET sort_order = 2 WHERE name = 'Haute' AND sort_order IS NULL;
+UPDATE priorities SET sort_order = 1 WHERE name = 'Urgente' AND sort_order IS NULL;
 
 INSERT INTO statuses (name, sort_order)
 SELECT status_name, status_order

@@ -52,8 +52,8 @@ class DashboardServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        adminUser = buildUser(1L, "Admin", "User", RoleType.ADMIN);
-        regularUser = buildUser(2L, "Regular", "User", RoleType.USER);
+        adminUser = buildUser(1L, "Admin", "User", "ADMIN");
+        regularUser = buildUser(2L, "Regular", "User", "USER");
 
         projectOne = buildProject(1L, "Project Alpha", adminUser);
         projectTwo = buildProject(2L, "Project Beta", adminUser);
@@ -121,6 +121,7 @@ class DashboardServiceImplTest {
                 new Object[]{"Termine", 3L}));
         when(taskRepository.findCreatedDatesBetweenAndAssignedTo(anyList(), any(LocalDateTime.class), any(LocalDateTime.class), eq(2L))).thenReturn(List.of());
         when(taskRepository.findCompletedDatesBetweenAndAssignedTo(anyList(), any(LocalDateTime.class), any(LocalDateTime.class), eq(2L))).thenReturn(List.of());
+        when(taskRepository.countActiveByUserAndProjects(anyList(), eq(2L))).thenReturn(1L);
         when(activityRepository.findRecentByProjectIdsAndPeriod(anyList(), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(List.of());
         when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.<Object[]>of(
@@ -260,7 +261,7 @@ class DashboardServiceImplTest {
 
     @Test
     void getDashboardStatsShouldLimitRecentProjectsToFive() {
-        User owner = buildUser(1L, "Owner", "User", RoleType.ADMIN);
+        User owner = buildUser(1L, "Owner", "User", "ADMIN");
         List<Project> manyProjects = new ArrayList<>();
         for (int i = 1; i <= 8; i++) {
             manyProjects.add(buildProject((long) i, "Project " + i, owner));
@@ -289,7 +290,7 @@ class DashboardServiceImplTest {
 
     @Test
     void getDashboardStatsShouldReturnDataForSuperAdmin() {
-        User superAdmin = buildUser(3L, "Super", "Admin", RoleType.SUPER_ADMIN);
+        User superAdmin = buildUser(3L, "Super", "Admin", "SUPER_ADMIN");
         when(userRepository.findById(3L)).thenReturn(Optional.of(superAdmin));
         when(projectRepository.findByIsActiveTrue()).thenReturn(adminProjects);
         when(taskRepository.countByIsActiveTrueAndProjectProjectIdIn(anyList())).thenReturn(20L);
@@ -374,7 +375,7 @@ class DashboardServiceImplTest {
 
     @Test
     void getDashboardStatsShouldCalculateProgressCorrectly() {
-        User owner = buildUser(1L, "Owner", "User", RoleType.ADMIN);
+        User owner = buildUser(1L, "Owner", "User", "ADMIN");
         List<Project> projects = List.of(buildProject(1L, "Project A", owner));
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
@@ -403,7 +404,7 @@ class DashboardServiceImplTest {
 
     @Test
     void superAdminShouldSeeAllProjects() {
-        User superAdmin = buildUser(3L, "Super", "Admin", RoleType.SUPER_ADMIN);
+        User superAdmin = buildUser(3L, "Super", "Admin", "SUPER_ADMIN");
         when(userRepository.findById(3L)).thenReturn(Optional.of(superAdmin));
         when(projectRepository.findByIsActiveTrue()).thenReturn(adminProjects);
         when(taskRepository.countByIsActiveTrueAndProjectProjectIdIn(anyList())).thenReturn(20L);
@@ -459,6 +460,7 @@ class DashboardServiceImplTest {
                 new Object[]{"Termine", 3L}));
         when(taskRepository.findCreatedDatesBetweenAndAssignedTo(anyList(), any(LocalDateTime.class), any(LocalDateTime.class), eq(2L))).thenReturn(List.of());
         when(taskRepository.findCompletedDatesBetweenAndAssignedTo(anyList(), any(LocalDateTime.class), any(LocalDateTime.class), eq(2L))).thenReturn(List.of());
+        when(taskRepository.countActiveByUserAndProjects(anyList(), eq(2L))).thenReturn(1L);
         when(activityRepository.findRecentByProjectIdsAndPeriod(anyList(), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(List.of());
         when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.<Object[]>of(
@@ -488,6 +490,7 @@ class DashboardServiceImplTest {
         when(taskRepository.countByStatusGroupedAndAssignedTo(anyList(), eq(2L))).thenReturn(List.of());
         when(taskRepository.findCreatedDatesBetweenAndAssignedTo(anyList(), any(LocalDateTime.class), any(LocalDateTime.class), eq(2L))).thenReturn(List.of());
         when(taskRepository.findCompletedDatesBetweenAndAssignedTo(anyList(), any(LocalDateTime.class), any(LocalDateTime.class), eq(2L))).thenReturn(List.of());
+        when(taskRepository.countActiveByUserAndProjects(anyList(), eq(2L))).thenReturn(1L);
         when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.of());
         when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of());
         when(userRepository.count()).thenReturn(20L);
@@ -523,6 +526,7 @@ class DashboardServiceImplTest {
         when(taskRepository.countByStatusGroupedAndAssignedTo(anyList(), eq(2L))).thenReturn(List.of());
         when(taskRepository.findCreatedDatesBetweenAndAssignedTo(anyList(), any(LocalDateTime.class), any(LocalDateTime.class), eq(2L))).thenReturn(List.of());
         when(taskRepository.findCompletedDatesBetweenAndAssignedTo(anyList(), any(LocalDateTime.class), any(LocalDateTime.class), eq(2L))).thenReturn(List.of());
+        when(taskRepository.countActiveByUserAndProjects(anyList(), eq(2L))).thenReturn(1L);
         when(activityRepository.findRecentByProjectIdsAndPeriod(anyList(), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(List.of());
         when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.<Object[]>of(
@@ -576,12 +580,9 @@ class DashboardServiceImplTest {
         when(taskRepository.countByStatusGroupedAndAssignedTo(anyList(), eq(2L))).thenReturn(List.of());
         when(taskRepository.findCreatedDatesBetweenAndAssignedTo(anyList(), any(LocalDateTime.class), any(LocalDateTime.class), eq(2L))).thenReturn(List.of());
         when(taskRepository.findCompletedDatesBetweenAndAssignedTo(anyList(), any(LocalDateTime.class), any(LocalDateTime.class), eq(2L))).thenReturn(List.of());
+        when(taskRepository.countActiveByUserAndProjects(anyList(), eq(2L))).thenReturn(0L);
         when(activityRepository.findRecentByProjectIdsAndPeriod(anyList(), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(List.of());
-        when(taskRepository.countActiveByProjectGrouped(anyList())).thenReturn(List.<Object[]>of(
-                new Object[]{1L, 10L}));
-        when(taskRepository.countByStatusAndProjectGrouped(anyList(), eq("Termine"))).thenReturn(List.<Object[]>of(
-                new Object[]{1L, 3L}));
         when(userRepository.count()).thenReturn(5L);
 
         DashboardDataResDto result = dashboardService.getDashboardStats(2L, "LAST_30_DAYS", null, null, null);
@@ -594,17 +595,17 @@ class DashboardServiceImplTest {
         assertEquals(0, result.evolution().points().size());
         assertEquals(0, result.distribution().items().size());
         assertEquals(1, result.stats().projects());
-        assertEquals(1, result.recentProjects().size());
+        assertEquals(0, result.recentProjects().size());
     }
 
-    private User buildUser(Long id, String firstname, String lastname, RoleType roleType) {
+    private User buildUser(Long id, String firstname, String lastname, String roleName) {
         Direction direction = new Direction();
         direction.setDirectionId(1L);
         direction.setName("DSI");
 
         Role role = new Role();
-        role.setRolesId(roleType == RoleType.ADMIN ? 1L : 2L);
-        role.setName(roleType.name());
+role.setRolesId("ADMIN".equals(roleName) ? 1L : 2L);
+        role.setName(roleName);
 
         User user = new User();
         user.setUsersId(id);

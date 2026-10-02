@@ -145,15 +145,15 @@ class ProjectServiceImplTest {
                 new ProjectReqDto(
                         "Updated Project",
                         "Updated description",
-                        LocalDate.of(2026, 4, 1),
-                        LocalDate.of(2026, 4, 30));
+                        LocalDate.now().plusDays(30),
+                        LocalDate.now().plusDays(60));
         ProjectResDto updatedDto =
                 new ProjectResDto(
                         1L,
                         "Updated Project",
                         "Updated description",
-                        LocalDate.of(2026, 4, 1),
-                        LocalDate.of(2026, 4, 30),
+                        LocalDate.now().plusDays(30),
+                        LocalDate.now().plusDays(60),
                         true,
                         10L,
                         "Jane Doe",
@@ -162,13 +162,13 @@ class ProjectServiceImplTest {
         when(projectRepository.save(projectOne)).thenReturn(updatedProject);
         when(projectMapper.toDto(updatedProject)).thenReturn(updatedDto);
 
-        ProjectResDto result = projectService.save(updateRequest, 1L);
+        ProjectResDto result = projectService.save(updateRequest, 1L, 10L);
 
         assertEquals(updatedDto, result);
         assertEquals("Updated Project", projectOne.getTitle());
         assertEquals("Updated description", projectOne.getDescription());
-        assertEquals(LocalDate.of(2026, 4, 1), projectOne.getStartDate());
-        assertEquals(LocalDate.of(2026, 4, 30), projectOne.getEndDate());
+        assertEquals(LocalDate.now().plusDays(30), projectOne.getStartDate());
+        assertEquals(LocalDate.now().plusDays(60), projectOne.getEndDate());
         verify(projectRepository, times(1)).findById(1L);
         verify(projectRepository, times(1)).save(projectOne);
         verify(projectMapper, times(1)).toDto(updatedProject);
@@ -200,7 +200,7 @@ class ProjectServiceImplTest {
         when(projectRepository.save(projectToCreate)).thenReturn(projectToCreate);
         when(projectMapper.toDto(projectToCreate)).thenReturn(createdDto);
 
-        ProjectResDto result = projectService.save(fallbackRequest, 404L);
+        ProjectResDto result = projectService.save(fallbackRequest, 404L, 10L);
 
         assertEquals(createdDto, result);
         verify(projectRepository, times(1)).findById(404L);

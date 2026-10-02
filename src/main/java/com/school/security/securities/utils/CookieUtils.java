@@ -66,9 +66,10 @@ public class CookieUtils {
     /**
      * Crée le cookie {@code accessToken} contenant l'access token JWT.
      *
-     * <p>Durée de vie du cookie : 15 minutes (à ne pas confondre avec la
-     * durée de vie du token JWT lui-même, fixée à 1 heure — voir
-     * {@code JwtServiceImp.generateToken}).
+     * <p>Durée de vie du cookie : 1 heure, alignée sur la durée de vie du token
+     * JWT lui-même (voir {@code JwtServiceImp.generateToken}). Un cookie plus
+     * court que son token fait disparaître la voie de secours HttpOnly 45
+     * minutes avant l'expiration réelle du jeton.
      */
     public static Cookie createAccessTokenCookie(String token) {
 
@@ -77,7 +78,7 @@ public class CookieUtils {
         cookie.setHttpOnly(true);
         cookie.setSecure(false); // true en production HTTPS
         cookie.setPath("/");
-        cookie.setMaxAge(15 * 60);
+        cookie.setMaxAge(60 * 60);
 
         return cookie;
     }

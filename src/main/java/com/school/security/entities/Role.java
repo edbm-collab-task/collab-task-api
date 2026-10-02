@@ -18,10 +18,10 @@ public class Role implements Serializable {
     @Column(name = "roles_id")
     protected Long rolesId;
 
-    @Column(name = "name")
+@Column(name = "name", nullable = false, unique = true)
     private String name;
 
-    @Column(name = "code_role")
+    @Column(name = "code_role", nullable = false, unique = true)
     private String codeRole;
 
     @ManyToMany(mappedBy = "roles")

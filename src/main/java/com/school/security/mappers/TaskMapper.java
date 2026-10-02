@@ -78,6 +78,10 @@ public class TaskMapper implements Mapper<TaskReqDto, Task, TaskResDto> {
 
     @Override
     public TaskResDto toDto(Task entity) {
+        return toDto(entity, 0L);
+    }
+
+    public TaskResDto toDto(Task entity, long commentCount) {
         List<TaskResDto.AssigneeResDto> assignees = Collections.emptyList();
         if (entity.getAssignees() != null && !entity.getAssignees().isEmpty()) {
             assignees = entity.getAssignees().stream()
@@ -99,10 +103,12 @@ public class TaskMapper implements Mapper<TaskReqDto, Task, TaskResDto> {
                 entity.getProject().getTitle(),
                 entity.getPriority().getPriorityId(),
                 entity.getPriority().getName(),
+                entity.getPriority().getSortOrder(),
                 entity.getStatus().getStatusId(),
                 entity.getStatus().getName(),
                 entity.getParent() != null ? entity.getParent().getTaskId() : null,
                 entity.getSortOrder(),
-                assignees);
+                assignees,
+                commentCount);
     }
 }

@@ -3,6 +3,7 @@ package com.school.security.services.implementations;
 import com.school.security.dtos.responses.NotificationResDto;
 import com.school.security.entities.Notification;
 import com.school.security.entities.User;
+import com.school.security.exceptions.EntityException;
 import com.school.security.enums.NotificationType;
 import com.school.security.repositories.NotificationRepository;
 import com.school.security.repositories.UserRepository;
@@ -19,9 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Règles métier constatées (documentées, non modifiées) :
  * <ul>
- *   <li>{@link #markAsRead} ne vérifie PAS que la notification appartient à
- *       l'utilisateur courant : n'importe quel identifiant existant peut être
- *       marqué comme lu ;</li>
+ *   <li>{@link #markAsRead} vérifie que la notification appartient
+ *       à l'utilisateur courant avant de la marquer comme lue ;</li>
  *   <li>{@link #createNotification} effectue un simple insert, sans déduplication
  *       ni contrôle d'existence préalable ;</li>
  *   <li>ce service ne diffuse rien en temps réel (pas de dépendance WebSocket) :
@@ -52,13 +52,18 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     /**
-     * Marque une notification comme lue (sans contrôle de propriétaire) ; lève
-     * une {@code RuntimeException} si l'identifiant n'existe pas.
+     * Marque une notification comme lue si elle appartient à l'utilisateur
+     * courant ; lève une {@code RuntimeException} si l'identifiant n'existe
+     * pas, et une {@code EntityException} si la notification appartient à un
+     * autre utilisateur.
      */
     @Override
-    public NotificationResDto markAsRead(Long notificationId) {
+    public NotificationResDto markAsRead(Long notificationId, Long userId) {
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new RuntimeException("Notification non trouvée"));
+        if (!notification.getUser().getUsersId().equals(userId)) {
+            throw new EntityException("Vous ne pouvez modifier que vos propres notifications");
+        }
         notification.setIsRead(true);
         return toDto(notificationRepository.save(notification));
     }

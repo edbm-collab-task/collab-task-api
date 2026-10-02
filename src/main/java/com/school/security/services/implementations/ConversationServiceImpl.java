@@ -719,6 +719,16 @@ public class ConversationServiceImpl
         Long currentUserId =
                 currentUserId();
 
+        Conversation conversation =
+                findConversation(
+                        conversationId
+                );
+
+        verifyMember(
+                conversation,
+                currentUserId
+        );
+
         ConversationMember member =
                 memberRepository
                         .findByConversationConversationIdAndUserUsersId(
@@ -737,6 +747,30 @@ public class ConversationServiceImpl
         );
 
         memberRepository.save(member);
+    }
+
+    /**
+     * Nombre total de messages non lus de l'utilisateur courant, toutes
+     * conversations confondues.
+     *
+     * <p>Le non-lu est porté par {@code ConversationMember.unreadCount} :
+     * incrémenté à chaque message reçu, remis à zéro par {@link #markAsRead}.
+     * La somme commute en base en une seule requête agrégée ({@code SUM}),
+     * sans chargement des appartenances en mémoire.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public int getUnreadCount() {
+
+        Long currentUserId =
+                currentUserId();
+
+        return Math.toIntExact(
+                memberRepository
+                        .sumUnreadCountByUserUsersId(
+                                currentUserId
+                        )
+        );
     }
 
     /**

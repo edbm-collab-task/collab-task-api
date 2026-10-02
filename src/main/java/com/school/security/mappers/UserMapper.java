@@ -84,7 +84,8 @@ public class UserMapper implements Mapper<UserReqDto, User, UserResDto> {
              entity.getNumber(),
              entity.getStatus(),
              entity.getPassword(),
-             entity.getGender()
+             entity.getGender(),
+             entity.getRoles().getFirst().getName()
      );
     }
 

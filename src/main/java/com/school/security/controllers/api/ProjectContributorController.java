@@ -14,6 +14,7 @@ import com.school.security.repositories.UserRepository;
 import com.school.security.securities.utils.SecurityUtils;
 import com.school.security.services.contracts.ActivityService;
 import com.school.security.services.contracts.NotificationService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -51,6 +52,7 @@ import java.util.stream.Collectors;
  *       mais inutilisé (l'annotation utilisée est {@code @RestController}).</li>
  * </ul>
  */
+@Slf4j
 @RestController
 @RequestMapping("/projects")
 public class ProjectContributorController {
@@ -201,7 +203,9 @@ public class ProjectContributorController {
         activityService.logActivity(projectId, currentUserId, ActivityType.CONTRIBUTOR_ADDED,
                 userName + " a été ajouté(e) comme contributeur", null);
 
-        // Envoi d'email "ajouté(e) comme contributeur" (échec silencieux).
+        // Envoi d'email "ajouté(e) comme contributeur". L'envoi est asynchrone
+        // (EmailService.sendHtmlEmail est @Async) : la réponse HTTP n'attend plus
+        // le relais SMTP, et un échec éventuel n'est plus visible d'ici.
         sendContributorAddedEmail(user, project, ownerName);
 
         return ResponseEntity.ok(toDto(saved));
@@ -261,12 +265,16 @@ public class ProjectContributorController {
     }
 
     /**
-     * Envoi (best-effort) de l'email "ajouté comme contributeur" à
-     * l'utilisateur concerné.
+     * Déclenche l'email "ajouté comme contributeur" à l'utilisateur concerné.
      *
-     * <p>L'email est généré via le template et envoyé en HTML. Toute
-     * exception (template, SMTP, destinataire invalide...) est absorbée : un
-     * échec d'email ne doit jamais faire échouer la requête HTTP.
+     * <p>L'email est généré via le template puis confié à
+     * {@link EmailService#sendHtmlEmail}, qui s'exécute de façon asynchrone
+     * (pool {@code mailExecutor}).
+     *
+     * <p>Le {@code try/catch} ne couvre plus que la génération du template
+     * (Thymeleaf) : l'envoi SMTP lui-même est exécuté ailleurs et ses erreurs
+     * sont journalisées par le handler asynchrone. Un échec d'email ne doit
+     * jamais faire échouer la requête HTTP.
      */
     private void sendContributorAddedEmail(User user, Project project, String ownerName) {
         try {
@@ -281,7 +289,7 @@ public class ProjectContributorController {
                     html
             );
         } catch (Exception e) {
-            // Email failure should not block the request
+            log.warn("Email 'contributeur ajouté' non généré pour {} : {}", user.getEmail(), e.getMessage());
         }
     }
 

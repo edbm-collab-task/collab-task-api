@@ -15,6 +15,7 @@ import com.school.security.entities.Project;
 import com.school.security.entities.Status;
 import com.school.security.entities.Task;
 import com.school.security.entities.User;
+import com.school.security.exceptions.BadRequestException;
 import com.school.security.exceptions.EntityException;
 import com.school.security.mappers.TaskMapper;
 import com.school.security.repositories.PriorityRepository;
@@ -465,6 +466,297 @@ class TaskServiceImplTest {
         verify(taskRepository, times(1)).findById(1L);
         verify(statusRepository, times(1)).findById(404L);
         verifyNoInteractions(taskMapper);
+    }
+
+    @Test
+    void createShouldRejectWhenDueDateExceedsProjectDeadline() {
+        LocalDate projectEndDate = LocalDate.now().plusDays(10);
+        LocalDate dueDate = LocalDate.now().plusDays(30);
+        TaskReqDto request =
+                new TaskReqDto(
+                        "Late Task",
+                        "Description",
+                        dueDate,
+                        10L,
+                        3L,
+                        2L,
+                        null,
+                        List.of());
+        Project project = buildProject(10L, "Project Alpha");
+        project.setEndDate(projectEndDate);
+        Task taskToCreate = buildTask(
+                null,
+                "Late Task",
+                project,
+                priority,
+                status,
+                null,
+                true);
+        taskToCreate.setDueDate(dueDate);
+        when(taskMapper.fromDto(request)).thenReturn(taskToCreate);
+
+        BadRequestException exception =
+                assertThrows(
+                        BadRequestException.class,
+                        () -> taskService.createOrUpdate(request));
+
+        assertEquals(
+                "La date d'échéance de la tâche ne peut pas dépasser la date de fin du projet.",
+                exception.getMessage());
+        verify(taskMapper, times(1)).fromDto(request);
+        verifyNoInteractions(taskRepository);
+    }
+
+    @Test
+    void createShouldAcceptWhenDueDateEqualsProjectDeadline() {
+        LocalDate projectEndDate = LocalDate.now().plusDays(30);
+        TaskReqDto request =
+                new TaskReqDto(
+                        "On Time Task",
+                        "Description",
+                        projectEndDate,
+                        10L,
+                        3L,
+                        2L,
+                        null,
+                        List.of());
+        Project project = buildProject(10L, "Project Alpha");
+        project.setEndDate(projectEndDate);
+        Task taskToCreate = buildTask(
+                null,
+                "On Time Task",
+                project,
+                priority,
+                status,
+                null,
+                true);
+        taskToCreate.setDueDate(projectEndDate);
+        TaskResDto createdDto =
+                new TaskResDto(
+                        3L,
+                        "On Time Task",
+                        "Description",
+                        projectEndDate,
+                        true,
+                        10L,
+                        "Project Alpha",
+                        3L,
+                        "High",
+                        2,
+                        2L,
+                        "In progress",
+                        null,
+                        0,
+                        List.of(),
+                        0L);
+        when(taskMapper.fromDto(request)).thenReturn(taskToCreate);
+        when(taskRepository.save(taskToCreate)).thenReturn(taskToCreate);
+        when(taskMapper.toDto(taskToCreate, 0L)).thenReturn(createdDto);
+
+        TaskResDto result = taskService.createOrUpdate(request);
+
+        assertEquals(createdDto, result);
+        verify(taskRepository, times(1)).save(taskToCreate);
+    }
+
+    @Test
+    void createShouldAcceptWhenDueDateBeforeProjectDeadline() {
+        LocalDate projectEndDate = LocalDate.now().plusDays(60);
+        LocalDate dueDate = LocalDate.now().plusDays(30);
+        TaskReqDto request =
+                new TaskReqDto(
+                        "Early Task",
+                        "Description",
+                        dueDate,
+                        10L,
+                        3L,
+                        2L,
+                        null,
+                        List.of());
+        Project project = buildProject(10L, "Project Alpha");
+        project.setEndDate(projectEndDate);
+        Task taskToCreate = buildTask(
+                null,
+                "Early Task",
+                project,
+                priority,
+                status,
+                null,
+                true);
+        taskToCreate.setDueDate(dueDate);
+        TaskResDto createdDto =
+                new TaskResDto(
+                        3L,
+                        "Early Task",
+                        "Description",
+                        dueDate,
+                        true,
+                        10L,
+                        "Project Alpha",
+                        3L,
+                        "High",
+                        2,
+                        2L,
+                        "In progress",
+                        null,
+                        0,
+                        List.of(),
+                        0L);
+        when(taskMapper.fromDto(request)).thenReturn(taskToCreate);
+        when(taskRepository.save(taskToCreate)).thenReturn(taskToCreate);
+        when(taskMapper.toDto(taskToCreate, 0L)).thenReturn(createdDto);
+
+        TaskResDto result = taskService.createOrUpdate(request);
+
+        assertEquals(createdDto, result);
+        verify(taskRepository, times(1)).save(taskToCreate);
+    }
+
+    @Test
+    void createShouldAcceptWhenProjectHasNoDeadline() {
+        LocalDate dueDate = LocalDate.now().plusDays(30);
+        TaskReqDto request =
+                new TaskReqDto(
+                        "No Deadline Project Task",
+                        "Description",
+                        dueDate,
+                        10L,
+                        3L,
+                        2L,
+                        null,
+                        List.of());
+        Project project = buildProject(10L, "Project Alpha");
+        // project.endDate reste null : aucune date de fin de projet, pas de contrainte.
+        Task taskToCreate = buildTask(
+                null,
+                "No Deadline Project Task",
+                project,
+                priority,
+                status,
+                null,
+                true);
+        taskToCreate.setDueDate(dueDate);
+        TaskResDto createdDto =
+                new TaskResDto(
+                        3L,
+                        "No Deadline Project Task",
+                        "Description",
+                        dueDate,
+                        true,
+                        10L,
+                        "Project Alpha",
+                        3L,
+                        "High",
+                        2,
+                        2L,
+                        "In progress",
+                        null,
+                        0,
+                        List.of(),
+                        0L);
+        when(taskMapper.fromDto(request)).thenReturn(taskToCreate);
+        when(taskRepository.save(taskToCreate)).thenReturn(taskToCreate);
+        when(taskMapper.toDto(taskToCreate, 0L)).thenReturn(createdDto);
+
+        TaskResDto result = taskService.createOrUpdate(request);
+
+        assertEquals(createdDto, result);
+        verify(taskRepository, times(1)).save(taskToCreate);
+    }
+
+    @Test
+    void updateShouldRejectWhenNewDueDateExceedsProjectDeadline() {
+        LocalDate projectEndDate = LocalDate.now().plusDays(10);
+        Project project = buildProject(10L, "Project Alpha");
+        project.setEndDate(projectEndDate);
+        Task existingTask = buildTask(
+                1L,
+                "Task One",
+                project,
+                priority,
+                status,
+                null,
+                true);
+        existingTask.setDueDate(LocalDate.now().plusDays(5));
+        TaskReqDto request =
+                new TaskReqDto(
+                        "Task One",
+                        "Desc 1",
+                        LocalDate.now().plusDays(30),
+                        10L,
+                        3L,
+                        2L,
+                        null,
+                        List.of());
+        when(taskRepository.findById(1L)).thenReturn(Optional.of(existingTask));
+
+        BadRequestException exception =
+                assertThrows(
+                        BadRequestException.class,
+                        () -> taskService.save(request, 1L));
+
+        assertEquals(
+                "La date d'échéance de la tâche ne peut pas dépasser la date de fin du projet.",
+                exception.getMessage());
+        verify(taskRepository, times(1)).findById(1L);
+        verifyNoInteractions(priorityRepository);
+        verifyNoInteractions(statusRepository);
+    }
+
+    @Test
+    void updateShouldAcceptWhenNewDueDateWithinProjectDeadline() {
+        LocalDate projectEndDate = LocalDate.now().plusDays(60);
+        LocalDate newDueDate = LocalDate.now().plusDays(30);
+        Project project = buildProject(10L, "Project Alpha");
+        project.setEndDate(projectEndDate);
+        Task existingTask = buildTask(
+                1L,
+                "Task One",
+                project,
+                priority,
+                status,
+                null,
+                true);
+        existingTask.setDueDate(LocalDate.now().plusDays(5));
+        TaskReqDto request =
+                new TaskReqDto(
+                        "Task One",
+                        "Desc 1",
+                        newDueDate,
+                        10L,
+                        3L,
+                        2L,
+                        null,
+                        List.of());
+        TaskResDto updatedDto =
+                new TaskResDto(
+                        1L,
+                        "Task One",
+                        "Desc 1",
+                        newDueDate,
+                        true,
+                        10L,
+                        "Project Alpha",
+                        3L,
+                        "High",
+                        2,
+                        2L,
+                        "In progress",
+                        null,
+                        0,
+                        List.of(),
+                        0L);
+        when(taskRepository.findById(1L)).thenReturn(Optional.of(existingTask));
+        when(priorityRepository.getReferenceById(3L)).thenReturn(priority);
+        when(statusRepository.getReferenceById(2L)).thenReturn(status);
+        when(taskRepository.save(existingTask)).thenReturn(existingTask);
+        when(taskMapper.toDto(existingTask, 0L)).thenReturn(updatedDto);
+
+        TaskResDto result = taskService.save(request, 1L);
+
+        assertEquals(updatedDto, result);
+        assertEquals(newDueDate, existingTask.getDueDate());
+        verify(taskRepository, times(1)).save(existingTask);
     }
 
     private Task buildTask(

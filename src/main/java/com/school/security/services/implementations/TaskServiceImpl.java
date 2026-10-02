@@ -79,6 +79,13 @@ public class TaskServiceImpl implements TaskService {
 
                 validateDueDate(toSave.dueDate(), taskToUpdate.getDueDate());
 
+                // Règle métier : l'échéance de la tâche ne peut pas dépasser la
+                // date de fin (deadline) du projet auquel elle appartient.
+                validateDueDateAgainstProjectDeadline(
+                        toSave.dueDate(),
+                        taskToUpdate.getProject().getEndDate()
+                );
+
                 Long oldPriorityId = taskToUpdate.getPriority().getPriorityId();
                 List<Long> oldAssigneeIds = taskToUpdate.getAssignees().stream()
                         .map(User::getUsersId).collect(Collectors.toList());
@@ -140,6 +147,13 @@ public class TaskServiceImpl implements TaskService {
         }
         validateDueDate(toSave.dueDate(), null);
         Task taskToSave = this.taskMapper.fromDto(toSave);
+
+        // Règle métier : l'échéance de la tâche ne peut pas dépasser la date de
+        // fin (deadline) du projet auquel elle appartient.
+        validateDueDateAgainstProjectDeadline(
+                toSave.dueDate(),
+                taskToSave.getProject().getEndDate()
+        );
         if (toSave.parentTaskId() != null) {
             checkParentRules(taskToSave, toSave.parentTaskId());
         }
@@ -402,6 +416,22 @@ public class TaskServiceImpl implements TaskService {
         if (dueDateChanged && dueDate.isBefore(LocalDate.now())) {
             throw new BadRequestException(
                     "La date d'échéance ne peut pas être dans le passé."
+            );
+        }
+    }
+
+    /**
+     * Règle métier : l'échéance d'une tâche ne peut pas dépasser la date de fin
+     * (deadline) de son projet. Aucune contrainte n'est appliquée si la tâche
+     * n'a pas d'échéance ou si le projet n'a pas de date de fin.
+     */
+    private void validateDueDateAgainstProjectDeadline(LocalDate dueDate, LocalDate projectEndDate) {
+        if (dueDate == null || projectEndDate == null) {
+            return;
+        }
+        if (dueDate.isAfter(projectEndDate)) {
+            throw new BadRequestException(
+                    "La date d'échéance de la tâche ne peut pas dépasser la date de fin du projet."
             );
         }
     }

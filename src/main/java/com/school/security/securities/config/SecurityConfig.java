@@ -101,6 +101,15 @@ public class SecurityConfig {
         // Endpoint WebSocket public (STOMP handshake) : l'authentification
         // n'est pas requise pour l'ouverture initiale de la connexion.
         .requestMatchers("/ws").permitAll()
+        // Endpoints Swagger / OpenAPI
+        .requestMatchers(
+                "/v3/api-docs",
+                "/v3/api-docs/**",
+                "/swagger-ui/**",
+                "/swagger-ui.html",
+                "/api-docs",
+                "/api-docs/**"
+        ).permitAll()
         // Endpoints d'authentification publics : login, register, create
         // (création par admin), logout, refresh (rotation du refresh token),
         // code (envoi de code de récupération par email).

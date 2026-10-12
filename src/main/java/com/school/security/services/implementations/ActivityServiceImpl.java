@@ -35,6 +35,9 @@ import org.springframework.transaction.annotation.Transactional;
 @AllArgsConstructor
 public class ActivityServiceImpl implements ActivityService {
 
+    /** Longueur maximale de la colonne {@code activities.description} (varchar(255)). */
+    private static final int DESCRIPTION_MAX_LENGTH = 255;
+
     private ActivityRepository activityRepository;
     private ProjectRepository projectRepository;
     private UserRepository userRepository;
@@ -71,9 +74,18 @@ public class ActivityServiceImpl implements ActivityService {
         activity.setProject(project);
         activity.setUser(user);
         activity.setType(type);
-        activity.setDescription(description);
+        activity.setDescription(truncate(description));
         activity.setTaskId(taskId);
         activityRepository.save(activity);
+    }
+
+    /** Tronque la description à la taille de la colonne afin d'éviter un 500
+     * lorsque le message (qui contient le titre de la tâche) dépasse 255. */
+    private String truncate(String value) {
+        if (value == null || value.length() <= DESCRIPTION_MAX_LENGTH) {
+            return value;
+        }
+        return value.substring(0, DESCRIPTION_MAX_LENGTH);
     }
 
     private ActivityResDto toDto(Activity entity) {

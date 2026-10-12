@@ -33,6 +33,9 @@ import org.springframework.transaction.annotation.Transactional;
 @AllArgsConstructor
 public class NotificationServiceImpl implements NotificationService {
 
+    /** Longueur maximale de la colonne {@code notifications.message} (varchar(255)). */
+    private static final int MESSAGE_MAX_LENGTH = 255;
+
     private NotificationRepository notificationRepository;
     private UserRepository userRepository;
 
@@ -91,12 +94,21 @@ public class NotificationServiceImpl implements NotificationService {
                 .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
         Notification notification = new Notification();
         notification.setUser(user);
-        notification.setMessage(message);
+        notification.setMessage(truncate(message));
         notification.setType(type);
         notification.setProjectId(projectId);
         notification.setTaskId(taskId);
         notification.setIsRead(false);
         notificationRepository.save(notification);
+    }
+
+    /** Tronque le message à la taille de la colonne afin d'éviter un 500 lorsque
+     * le texte (qui contient les titres de tâche/projet) dépasse 255 caractères. */
+    private String truncate(String value) {
+        if (value == null || value.length() <= MESSAGE_MAX_LENGTH) {
+            return value;
+        }
+        return value.substring(0, MESSAGE_MAX_LENGTH);
     }
 
     /** Convertit l'entité de notification en DTO de réponse. */

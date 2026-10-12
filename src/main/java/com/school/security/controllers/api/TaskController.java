@@ -1,5 +1,6 @@
 package com.school.security.controllers.api;
 
+import com.school.security.dtos.requests.MoveTaskReqDto;
 import com.school.security.dtos.requests.TaskReqDto;
 import com.school.security.dtos.responses.TaskResDto;
 import com.school.security.services.contracts.TaskService;
@@ -121,5 +122,20 @@ public class TaskController {
     @PatchMapping("/{taskId}/sort-order")
     public TaskResDto updateTaskSortOrder(@PathVariable Long taskId, @RequestParam Integer sortOrder) {
         return this.taskService.updateTaskSortOrder(taskId, sortOrder);
+    }
+
+    /**
+     * Déplacement (drag & drop) d'une tâche ({@code PATCH /tasks/{taskId}/move}).
+     *
+     * <p>Le corps contient le statut cible et, optionnellement, une carte de
+     * référence ({@code beforeTaskId}) : si fournie, la tâche adopte sa priorité
+     * et s'insère juste avant elle dans son groupe ; sinon elle garde sa priorité
+     * et rejoint la fin de son groupe dans le nouveau statut. Le
+     * {@code sortOrder} du groupe cible et de l'ancien groupe est renuméroté de
+     * 1 à N par {@code TaskService.moveTask}.
+     */
+    @PatchMapping("/{taskId}/move")
+    public TaskResDto moveTask(@PathVariable Long taskId, @Valid @RequestBody MoveTaskReqDto req) {
+        return this.taskService.moveTask(taskId, req.statusId(), req.beforeTaskId());
     }
 }

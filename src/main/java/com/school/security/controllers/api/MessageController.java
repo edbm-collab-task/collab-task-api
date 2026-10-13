@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -145,6 +146,7 @@ public class MessageController {
             value = "/{conversationId}/messages",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
+    @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_MESSAGES', 'INSERT')")
     public ResponseEntity<MessageResponse> sendMessage(
 
             @PathVariable Long conversationId,
@@ -218,6 +220,7 @@ public class MessageController {
      * pièces jointes associées.
      */
     @DeleteMapping("/messages/{messageId}")
+    @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_MESSAGES', 'DELETE')")
     public ResponseEntity<Void> deleteMessage(
             @PathVariable Long messageId
     ) {

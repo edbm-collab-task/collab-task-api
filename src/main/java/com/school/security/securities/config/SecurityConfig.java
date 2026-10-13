@@ -149,10 +149,11 @@ public class SecurityConfig {
         // Téléchargement de pièces jointes de messages — public.
         .requestMatchers(HttpMethod.GET, "/uploads/messages/{filename}").permitAll()
         .requestMatchers(HttpMethod.GET, "/uploads/comments/{filename}").permitAll()
-        .requestMatchers(HttpMethod.GET, "/roles", "/roles/permissions").permitAll()
+        .requestMatchers(HttpMethod.GET, "/roles", "/roles/permissions", "/roles/actions", "/roles/actions-map").permitAll()
         // Gestion des rôles (POST/PUT/DELETE) : réservée exclusivement au SUPER_ADMIN.
         .requestMatchers(HttpMethod.POST, "/roles").hasAuthority("SUPER_ADMIN")
         .requestMatchers(HttpMethod.PUT, "/roles/{id}").hasAuthority("SUPER_ADMIN")
+        .requestMatchers(HttpMethod.PUT, "/roles/{id}/actions").hasAuthority("SUPER_ADMIN")
         .requestMatchers(HttpMethod.DELETE, "/roles/{id}").hasAuthority("SUPER_ADMIN")
         // Rapports projet : publics au niveau filter-chain, mais la logique
         // d'accès (super-admin, admin, owner ou contributeur) est vérifiée

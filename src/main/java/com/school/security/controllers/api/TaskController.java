@@ -6,6 +6,7 @@ import com.school.security.dtos.responses.TaskResDto;
 import com.school.security.services.contracts.TaskService;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -77,6 +78,7 @@ public class TaskController {
      * la validation des dates et l'assignation sont gérées dans le service.
      */
     @PostMapping
+    @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_TASKS', 'INSERT')")
     public TaskResDto createTask(@Valid @RequestBody TaskReqDto taskReqDto) {
         return this.taskService.createOrUpdate(taskReqDto);
     }
@@ -89,6 +91,7 @@ public class TaskController {
      * dans le service.
      */
     @PutMapping("/{id}")
+    @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_TASKS', 'UPDATE')")
     public TaskResDto updateTask(@Valid @RequestBody TaskReqDto toSave, @PathVariable Long id) {
         return this.taskService.save(toSave, id);
     }
@@ -102,6 +105,7 @@ public class TaskController {
      * aucune tâche active, il est automatiquement désarchivé.
      */
     @DeleteMapping("/{id}")
+    @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_TASKS', 'DELETE')")
     public TaskResDto archiveTask(@PathVariable Long id) {
         return this.taskService.deleteById(id);
     }
@@ -115,11 +119,13 @@ public class TaskController {
      * voir {@code TaskService.changerStatut}.
      */
     @PatchMapping("/{taskId}/status")
+    @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_TASKS', 'UPDATE')")
     public TaskResDto changeTaskStatus(@PathVariable Long taskId, @RequestParam Long statusId) {
         return this.taskService.changerStatut(taskId, statusId);
     }
 
     @PatchMapping("/{taskId}/sort-order")
+    @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_TASKS', 'UPDATE')")
     public TaskResDto updateTaskSortOrder(@PathVariable Long taskId, @RequestParam Integer sortOrder) {
         return this.taskService.updateTaskSortOrder(taskId, sortOrder);
     }
@@ -135,6 +141,7 @@ public class TaskController {
      * 1 à N par {@code TaskService.moveTask}.
      */
     @PatchMapping("/{taskId}/move")
+    @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_TASKS', 'UPDATE')")
     public TaskResDto moveTask(@PathVariable Long taskId, @Valid @RequestBody MoveTaskReqDto req) {
         return this.taskService.moveTask(taskId, req.statusId(), req.beforeTaskId());
     }

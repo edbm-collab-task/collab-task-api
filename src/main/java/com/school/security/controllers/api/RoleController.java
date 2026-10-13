@@ -2,10 +2,13 @@ package com.school.security.controllers.api;
 
 import com.school.security.dtos.requests.RoleReqDto;
 import com.school.security.dtos.responses.PermissionResDto;
+import com.school.security.dtos.responses.RoleActionsResDto;
 import com.school.security.dtos.responses.RoleResDto;
 import com.school.security.enums.PermissionType;
 import com.school.security.services.contracts.RoleService;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -131,5 +134,59 @@ public class RoleController {
     @GetMapping("/permissions")
     public ResponseEntity<List<PermissionResDto>> getAllPermissions() {
         return ResponseEntity.ok(roleService.findAllPermissions());
+    }
+
+    /**
+     * Catalogue des actions gérables ({@code GET /roles/actions}).
+     *
+     * <p>Lecture publique au niveau de la filter-chain ({@code permitAll}).
+     * Renvoie les noms techniques des actions (INSERT, UPDATE, DELETE,
+     * GENERATE_REPORT, EXPORT) ; les libellés lisibles sont fournis par le
+     * client. Délègue à {@code RoleService.findAllActions()}.
+     */
+    @GetMapping("/actions")
+    public ResponseEntity<List<String>> getActions() {
+        return ResponseEntity.ok(roleService.findAllActions().stream()
+                .map(Enum::name)
+                .collect(Collectors.toList()));
+    }
+
+    /**
+     * Actions de chaque rôle ({@code GET /roles/actions-map}).
+     *
+     * <p>Lecture publique au niveau de la filter-chain ({@code permitAll}).
+     * Renvoie une map indexée par identifiant de rôle, chaque valeur exposant
+     * le nom du rôle et ses actions regroupées par module. Délègue à
+     * {@code RoleService.getActionsMap()}.
+     */
+    @GetMapping("/actions-map")
+    public ResponseEntity<Map<Long, RoleActionsResDto>> getActionsMap() {
+        return ResponseEntity.ok(roleService.getActionsMap());
+    }
+
+    /**
+     * Actions d'un rôle ({@code GET /roles/{id}/actions}).
+     *
+     * <p>Non listé dans les {@code permitAll} : soumis à
+     * {@code anyRequest().authenticated()}. Délègue à
+     * {@code RoleService.getRoleActions(id)}.
+     */
+    @GetMapping("/{id}/actions")
+    public ResponseEntity<RoleActionsResDto> getRoleActions(@PathVariable Long id) {
+        return ResponseEntity.ok(roleService.getRoleActions(id));
+    }
+
+    /**
+     * Remplace les actions d'un rôle ({@code PUT /roles/{id}/actions}).
+     *
+     * <p>Protégé par la filter-chain : autorité {@code SUPER_ADMIN} uniquement.
+     * Le corps associe chaque module (nom de permission) à sa liste d'actions ;
+     * une liste vide conserve l'accès en lecture seule. Délègue à
+     * {@code RoleService.setRoleActions(id, actions)}.
+     */
+    @PutMapping("/{id}/actions")
+    public ResponseEntity<RoleActionsResDto> setRoleActions(
+            @PathVariable Long id, @RequestBody Map<String, List<String>> actions) {
+        return ResponseEntity.ok(roleService.setRoleActions(id, actions));
     }
 }

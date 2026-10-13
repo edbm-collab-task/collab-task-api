@@ -61,7 +61,7 @@ ALTER TABLE permissions ADD COLUMN IF NOT EXISTS category_permission VARCHAR(50)
 ALTER TABLE permissions ALTER COLUMN category_permission DROP NOT NULL;
 
 ALTER TABLE permissions DROP CONSTRAINT IF EXISTS permissions_name_check;
-ALTER TABLE permissions ADD CONSTRAINT permissions_name_check CHECK (name IN ('VIEW_USERS','MANAGE_USERS','MANAGE_ADMINS','MANAGE_ROLES','MANAGE_PROJECTS','MANAGE_PROJECT_CONTRIBUTORS','MANAGE_DIRECTIONS','MANAGE_STATUSES','VIEW_REPORTS'));
+ALTER TABLE permissions ADD CONSTRAINT permissions_name_check CHECK (name IN ('VIEW_USERS','MANAGE_USERS','MANAGE_ADMINS','MANAGE_ROLES','MANAGE_PROJECTS','MANAGE_PROJECT_CONTRIBUTORS','MANAGE_DIRECTIONS','MANAGE_STATUSES','VIEW_REPORTS','MANAGE_TASKS','MANAGE_COMMENTS','MANAGE_ATTACHMENTS','MANAGE_MESSAGES'));
 
 INSERT INTO permissions (name, description, category_permission)
 SELECT perm_name, perm_desc, perm_cat
@@ -75,7 +75,11 @@ FROM (
              ('MANAGE_PROJECTS', 'Créer et gérer les projets', 'PROJETS'),
              ('MANAGE_PROJECT_CONTRIBUTORS', 'Gérer les contributeurs d''un projet', 'PROJETS'),
              ('MANAGE_STATUSES', 'Gérer les statuts', 'AUTRES'),
-             ('VIEW_REPORTS', 'Voir les rapports et statistiques', 'RAPPORTS')
+             ('VIEW_REPORTS', 'Voir les rapports et statistiques', 'RAPPORTS'),
+             ('MANAGE_TASKS', 'Créer et gérer les tâches', 'PROJETS'),
+             ('MANAGE_COMMENTS', 'Commenter et gérer les commentaires', 'PROJETS'),
+             ('MANAGE_ATTACHMENTS', 'Ajouter et gérer les pièces jointes', 'PROJETS'),
+             ('MANAGE_MESSAGES', 'Envoyer et gérer les messages', 'AUTRES')
      ) AS permissions_to_insert(perm_name, perm_desc, perm_cat)
 WHERE NOT EXISTS (
     SELECT 1
@@ -103,6 +107,10 @@ UPDATE permissions SET category_permission = CASE name
      WHEN 'MANAGE_PROJECT_CONTRIBUTORS' THEN 'PROJETS'
      WHEN 'MANAGE_STATUSES' THEN 'AUTRES'
      WHEN 'VIEW_REPORTS' THEN 'RAPPORTS'
+     WHEN 'MANAGE_TASKS' THEN 'PROJETS'
+     WHEN 'MANAGE_COMMENTS' THEN 'PROJETS'
+     WHEN 'MANAGE_ATTACHMENTS' THEN 'PROJETS'
+     WHEN 'MANAGE_MESSAGES' THEN 'AUTRES'
      ELSE 'AUTRES'
     END
 WHERE category_permission IS NULL
@@ -142,7 +150,8 @@ SELECT r.roles_id, p.permission_id
 FROM roles r
 CROSS JOIN permissions p
 WHERE r.name = 'ADMIN'
-  AND p.name IN ('VIEW_USERS', 'MANAGE_USERS', 'MANAGE_PROJECTS', 'VIEW_REPORTS')
+  AND p.name IN ('VIEW_USERS', 'MANAGE_USERS', 'MANAGE_PROJECTS', 'VIEW_REPORTS',
+                 'MANAGE_TASKS', 'MANAGE_COMMENTS', 'MANAGE_ATTACHMENTS', 'MANAGE_MESSAGES')
   AND NOT EXISTS (
       SELECT 1
       FROM roles_permissions rp
@@ -330,3 +339,62 @@ FROM users u
 LEFT JOIN users_roles ur ON ur.users_users_id = u.users_id
 LEFT JOIN roles r ON r.roles_id = ur.roles_roles_id
 WHERE u.email IN ('admin@edbm.com', 'superadmin@edbm.com');
+
+-- =========================================================
+-- 12. Actions par défaut des rôles (colonne sur roles_permissions)
+-- =========================================================
+
+-- La colonne est normalement déjà ajoutée par Hibernate (ddl-auto=update) ;
+-- le IF NOT EXISTS garantit l'exécution du script même dans le cas contraire.
+ALTER TABLE roles_permissions ADD COLUMN IF NOT EXISTS actions VARCHAR(255);
+
+-- Seed idempotent, limité aux lignes dont la colonne est encore NULL (créées
+-- avant l'introduction de la fonctionnalité). Toute configuration définie via
+-- l'API (y compris une liste vide "") n'est jamais écrasée.
+UPDATE roles_permissions rp
+SET actions = 'INSERT,UPDATE,DELETE,GENERATE_REPORT,EXPORT'
+FROM roles r
+WHERE rp.roles_id = r.roles_id
+  AND r.name = 'SUPER_ADMIN'
+  AND rp.actions IS NULL;
+
+UPDATE roles_permissions rp
+SET actions = 'INSERT,UPDATE,DELETE,GENERATE_REPORT,EXPORT'
+FROM roles r
+WHERE rp.roles_id = r.roles_id
+  AND r.name = 'ADMIN'
+  AND rp.actions IS NULL;
+
+-- =========================================================
+-- 13. Grandfathering de l'enforcement (actions Tâches/Commentaires/
+--     Pièces jointes/Messages)
+-- =========================================================
+-- Les contrôleurs Tâches/Commentaires/Pièces jointes/Messages appliquent
+-- désormais des @PreAuthorize du type hasAction('MANAGE_TASKS','INSERT').
+-- Or, avant cette fonctionnalité, ces endpoints n'étaient protégés que par
+-- « authenticated() » : tout rôle pouvait écrire. Accorder ces modules avec
+-- TOUTES les actions à TOUS les rôles garantit que l'activation de
+-- l'enforcement ne RETIRE l'accès à personne (aucune régression). Les
+-- administrateurs pourront ensuite affiner via l'API /roles/{id}/actions.
+
+INSERT INTO roles_permissions (roles_id, permission_id)
+SELECT r.roles_id, p.permission_id
+FROM roles r
+CROSS JOIN permissions p
+WHERE p.name IN ('MANAGE_TASKS', 'MANAGE_COMMENTS', 'MANAGE_ATTACHMENTS', 'MANAGE_MESSAGES')
+  AND NOT EXISTS (
+      SELECT 1
+      FROM roles_permissions rp
+      WHERE rp.roles_id = r.roles_id
+        AND rp.permission_id = p.permission_id
+  );
+
+-- Renseigne les actions de ces associations quand elles viennent d'être
+-- créées (NULL). Une configuration déjà définie (y compris "") n'est pas
+-- écrasée.
+UPDATE roles_permissions rp
+SET actions = 'INSERT,UPDATE,DELETE,GENERATE_REPORT,EXPORT'
+FROM permissions p
+WHERE rp.permission_id = p.permission_id
+  AND p.name IN ('MANAGE_TASKS', 'MANAGE_COMMENTS', 'MANAGE_ATTACHMENTS', 'MANAGE_MESSAGES')
+  AND rp.actions IS NULL;

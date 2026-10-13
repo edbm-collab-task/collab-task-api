@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -85,6 +86,7 @@ public class CommentController {
      * projet.
      */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_COMMENTS', 'INSERT')")
     public CommentResDto createComment(
             @PathVariable Long taskId,
             @RequestParam("content") String content,
@@ -105,6 +107,7 @@ public class CommentController {
      * {@code commentId} est exploité (voir le point d'attention de la classe).
      */
     @PutMapping("/{commentId}")
+    @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_COMMENTS', 'UPDATE')")
     public CommentResDto updateComment(
             @PathVariable Long commentId,
             @Valid @RequestBody CommentReqDto dto) {
@@ -122,6 +125,7 @@ public class CommentController {
      * {@code commentId} est exploité.
      */
     @DeleteMapping("/{commentId}")
+    @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_COMMENTS', 'DELETE')")
     public ResponseEntity<Void> deleteComment(@PathVariable Long commentId) {
         commentService.deleteComment(commentId);
         return ResponseEntity.noContent().build();

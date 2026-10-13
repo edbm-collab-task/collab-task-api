@@ -1,12 +1,15 @@
 package com.school.security.securities.utils;
 
 import com.school.security.entities.User;
+import com.school.security.enums.ActionType;
 import com.school.security.enums.PermissionType;
 import com.school.security.repositories.ProjectRepository;
 import com.school.security.repositories.UserProjectPermissionRepository;
 import com.school.security.repositories.UserRepository;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -115,6 +118,58 @@ public class PermissionEvaluator {
         } catch (IllegalArgumentException e) {
             return false;
         }
+    }
+
+    /**
+     * Vérifie si l'utilisateur authentifié possède une ACTION donnée sur une
+     * permission GLOBALE, en se basant uniquement sur les actions configurées
+     * sur les associations (rôle, permission) de ses rôles.
+     *
+     * <p>Une action est accordée si le nom de permission correspond à une
+     * association détenue par au moins un rôle de l'utilisateur ET que la liste
+     * d'actions de cette association contient l'action demandée.
+     *
+     * <p>Une permission accordée uniquement sur un projet précis
+     * ({@code user_project_permissions}) ne porte pas d'actions : elle n'est
+     * pas prise en compte ici. Un nom d'action inconnu de {@link ActionType}
+     * est refusé.
+     *
+     * @param permission nom de la permission (module), ex. {@code "MANAGE_TASKS"}
+     * @param action     action demandée, ex. {@code "INSERT"}
+     * @return {@code true} si l'action est accordée via un rôle, sinon
+     *         {@code false}
+     */
+    public boolean hasAction(String permission, String action) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+
+        User user = userRepository.findByEmail(auth.getName()).orElse(null);
+        if (user == null) return false;
+
+        try {
+            ActionType.valueOf(action);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            return false;
+        }
+
+        return user.getRoles().stream()
+                .flatMap(role -> role.getRolePermissions().stream())
+                .filter(rp -> rp.getPermission().getName().name().equals(permission))
+                .anyMatch(rp -> parseActions(rp.getActions()).contains(action));
+    }
+
+    /**
+     * Découpe la colonne {@code actions} (valeurs séparées par des virgules)
+     * en un ensemble de noms d'actions, en ignorant les espaces et les entrées
+     * vides. Une valeur {@code null} ou blanche donne un ensemble vide (accès
+     * en lecture seule).
+     */
+    private static Set<String> parseActions(String actions) {
+        if (actions == null || actions.isBlank()) return Set.of();
+        return Arrays.stream(actions.split(","))
+                .map(String::trim)
+                .filter(a -> !a.isEmpty())
+                .collect(Collectors.toSet());
     }
 
     /**

@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
@@ -100,6 +101,7 @@ public class TaskAttachmentController {
      * éventuels dans {@code FileStorageService} s'appliquent.
      */
     @PostMapping(value = "/tasks/{taskId}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_ATTACHMENTS', 'INSERT')")
     public ResponseEntity<TaskAttachmentResDto> uploadAttachment(
             @PathVariable Long taskId,
             @RequestParam("file") MultipartFile file
@@ -174,6 +176,7 @@ public class TaskAttachmentController {
      * son identifiant.
      */
     @DeleteMapping("/tasks/attachments/{id}")
+    @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_ATTACHMENTS', 'DELETE')")
     public ResponseEntity<?> deleteAttachment(@PathVariable Long id) {
         TaskAttachment attachment = attachmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Pièce jointe non trouvée"));

@@ -2,10 +2,13 @@ package com.school.security.services.implementations;
 
 import com.school.security.dtos.requests.RoleReqDto;
 import com.school.security.dtos.responses.PermissionResDto;
+import com.school.security.dtos.responses.RoleActionsResDto;
 import com.school.security.dtos.responses.RoleResDto;
+import com.school.security.enums.ActionType;
 import com.school.security.enums.PermissionType;
 import com.school.security.entities.Permission;
 import com.school.security.entities.Role;
+import com.school.security.entities.RolePermission;
 import com.school.security.exceptions.BadRequestException;
 import com.school.security.exceptions.EntityException;
 import com.school.security.mappers.RoleMapper;
@@ -13,7 +16,11 @@ import com.school.security.repositories.PermissionRepository;
 import com.school.security.repositories.RoleRepository;
 import com.school.security.services.contracts.RoleService;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -173,6 +180,123 @@ public class RoleServiceImpl implements RoleService {
                 .collect(Collectors.toList());
         role.setPermissions(permissions);
         roleRepository.save(role);
+    }
+
+    /** Catalogue complet des actions gérables (INSERT, UPDATE, ...). */
+    @Override
+    public List<ActionType> findAllActions() {
+        return List.of(ActionType.values());
+    }
+
+    /**
+     * Actions de chaque rôle, indexées par identifiant de rôle, triées par
+     * identifiant pour un rendu déterministe.
+     */
+    @Override
+    public Map<Long, RoleActionsResDto> getActionsMap() {
+        Map<Long, RoleActionsResDto> result = new LinkedHashMap<>();
+        roleRepository.findAll().stream()
+                .sorted(Comparator.comparing(Role::getRolesId))
+                .forEach(role -> result.put(role.getRolesId(), toRoleActions(role)));
+        return result;
+    }
+
+    /** Actions d'un rôle, regroupées par module. */
+    @Override
+    public RoleActionsResDto getRoleActions(Long roleId) {
+        Role role = roleRepository.findById(roleId)
+                .orElseThrow(() -> new EntityException("Role not found with ID " + roleId));
+        return toRoleActions(role);
+    }
+
+    /**
+     * Remplace la configuration d'actions d'un rôle.
+     *
+     * <p>Le corps associe chaque module à sa liste d'actions ; une liste vide
+     * conserve l'accès en lecture seule. Les modules absents sont retirés du
+     * rôle (l'assignation d'une action implique l'accès au module). Les lignes
+     * existantes sont réutilisées afin d'éviter toute collision de clé
+     * composite lors du flush.
+     */
+    @Override
+    public RoleActionsResDto setRoleActions(Long roleId, Map<String, List<String>> actions) {
+        Role role = roleRepository.findById(roleId)
+                .orElseThrow(() -> new EntityException("Role not found with ID " + roleId));
+
+        Map<Long, RolePermission> existing = role.getRolePermissions().stream()
+                .collect(Collectors.toMap(
+                        rp -> rp.getPermission().getPermissionId(),
+                        rp -> rp,
+                        (a, b) -> a));
+
+        List<RolePermission> rebuilt = new ArrayList<>();
+        if (actions != null) {
+            for (Map.Entry<String, List<String>> entry : actions.entrySet()) {
+                Permission permission = permissionRepository.findByName(parsePermission(entry.getKey()))
+                        .orElseThrow(() -> new EntityException("Permission not found: " + entry.getKey()));
+                RolePermission rp = existing.get(permission.getPermissionId());
+                if (rp == null) {
+                    rp = new RolePermission();
+                    rp.setRole(role);
+                    rp.setPermission(permission);
+                }
+                rp.setActions(joinActions(entry.getValue()));
+                rebuilt.add(rp);
+            }
+        }
+
+        role.getRolePermissions().clear();
+        role.getRolePermissions().addAll(rebuilt);
+        roleRepository.save(role);
+        return toRoleActions(role);
+    }
+
+    /** Regroupe les actions d'un rôle par module, modules triés par nom. */
+    private RoleActionsResDto toRoleActions(Role role) {
+        Map<String, List<String>> permissions = new LinkedHashMap<>();
+        role.getRolePermissions().stream()
+                .sorted(Comparator.comparing(rp -> rp.getPermission().getName().name()))
+                .forEach(rp -> permissions.put(
+                        rp.getPermission().getName().name(),
+                        parseActions(rp.getActions())));
+        return new RoleActionsResDto(role.getName(), permissions);
+    }
+
+    /** Convertit une liste d'actions en chaîne normalisée, sans doublon. */
+    private String joinActions(List<String> actionNames) {
+        if (actionNames == null) return "";
+        return actionNames.stream()
+                .map(this::parseAction)
+                .map(Enum::name)
+                .distinct()
+                .collect(Collectors.joining(","));
+    }
+
+    /** Convertit une chaîne d'actions stockée en liste. */
+    private List<String> parseActions(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return new ArrayList<>();
+        }
+        return Arrays.stream(raw.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+    }
+
+    private PermissionType parsePermission(String name) {
+        try {
+            return PermissionType.valueOf(name);
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("Permission inconnue : " + name);
+        }
+    }
+
+    private ActionType parseAction(String name) {
+        try {
+            return ActionType.valueOf(name);
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("Action inconnue : " + name);
+        }
     }
 
     /**

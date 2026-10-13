@@ -1,6 +1,7 @@
 package com.school.security.services.implementations;
 
 import com.school.security.dtos.requests.RoleReqDto;
+import com.school.security.dtos.responses.PermissionActionsResDto;
 import com.school.security.dtos.responses.PermissionResDto;
 import com.school.security.dtos.responses.RoleActionsResDto;
 import com.school.security.dtos.responses.RoleResDto;
@@ -161,6 +162,29 @@ public class RoleServiceImpl implements RoleService {
     public List<PermissionResDto> findAllPermissions() {
         return permissionRepository.findAllByOrderByCategoryPermissionAscNameAsc().stream()
                 .map(p -> new PermissionResDto(p.getPermissionId(), p.getName().name(), p.getDescription(), p.getCategoryPermission()))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Retourne toutes les permissions, chacune accompagnée de la liste complète
+     * des actions possibles ({@link ActionType}).
+     *
+     * <p>Le jeu d'actions est générique et réutilisé pour tous les modules : il
+     * est donc calculé une seule fois puis partagé par toutes les entrées. Le
+     * tri (catégorie puis nom) est identique à {@link #findAllPermissions()}.
+     */
+    @Override
+    public List<PermissionActionsResDto> findAllPermissionsWithActions() {
+        List<String> allActions = Arrays.stream(ActionType.values())
+                .map(Enum::name)
+                .collect(Collectors.toList());
+        return permissionRepository.findAllByOrderByCategoryPermissionAscNameAsc().stream()
+                .map(p -> new PermissionActionsResDto(
+                        p.getPermissionId(),
+                        p.getName().name(),
+                        p.getDescription(),
+                        p.getCategoryPermission(),
+                        allActions))
                 .collect(Collectors.toList());
     }
 

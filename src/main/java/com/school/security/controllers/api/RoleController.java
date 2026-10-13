@@ -1,6 +1,7 @@
 package com.school.security.controllers.api;
 
 import com.school.security.dtos.requests.RoleReqDto;
+import com.school.security.dtos.responses.PermissionActionsResDto;
 import com.school.security.dtos.responses.PermissionResDto;
 import com.school.security.dtos.responses.RoleActionsResDto;
 import com.school.security.dtos.responses.RoleResDto;
@@ -134,6 +135,22 @@ public class RoleController {
     @GetMapping("/permissions")
     public ResponseEntity<List<PermissionResDto>> getAllPermissions() {
         return ResponseEntity.ok(roleService.findAllPermissions());
+    }
+
+    /**
+     * Catalogue des permissions accompagnées de leurs actions possibles
+     * ({@code GET /roles/permissions/actions}).
+     *
+     * <p>Lecture publique au niveau de la filter-chain ({@code permitAll}).
+     * Chaque permission est exposée avec la liste complète des actions
+     * ({@code ActionType}) qui peuvent lui être accordées ; le jeu est générique
+     * et identique pour tous les modules. Sert de base à la page « permissions +
+     * actions » : les cases d'actions se construisent à partir de ces listes,
+     * l'état coché par rôle restant lu via {@code GET /roles/{id}/actions}.
+     */
+    @GetMapping("/permissions/actions")
+    public ResponseEntity<List<PermissionActionsResDto>> getAllPermissionsWithActions() {
+        return ResponseEntity.ok(roleService.findAllPermissionsWithActions());
     }
 
     /**

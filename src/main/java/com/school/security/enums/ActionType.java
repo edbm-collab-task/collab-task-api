@@ -8,6 +8,13 @@ package com.school.security.enums;
  * générique et réutilisé pour tous les modules.
  */
 public enum ActionType {
+    /**
+     * Voir / accéder à la page du module. Action de lecture de base : c'est
+     * elle qui pilote la visibilité de la page pour un rôle (cochée = page
+     * visible, décochée = page masquée).
+     */
+    SELECT,
+
     /** Créer / ajouter un nouvel élément. */
     INSERT,
 

@@ -1,6 +1,7 @@
 package com.school.security.services.contracts;
 
 import com.school.security.dtos.requests.RoleReqDto;
+import com.school.security.dtos.responses.PermissionActionsResDto;
 import com.school.security.dtos.responses.PermissionResDto;
 import com.school.security.dtos.responses.RoleActionsResDto;
 import com.school.security.dtos.responses.RoleResDto;
@@ -17,6 +18,13 @@ public interface RoleService {
     void delete(Long id);
     List<PermissionResDto> findAllPermissions();
     void addPermissions(Long roleId, List<PermissionType> permissionNames);
+
+    /**
+     * Catalogue des permissions, chacune accompagnée de toutes les actions
+     * possibles ({@code ActionType}) pour construire une page
+     * « permissions + actions » côté frontend.
+     */
+    List<PermissionActionsResDto> findAllPermissionsWithActions();
 
     /** Catalogue des actions gérables (INSERT, UPDATE, DELETE, ...). */
     List<ActionType> findAllActions();

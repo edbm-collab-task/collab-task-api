@@ -352,14 +352,14 @@ ALTER TABLE roles_permissions ADD COLUMN IF NOT EXISTS actions VARCHAR(255);
 -- avant l'introduction de la fonctionnalité). Toute configuration définie via
 -- l'API (y compris une liste vide "") n'est jamais écrasée.
 UPDATE roles_permissions rp
-SET actions = 'INSERT,UPDATE,DELETE,GENERATE_REPORT,EXPORT'
+SET actions = 'SELECT,INSERT,UPDATE,DELETE,GENERATE_REPORT,EXPORT'
 FROM roles r
 WHERE rp.roles_id = r.roles_id
   AND r.name = 'SUPER_ADMIN'
   AND rp.actions IS NULL;
 
 UPDATE roles_permissions rp
-SET actions = 'INSERT,UPDATE,DELETE,GENERATE_REPORT,EXPORT'
+SET actions = 'SELECT,INSERT,UPDATE,DELETE,GENERATE_REPORT,EXPORT'
 FROM roles r
 WHERE rp.roles_id = r.roles_id
   AND r.name = 'ADMIN'
@@ -393,7 +393,7 @@ WHERE p.name IN ('MANAGE_TASKS', 'MANAGE_COMMENTS', 'MANAGE_ATTACHMENTS', 'MANAG
 -- créées (NULL). Une configuration déjà définie (y compris "") n'est pas
 -- écrasée.
 UPDATE roles_permissions rp
-SET actions = 'INSERT,UPDATE,DELETE,GENERATE_REPORT,EXPORT'
+SET actions = 'SELECT,INSERT,UPDATE,DELETE,GENERATE_REPORT,EXPORT'
 FROM permissions p
 WHERE rp.permission_id = p.permission_id
   AND p.name IN ('MANAGE_TASKS', 'MANAGE_COMMENTS', 'MANAGE_ATTACHMENTS', 'MANAGE_MESSAGES')

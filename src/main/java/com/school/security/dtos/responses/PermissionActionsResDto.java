@@ -4,23 +4,25 @@ import com.school.security.enums.PermissionCategoryType;
 import java.util.List;
 
 /**
- * Représentation d'une permission accompagnée des actions qui peuvent lui être
- * accordées.
+ * Représentation d'une permission (module) accompagnée des actions qui peuvent
+ * lui être accordées.
  *
- * <p>Catalogue destiné au frontend : chaque module ({@code name}) est exposé
- * avec la liste complète des actions possibles ({@code ActionType}). Le jeu
- * d'actions est générique et identique pour tous les modules ; il sert à
- * construire les cases à cocher d'actions côté client.
- *
- * <p>Forme renvoyée par {@code GET /roles/permissions/actions} :
+ * <p>Catalogue destiné au frontend, renvoyé par
+ * {@code GET /roles/permissions/actions}. Chaque action est décrite par son
+ * {@link ActionResDto code binaire, nom et libellé} ; {@code totalActions} est
+ * la somme des codes (masque) des actions disponibles sur le module.
  *
  * <pre>
  * {
  *   "id": 12,
  *   "name": "MANAGE_TASKS",
- *   "description": "Gestion des t\u00e2ches",
+ *   "description": "Créer et gérer les tâches",
  *   "categoryPermission": "PROJETS",
- *   "actions": ["INSERT", "UPDATE", "DELETE", "GENERATE_REPORT", "EXPORT"]
+ *   "actions": [
+ *     { "codeAction": 1, "name": "INSERT", "label": "Insérer" },
+ *     { "codeAction": 2, "name": "SELECT", "label": "Voir" }
+ *   ],
+ *   "totalActions": 15
  * }
  * </pre>
  *
@@ -28,11 +30,13 @@ import java.util.List;
  * @param name nom technique de la permission (valeur de {@code PermissionType})
  * @param description libellé descriptif
  * @param categoryPermission catégorie d'appartenance
- * @param actions actions qu'un rôle peut se voir accorder sur ce module
+ * @param actions actions disponibles sur ce module
+ * @param totalActions masque (somme des codes) des actions disponibles
  */
 public record PermissionActionsResDto(
         Long id,
         String name,
         String description,
         PermissionCategoryType categoryPermission,
-        List<String> actions) {}
+        List<ActionResDto> actions,
+        Integer totalActions) {}

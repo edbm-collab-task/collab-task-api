@@ -9,9 +9,11 @@ import lombok.*;
  * {@link com.school.security.enums.ActionType actions} accordées sur ce module.
  *
  * <p>Représente la table existante {@code roles_permissions} : c'est la même
- * table, pas une table supplémentaire. La colonne {@code actions} stocke une
- * liste d'actions séparées par des virgules (ex. {@code "INSERT,UPDATE"}) ;
- * {@code null} ou vide signifie « accès en lecture seule ».
+ * table, pas une table supplémentaire. La colonne {@code actions} stocke le
+ * <strong>masque binaire</strong> des actions accordées (somme des
+ * {@code code_action} de {@link com.school.security.enums.ActionType}, ex.
+ * {@code 3} = INSERT + SELECT) ; {@code 0} ou {@code null} signifie « accès en
+ * lecture seule ».
  *
  * <p>La clé primaire est composite ({@code roles_id}, {@code permission_id}) :
  * une seule ligne par couple (rôle, permission).
@@ -34,11 +36,11 @@ public class RolePermission implements Serializable {
     private Permission permission;
 
     /**
-     * Actions accordées, séparées par des virgules (ex. {@code "INSERT,UPDATE"}).
-     * Vide ou {@code null} = accès seul (lecture).
+     * Masque binaire des actions accordées (somme des {@code code_action}).
+     * {@code 0} ou {@code null} = accès seul (lecture).
      */
-    @Column(name = "actions", length = 255)
-    private String actions;
+    @Column(name = "actions")
+    private Integer actions;
 
     public Role getRole() {
         return role;
@@ -56,11 +58,11 @@ public class RolePermission implements Serializable {
         this.permission = permission;
     }
 
-    public String getActions() {
+    public Integer getActions() {
         return actions;
     }
 
-    public void setActions(String actions) {
+    public void setActions(Integer actions) {
         this.actions = actions;
     }
 }

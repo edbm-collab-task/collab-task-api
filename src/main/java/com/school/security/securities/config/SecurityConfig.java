@@ -154,6 +154,7 @@ public class SecurityConfig {
         .requestMatchers(HttpMethod.POST, "/roles").hasAuthority("SUPER_ADMIN")
         .requestMatchers(HttpMethod.PUT, "/roles/{id}").hasAuthority("SUPER_ADMIN")
         .requestMatchers(HttpMethod.PUT, "/roles/{id}/actions").hasAuthority("SUPER_ADMIN")
+        .requestMatchers(HttpMethod.PUT, "/roles/permissions/{id}/actions").hasAuthority("SUPER_ADMIN")
         .requestMatchers(HttpMethod.DELETE, "/roles/{id}").hasAuthority("SUPER_ADMIN")
         // Rapports projet : publics au niveau filter-chain, mais la logique
         // d'accès (super-admin, admin, owner ou contributeur) est vérifiée

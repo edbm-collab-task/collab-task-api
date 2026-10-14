@@ -1,6 +1,7 @@
 package com.school.security.controllers.api;
 
 import com.school.security.dtos.requests.RoleReqDto;
+import com.school.security.dtos.responses.ActionResDto;
 import com.school.security.dtos.responses.PermissionActionsResDto;
 import com.school.security.dtos.responses.PermissionResDto;
 import com.school.security.dtos.responses.RoleActionsResDto;
@@ -9,7 +10,6 @@ import com.school.security.enums.PermissionType;
 import com.school.security.services.contracts.RoleService;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -157,15 +157,13 @@ public class RoleController {
      * Catalogue des actions gérables ({@code GET /roles/actions}).
      *
      * <p>Lecture publique au niveau de la filter-chain ({@code permitAll}).
-     * Renvoie les noms techniques des actions (INSERT, UPDATE, DELETE,
-     * GENERATE_REPORT, EXPORT) ; les libellés lisibles sont fournis par le
-     * client. Délègue à {@code RoleService.findAllActions()}.
+     * Renvoie chaque action avec son code binaire et son libellé
+     * ({@code [{codeAction, name, label}]}). Délègue à
+     * {@code RoleService.findAllActions()}.
      */
     @GetMapping("/actions")
-    public ResponseEntity<List<String>> getActions() {
-        return ResponseEntity.ok(roleService.findAllActions().stream()
-                .map(Enum::name)
-                .collect(Collectors.toList()));
+    public ResponseEntity<List<ActionResDto>> getActions() {
+        return ResponseEntity.ok(roleService.findAllActions());
     }
 
     /**
@@ -205,5 +203,21 @@ public class RoleController {
     public ResponseEntity<RoleActionsResDto> setRoleActions(
             @PathVariable Long id, @RequestBody Map<String, List<String>> actions) {
         return ResponseEntity.ok(roleService.setRoleActions(id, actions));
+    }
+
+    /**
+     * Redéfinit les actions disponibles d'un module
+     * ({@code PUT /roles/permissions/{id}/actions}).
+     *
+     * <p>Protégé par la filter-chain : autorité {@code SUPER_ADMIN} uniquement.
+     * Le corps est la liste des noms techniques d'actions à conserver sur le
+     * module. Le {@code totalActions} du module est recalculé et les actions
+     * retirées sont retirées des masques accordés des rôles. Délègue à
+     * {@code RoleService.updatePermissionActions(id, actionNames)}.
+     */
+    @PutMapping("/permissions/{id}/actions")
+    public ResponseEntity<PermissionActionsResDto> updatePermissionActions(
+            @PathVariable Long id, @RequestBody List<String> actionNames) {
+        return ResponseEntity.ok(roleService.updatePermissionActions(id, actionNames));
     }
 }

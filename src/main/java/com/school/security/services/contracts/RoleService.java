@@ -1,11 +1,11 @@
 package com.school.security.services.contracts;
 
 import com.school.security.dtos.requests.RoleReqDto;
+import com.school.security.dtos.responses.ActionResDto;
 import com.school.security.dtos.responses.PermissionActionsResDto;
 import com.school.security.dtos.responses.PermissionResDto;
 import com.school.security.dtos.responses.RoleActionsResDto;
 import com.school.security.dtos.responses.RoleResDto;
-import com.school.security.enums.ActionType;
 import com.school.security.enums.PermissionType;
 import java.util.List;
 import java.util.Map;
@@ -26,8 +26,11 @@ public interface RoleService {
      */
     List<PermissionActionsResDto> findAllPermissionsWithActions();
 
-    /** Catalogue des actions gérables (INSERT, UPDATE, DELETE, ...). */
-    List<ActionType> findAllActions();
+    /**
+     * Catalogue des actions gérables, chacune exposée avec son code binaire
+     * et son libellé ({@code [{codeAction, name, label}]}).
+     */
+    List<ActionResDto> findAllActions();
 
     /** Actions de chaque rôle, indexées par identifiant de rôle. */
     Map<Long, RoleActionsResDto> getActionsMap();
@@ -37,4 +40,11 @@ public interface RoleService {
 
     /** Remplace la configuration d'actions d'un rôle ({@code module -> [actions]}). */
     RoleActionsResDto setRoleActions(Long roleId, Map<String, List<String>> actions);
+
+    /**
+     * Redéfinit les actions disponibles d'un module (permission) : la liste
+     * fournie devient la référence. Recalcule {@code totalActions} et retire des
+     * masques accordés des rôles les bits devenus indisponibles.
+     */
+    PermissionActionsResDto updatePermissionActions(Long permissionId, List<String> actionNames);
 }

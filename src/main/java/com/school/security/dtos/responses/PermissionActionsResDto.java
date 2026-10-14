@@ -1,16 +1,16 @@
 package com.school.security.dtos.responses;
 
 import com.school.security.enums.PermissionCategoryType;
-import java.util.List;
 
 /**
- * Représentation d'une permission (module) accompagnée des actions qui peuvent
- * lui être accordées.
+ * Représentation d'une permission (module) avec le masque de ses actions
+ * disponibles.
  *
  * <p>Catalogue destiné au frontend, renvoyé par
- * {@code GET /roles/permissions/actions}. Chaque action est décrite par son
- * {@link ActionResDto code binaire, nom et libellé} ; {@code totalActions} est
- * la somme des codes (masque) des actions disponibles sur le module.
+ * {@code GET /roles/permissions/actions}. {@code totalActions} est la somme des
+ * codes (masque) des actions disponibles sur le module ; le détail des actions
+ * ({@code codeAction}, nom, libellé) n'est plus répété ici mais fourni une seule
+ * fois par {@code GET /roles/actions}.
  *
  * <pre>
  * {
@@ -18,10 +18,6 @@ import java.util.List;
  *   "name": "MANAGE_TASKS",
  *   "description": "Créer et gérer les tâches",
  *   "categoryPermission": "PROJETS",
- *   "actions": [
- *     { "codeAction": 1, "name": "INSERT", "label": "Insérer" },
- *     { "codeAction": 2, "name": "SELECT", "label": "Voir" }
- *   ],
  *   "totalActions": 15
  * }
  * </pre>
@@ -30,7 +26,6 @@ import java.util.List;
  * @param name nom technique de la permission (valeur de {@code PermissionType})
  * @param description libellé descriptif
  * @param categoryPermission catégorie d'appartenance
- * @param actions actions disponibles sur ce module
  * @param totalActions masque (somme des codes) des actions disponibles
  */
 public record PermissionActionsResDto(
@@ -38,5 +33,4 @@ public record PermissionActionsResDto(
         String name,
         String description,
         PermissionCategoryType categoryPermission,
-        List<ActionResDto> actions,
         Integer totalActions) {}

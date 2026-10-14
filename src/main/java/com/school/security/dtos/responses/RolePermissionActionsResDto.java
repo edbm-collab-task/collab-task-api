@@ -1,31 +1,24 @@
 package com.school.security.dtos.responses;
 
-import java.util.List;
-
 /**
- * Actions d'un module pour un rôle donné, avec les deux totaux (masques).
+ * Actions d'un module pour un rôle donné, sous forme de masques binaires.
  *
  * <pre>
  * {
- *   "actions": [
- *     { "codeAction": 1, "name": "INSERT", "label": "Insérer" },
- *     { "codeAction": 2, "name": "SELECT", "label": "Voir" }
- *   ],
  *   "totalActions": 15,
  *   "totalActionsAccordees": 3
  * }
  * </pre>
  *
- * <p>{@code actions} liste toutes les actions <em>possibles</em> sur le module
- * (et non seulement celles accordées). C'est en comparant
- * {@code totalActionsAccordees} à chaque {@code codeAction} par un ET bit à bit
- * que le client détermine quelles actions sont cochées.
+ * <p>{@code totalActions} est le masque des actions <em>disponibles</em> sur le
+ * module ; {@code totalActionsAccordees} celui des actions <em>accordées</em> au
+ * rôle. Le détail des actions ({@code codeAction}, nom, libellé) est fourni une
+ * seule fois par {@code GET /roles/actions} ; le client détermine les cases
+ * cochées par un ET bit à bit entre les deux masques.
  *
  * @param totalActions masque des actions disponibles sur le module
  * @param totalActionsAccordees masque des actions accordées au rôle sur ce module
- * @param actions toutes les actions disponibles sur le module (avec code et libellé)
  */
 public record RolePermissionActionsResDto(
         Integer totalActions,
-        Integer totalActionsAccordees,
-        List<ActionResDto> actions) {}
+        Integer totalActionsAccordees) {}

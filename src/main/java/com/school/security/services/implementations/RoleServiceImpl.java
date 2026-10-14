@@ -188,7 +188,6 @@ public class RoleServiceImpl implements RoleService {
                         p.getName().name(),
                         p.getDescription(),
                         p.getCategoryPermission(),
-                        toActionDtos(p.getActions()),
                         p.getTotalActions()))
                 .collect(Collectors.toList());
     }
@@ -217,7 +216,9 @@ public class RoleServiceImpl implements RoleService {
      */
     @Override
     public List<ActionResDto> findAllActions() {
-        return toActionDtos(actionRepository.findAllByOrderByCodeActionAsc());
+        return actionRepository.findAllByOrderByCodeActionAsc().stream()
+                .map(a -> new ActionResDto(a.getCodeAction(), a.getName(), a.getLabel()))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -343,7 +344,6 @@ public class RoleServiceImpl implements RoleService {
                 permission.getName().name(),
                 permission.getDescription(),
                 permission.getCategoryPermission(),
-                toActionDtos(resolved),
                 total);
     }
 
@@ -354,18 +354,9 @@ public class RoleServiceImpl implements RoleService {
             Permission permission = rp.getPermission();
             permissions.put(permission.getName().name(), new RolePermissionActionsResDto(
                     permission.getTotalActions(),
-                    rp.getActions() == null ? 0 : rp.getActions(),
-                    toActionDtos(permission.getActions())));
+                    rp.getActions() == null ? 0 : rp.getActions()));
         }
         return new RoleActionsResDto(role.getName(), permissions);
-    }
-
-    /** Convertit les actions en DTO (triées par code binaire). */
-    private List<ActionResDto> toActionDtos(Collection<Action> actions) {
-        return actions.stream()
-                .sorted(Comparator.comparing(Action::getCodeAction))
-                .map(a -> new ActionResDto(a.getCodeAction(), a.getName(), a.getLabel()))
-                .collect(Collectors.toList());
     }
 
     /** Masque (somme des codes) d'un ensemble d'actions. */

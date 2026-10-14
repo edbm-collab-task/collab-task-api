@@ -9,7 +9,6 @@ package com.school.security.enums;
  * côté contrôleur/service.
  */
 public enum PermissionType {
-    VIEW_USERS,
     MANAGE_USERS,
     MANAGE_ADMINS,
     MANAGE_ROLES,

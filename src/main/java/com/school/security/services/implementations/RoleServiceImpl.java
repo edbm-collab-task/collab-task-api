@@ -24,6 +24,7 @@ import com.school.security.services.contracts.RoleService;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -68,6 +69,20 @@ public class RoleServiceImpl implements RoleService {
     private RoleMapper roleMapper;
     private ActionRepository actionRepository;
     private RolePermissionRepository rolePermissionRepository;
+
+    /**
+     * Permissions volontairement exclues de la gestion d'actions (masques).
+     *
+     * <p>{@code MANAGE_MESSAGES} n'est pas manipulé via l'API d'actions pour le
+     * moment : le module est masqué du catalogue ({@code GET
+     * /roles/permissions/actions}) et de la carte des rôles ({@code GET
+     * /roles/actions-map}). La permission et son enforcement ({@code
+     * @PreAuthorize} de {@code MessageController}) restent actifs, et sa
+     * configuration est préservée lors d'un {@code PUT /roles/{id}/actions}.
+     * Pour réactiver la gestion des actions des messages, retirer l'entrée ici.
+     */
+    private static final Set<PermissionType> ACTIONS_MANAGEMENT_EXCLUDED =
+            EnumSet.of(PermissionType.MANAGE_MESSAGES);
 
     /** Retourne l'ensemble des rôles avec leurs permissions associées. */
     @Override
@@ -173,16 +188,17 @@ public class RoleServiceImpl implements RoleService {
     }
 
     /**
-     * Catalogue : chaque permission accompagnée des actions disponibles sur ce
-     * module (objets {@code codeAction/name/label}) et du masque
-     * {@code totalActions} (somme des codes).
+     * Catalogue : chaque permission accompagnée de son masque
+     * {@code totalActions} (somme des codes des actions disponibles).
      *
      * <p>Sert au frontend à construire les cases à cocher d'actions. Les
-     * permissions sont triées par catégorie puis par nom.
+     * permissions sont triées par catégorie puis par nom. Les modules exclus de
+     * la gestion d'actions ({@link #ACTIONS_MANAGEMENT_EXCLUDED}) sont omis.
      */
     @Override
     public List<PermissionActionsResDto> findAllPermissionsWithActions() {
         return permissionRepository.findAllByOrderByCategoryPermissionAscNameAsc().stream()
+                .filter(p -> !ACTIONS_MANAGEMENT_EXCLUDED.contains(p.getName()))
                 .map(p -> new PermissionActionsResDto(
                         p.getPermissionId(),
                         p.getName().name(),
@@ -268,7 +284,11 @@ public class RoleServiceImpl implements RoleService {
         List<RolePermission> rebuilt = new ArrayList<>();
         if (actions != null) {
             for (Map.Entry<String, List<String>> entry : actions.entrySet()) {
-                Permission permission = permissionRepository.findByName(parsePermission(entry.getKey()))
+                PermissionType permType = parsePermission(entry.getKey());
+                if (ACTIONS_MANAGEMENT_EXCLUDED.contains(permType)) {
+                    continue;
+                }
+                Permission permission = permissionRepository.findByName(permType)
                         .orElseThrow(() -> new EntityException("Permission not found: " + entry.getKey()));
 
                 Set<String> available = actionNames(permission);
@@ -291,6 +311,18 @@ public class RoleServiceImpl implements RoleService {
                 rp.setActions(mask);
                 rebuilt.add(rp);
             }
+        }
+
+        // Les modules exclus de la gestion d'actions (MANAGE_MESSAGES) ne figurent
+        // pas dans le corps : on réinjecte leur configuration existante pour ne
+        // pas la perdre, le PUT remplaçant l'ensemble des permissions du rôle.
+        for (PermissionType excluded : ACTIONS_MANAGEMENT_EXCLUDED) {
+            permissionRepository.findByName(excluded).ifPresent(permission -> {
+                RolePermission rp = existing.get(permission.getPermissionId());
+                if (rp != null) {
+                    rebuilt.add(rp);
+                }
+            });
         }
 
         role.getRolePermissions().clear();
@@ -352,6 +384,9 @@ public class RoleServiceImpl implements RoleService {
         Map<String, RolePermissionActionsResDto> permissions = new java.util.TreeMap<>();
         for (RolePermission rp : role.getRolePermissions()) {
             Permission permission = rp.getPermission();
+            if (ACTIONS_MANAGEMENT_EXCLUDED.contains(permission.getName())) {
+                continue;
+            }
             permissions.put(permission.getName().name(), new RolePermissionActionsResDto(
                     permission.getTotalActions(),
                     rp.getActions() == null ? 0 : rp.getActions()));

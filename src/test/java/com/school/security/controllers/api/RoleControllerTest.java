@@ -120,8 +120,8 @@ class RoleControllerTest {
                                                         PermissionCategoryType.PROJETS),
                                                 new PermissionResDto(
                                                         2L,
-                                                        "VIEW_USERS",
-                                                        "Voir la liste des utilisateurs",
+                                                        "MANAGE_USERS",
+                                                        "Créer, modifier, supprimer des utilisateurs",
                                                         PermissionCategoryType.UTILISATEURS)))));
 
         mockMvc.perform(get("/roles").accept(MediaType.APPLICATION_JSON))

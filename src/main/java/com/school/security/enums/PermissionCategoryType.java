@@ -16,6 +16,9 @@ public enum PermissionCategoryType {
     /** Cycle de vie des projets et de leurs contributeurs. */
     PROJETS,
 
+    /** Commentaires et pièces jointes associés aux tâches. */
+    COMMENTAIRE,
+
     /** Structure de l'organisation : rôles et directions. */
     ORGANISATION,
 

@@ -44,13 +44,13 @@ class RoleServiceImplTest {
 
     @InjectMocks private RoleServiceImpl roleService;
 
-    private Permission viewUsers;
+    private Permission manageUsers;
     private Permission manageProjects;
     private Permission manageRoles;
 
     @BeforeEach
     void setUp() {
-        viewUsers = buildPermission(1L, PermissionType.VIEW_USERS, PermissionCategoryType.UTILISATEURS);
+        manageUsers = buildPermission(1L, PermissionType.MANAGE_USERS, PermissionCategoryType.UTILISATEURS);
         manageProjects = buildPermission(2L, PermissionType.MANAGE_PROJECTS, PermissionCategoryType.PROJETS);
         manageRoles = buildPermission(3L, PermissionType.MANAGE_ROLES, PermissionCategoryType.ORGANISATION);
     }
@@ -60,14 +60,14 @@ class RoleServiceImplTest {
     @Test
     void findAllPermissionsShouldExposeCategoryPermission() {
         when(permissionRepository.findAllByOrderByCategoryPermissionAscNameAsc())
-                .thenReturn(List.of(viewUsers, manageProjects, manageRoles));
+                .thenReturn(List.of(manageUsers, manageProjects, manageRoles));
 
         List<PermissionResDto> result = roleService.findAllPermissions();
 
         assertEquals(3, result.size());
         assertEquals(1L, result.get(0).id());
-        assertEquals("VIEW_USERS", result.get(0).name());
-        assertEquals("Description VIEW_USERS", result.get(0).description());
+        assertEquals("MANAGE_USERS", result.get(0).name());
+        assertEquals("Description MANAGE_USERS", result.get(0).description());
         assertEquals(PermissionCategoryType.UTILISATEURS, result.get(0).categoryPermission());
         assertEquals(PermissionCategoryType.PROJETS, result.get(1).categoryPermission());
         assertEquals(PermissionCategoryType.ORGANISATION, result.get(2).categoryPermission());
@@ -76,7 +76,7 @@ class RoleServiceImplTest {
     @Test
     void findAllPermissionsShouldUseTheCategorizedSortedQuery() {
         when(permissionRepository.findAllByOrderByCategoryPermissionAscNameAsc())
-                .thenReturn(List.of(viewUsers));
+                .thenReturn(List.of(manageUsers));
 
         roleService.findAllPermissions();
 

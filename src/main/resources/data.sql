@@ -60,14 +60,39 @@ ALTER TABLE permissions ADD COLUMN IF NOT EXISTS category_permission VARCHAR(50)
 -- déclarait nullable = false, ce qui aurait pu poser un NOT NULL en base.
 ALTER TABLE permissions ALTER COLUMN category_permission DROP NOT NULL;
 
+-- La contrainte de catégorie est retirée AVANT tous les UPDATE ci-dessous : le
+-- script s'exécute à chaque démarrage et la contrainte laissée par le boot
+-- précédent n'autorise pas encore la nouvelle catégorie COMMENTAIRE. Sans ce
+-- DROP anticipé, les UPDATE qui écrivent COMMENTAIRE échoueraient. La contrainte
+-- est recréée (COMMENTAIRE inclus) après les UPDATE.
+-- Hibernate (ddl-auto=update) génère par ailleurs sa propre contrainte pour
+-- l'enum @Enumerated(STRING) sous le nom permissions_category_permission_check
+-- et ne la met PAS à jour quand l'énumération gagne une valeur : il faut donc
+-- également la retirer sous peine de blocage à l'écriture de COMMENTAIRE.
+ALTER TABLE permissions DROP CONSTRAINT IF EXISTS permissions_category_check;
+ALTER TABLE permissions DROP CONSTRAINT IF EXISTS permissions_category_permission_check;
+
+-- Suppression de la permission redondante VIEW_USERS : le droit de consultation
+-- est désormais porté par l'action SELECT de MANAGE_USERS. Les clés étrangères
+-- imposent de purger d'abord les associations dépendantes (rôles et actions),
+-- puis la permission elle-même. Idempotent. DOIT précéder la recréation de
+-- permissions_name_check (qui n'autorise plus VIEW_USERS), sinon l'ajout de la
+-- contrainte échouerait sur la ligne encore présente.
+DELETE FROM roles_permissions
+WHERE permission_id IN (SELECT permission_id FROM permissions WHERE name = 'VIEW_USERS');
+
+DELETE FROM permissions_actions
+WHERE permission_id IN (SELECT permission_id FROM permissions WHERE name = 'VIEW_USERS');
+
+DELETE FROM permissions WHERE name = 'VIEW_USERS';
+
 ALTER TABLE permissions DROP CONSTRAINT IF EXISTS permissions_name_check;
-ALTER TABLE permissions ADD CONSTRAINT permissions_name_check CHECK (name IN ('VIEW_USERS','MANAGE_USERS','MANAGE_ADMINS','MANAGE_ROLES','MANAGE_PROJECTS','MANAGE_PROJECT_CONTRIBUTORS','MANAGE_DIRECTIONS','MANAGE_STATUSES','VIEW_REPORTS','MANAGE_TASKS','MANAGE_COMMENTS','MANAGE_ATTACHMENTS','MANAGE_MESSAGES'));
+ALTER TABLE permissions ADD CONSTRAINT permissions_name_check CHECK (name IN ('MANAGE_USERS','MANAGE_ADMINS','MANAGE_ROLES','MANAGE_PROJECTS','MANAGE_PROJECT_CONTRIBUTORS','MANAGE_DIRECTIONS','MANAGE_STATUSES','VIEW_REPORTS','MANAGE_TASKS','MANAGE_COMMENTS','MANAGE_ATTACHMENTS','MANAGE_MESSAGES'));
 
 INSERT INTO permissions (name, description, category_permission)
 SELECT perm_name, perm_desc, perm_cat
 FROM (
          VALUES
-             ('VIEW_USERS', 'Voir la liste des utilisateurs', 'UTILISATEURS'),
              ('MANAGE_USERS', 'Créer, modifier, supprimer des utilisateurs', 'UTILISATEURS'),
              ('MANAGE_ADMINS', 'Gérer les comptes administrateurs', 'UTILISATEURS'),
              ('MANAGE_ROLES', 'Gérer les rôles et permissions', 'ORGANISATION'),
@@ -77,8 +102,8 @@ FROM (
              ('MANAGE_STATUSES', 'Gérer les statuts', 'AUTRES'),
              ('VIEW_REPORTS', 'Voir les rapports et statistiques', 'RAPPORTS'),
              ('MANAGE_TASKS', 'Créer et gérer les tâches', 'PROJETS'),
-             ('MANAGE_COMMENTS', 'Commenter et gérer les commentaires', 'PROJETS'),
-             ('MANAGE_ATTACHMENTS', 'Ajouter et gérer les pièces jointes', 'PROJETS'),
+             ('MANAGE_COMMENTS', 'Commenter et gérer les commentaires', 'COMMENTAIRE'),
+             ('MANAGE_ATTACHMENTS', 'Ajouter et gérer les pièces jointes', 'COMMENTAIRE'),
              ('MANAGE_MESSAGES', 'Envoyer et gérer les messages', 'AUTRES')
      ) AS permissions_to_insert(perm_name, perm_desc, perm_cat)
 WHERE NOT EXISTS (
@@ -98,7 +123,6 @@ WHERE NOT EXISTS (
 -- DOIT précéder l'ajout de la contrainte CHECK ci-dessous, sinon la création
 -- de la contrainte échoue sur la ligne fautive et data.sql avorte.
 UPDATE permissions SET category_permission = CASE name
-     WHEN 'VIEW_USERS' THEN 'UTILISATEURS'
      WHEN 'MANAGE_USERS' THEN 'UTILISATEURS'
      WHEN 'MANAGE_ADMINS' THEN 'UTILISATEURS'
      WHEN 'MANAGE_ROLES' THEN 'ORGANISATION'
@@ -108,22 +132,28 @@ UPDATE permissions SET category_permission = CASE name
      WHEN 'MANAGE_STATUSES' THEN 'AUTRES'
      WHEN 'VIEW_REPORTS' THEN 'RAPPORTS'
      WHEN 'MANAGE_TASKS' THEN 'PROJETS'
-     WHEN 'MANAGE_COMMENTS' THEN 'PROJETS'
-     WHEN 'MANAGE_ATTACHMENTS' THEN 'PROJETS'
+     WHEN 'MANAGE_COMMENTS' THEN 'COMMENTAIRE'
+     WHEN 'MANAGE_ATTACHMENTS' THEN 'COMMENTAIRE'
      WHEN 'MANAGE_MESSAGES' THEN 'AUTRES'
      ELSE 'AUTRES'
     END
 WHERE category_permission IS NULL
-   OR category_permission NOT IN ('UTILISATEURS', 'PROJETS', 'ORGANISATION', 'RAPPORTS', 'AUTRES');
+   OR category_permission NOT IN ('UTILISATEURS', 'PROJETS', 'COMMENTAIRE', 'ORGANISATION', 'RAPPORTS', 'AUTRES');
 
--- Empêche la réintroduction d'une valeur hors énumération.
--- Le DROP IF EXISTS est obligatoire : ce script s'exécute à chaque démarrage
--- (spring.sql.init.mode=always) et un simple ADD CONSTRAINT ferait échouer le
--- boot du deuxième démarrage.
-ALTER TABLE permissions DROP CONSTRAINT IF EXISTS permissions_category_check;
+-- Migration : MANAGE_COMMENTS et MANAGE_ATTACHMENTS rejoignent la catégorie
+-- COMMENTAIRE. Les lignes déjà en base portaient 'PROJETS' et ne sont donc pas
+-- rattrapées par l'UPDATE ci-dessus (leur valeur était valide). La contrainte
+-- de catégorie ayant été retirée en début de section, l'écriture est autorisée.
+-- Idempotent : ne s'applique que si la valeur diffère déjà de COMMENTAIRE.
+UPDATE permissions
+SET category_permission = 'COMMENTAIRE'
+WHERE name IN ('MANAGE_COMMENTS', 'MANAGE_ATTACHMENTS')
+  AND category_permission IS DISTINCT FROM 'COMMENTAIRE';
+
+-- Recrée la contrainte en autorisant la catégorie COMMENTAIRE.
 ALTER TABLE permissions ADD CONSTRAINT permissions_category_check
     CHECK (category_permission IS NULL
-           OR category_permission IN ('UTILISATEURS', 'PROJETS', 'ORGANISATION', 'RAPPORTS', 'AUTRES'));
+           OR category_permission IN ('UTILISATEURS', 'PROJETS', 'COMMENTAIRE', 'ORGANISATION', 'RAPPORTS', 'AUTRES'));
 
 -- =========================================================
 -- 4. Associer toutes les permissions au rôle SUPER_ADMIN
@@ -150,7 +180,7 @@ SELECT r.roles_id, p.permission_id
 FROM roles r
 CROSS JOIN permissions p
 WHERE r.name = 'ADMIN'
-  AND p.name IN ('VIEW_USERS', 'MANAGE_USERS', 'MANAGE_PROJECTS', 'VIEW_REPORTS',
+  AND p.name IN ('MANAGE_USERS', 'MANAGE_PROJECTS', 'VIEW_REPORTS',
                  'MANAGE_TASKS', 'MANAGE_COMMENTS', 'MANAGE_ATTACHMENTS', 'MANAGE_MESSAGES')
   AND NOT EXISTS (
       SELECT 1
@@ -379,7 +409,6 @@ INSERT INTO permissions_actions (permission_id, actions_id)
 SELECT p.permission_id, a.actions_id
 FROM (
          VALUES
-             ('VIEW_USERS', 'SELECT'),
              ('MANAGE_USERS', 'SELECT'), ('MANAGE_USERS', 'INSERT'), ('MANAGE_USERS', 'UPDATE'),
              ('MANAGE_ADMINS', 'SELECT'), ('MANAGE_ADMINS', 'INSERT'), ('MANAGE_ADMINS', 'UPDATE'),
              ('MANAGE_ROLES', 'SELECT'), ('MANAGE_ROLES', 'INSERT'), ('MANAGE_ROLES', 'UPDATE'),
@@ -427,7 +456,6 @@ ALTER TABLE roles_permissions ADD COLUMN IF NOT EXISTS actions INTEGER;
 -- PUT /roles/{id}/actions dès le premier démarrage.
 UPDATE roles_permissions rp
 SET actions = CASE p.name
-    WHEN 'VIEW_USERS' THEN 2
     WHEN 'MANAGE_USERS' THEN 7
     WHEN 'MANAGE_ADMINS' THEN 7
     WHEN 'MANAGE_ROLES' THEN 7

@@ -29,7 +29,8 @@ import org.springframework.web.multipart.MultipartFile;
  * d'ensemble par endpoint (vérifié dans {@code SecurityConfig}) :
  * <ul>
  *   <li>publics (aucune sécurité, via {@code permitAll}) : {@code GET
- *       /users} reste toutefois soumis à {@code @PreAuthorize(VIEW_USERS)},
+ *       /users} reste toutefois soumis à
+ *       {@code @PreAuthorize(hasAction('MANAGE_USERS','SELECT'))},
  *       {@code GET /users/email}, {@code GET /users/active},
  *       {@code GET /users/disable} et {@code GET /users/{id}/image} ;</li>
  *   <li>{@code PUT /users/pwd} reste {@code permitAll} (récupération de
@@ -40,7 +41,7 @@ import org.springframework.web.multipart.MultipartFile;
  *       {@code SUPER_ADMIN}, et {@code GET /users/admins} exige
  *       {@code SUPER_ADMIN} ;</li>
  *   <li>protégés par {@code @PreAuthorize} : {@code GET /users}
- *       ({@code VIEW_USERS}), {@code DELETE /users/{id}}
+ *       ({@code MANAGE_USERS} + action {@code SELECT}), {@code DELETE /users/{id}}
  *       ({@code MANAGE_USERS}), {@code PUT /users/role} et
  *       {@code DELETE /users/role} ({@code MANAGE_USERS}) ainsi que
  *       {@code GET /users/project/{id}/contributors}
@@ -66,12 +67,14 @@ public class UserController {
     /**
      * Liste tous les utilisateurs ({@code GET /users}).
      *
-     * <p>Bien que {@code permitAll} au niveau de la filter-chain, l'accès est
-     * restreint à la permission métier {@code VIEW_USERS} par
-     * {@code @PreAuthorize}. Délègue à {@code UserService.findAll()}.
+     * <p>Bien que {@code permitAll} au niveau de la filter-chain, l'accès exige
+     * la permission {@code MANAGE_USERS} et l'action {@code SELECT}
+     * ({@code VIEW_USERS} a été supprimée : la consultation est désormais
+     * couverte par l'action SELECT de {@code MANAGE_USERS}). Délègue à
+     * {@code UserService.findAll()}.
      */
     @GetMapping
-    @PreAuthorize("@permissionEvaluator.hasPermission('VIEW_USERS')")
+    @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_USERS', 'SELECT')")
     public List<UserResDto> getAllUsers() {
         return this.userService.findAll();
     }

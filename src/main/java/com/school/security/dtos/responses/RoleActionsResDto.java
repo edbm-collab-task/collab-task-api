@@ -5,7 +5,8 @@ import java.util.Map;
 /**
  * Actions autorisées pour un rôle, regroupées par module (permission).
  *
- * <p>Chaque module expose ses actions possibles et les deux totaux (masques) :
+ * <p>Chaque module expose les deux masques (sans le détail des actions, fourni
+ * par {@code GET /roles/actions}) :
  *
  * <pre>
  * {
@@ -13,12 +14,7 @@ import java.util.Map;
  *   "permissions": {
  *     "MANAGE_USERS": {
  *       "totalActions": 7,
- *       "totalActionsAccordees": 3,
- *       "actions": [
- *         { "codeAction": 1, "name": "INSERT", "label": "Insérer" },
- *         { "codeAction": 2, "name": "SELECT", "label": "Voir" },
- *         { "codeAction": 4, "name": "UPDATE", "label": "Modifier" }
- *       ]
+ *       "totalActionsAccordees": 3
  *     }
  *   }
  * }

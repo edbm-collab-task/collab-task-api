@@ -138,15 +138,15 @@ public class RoleController {
     }
 
     /**
-     * Catalogue des permissions accompagnées de leurs actions possibles
+     * Catalogue des permissions avec le masque de leurs actions disponibles
      * ({@code GET /roles/permissions/actions}).
      *
      * <p>Lecture publique au niveau de la filter-chain ({@code permitAll}).
-     * Chaque permission est exposée avec la liste complète des actions
-     * ({@code ActionType}) qui peuvent lui être accordées ; le jeu est générique
-     * et identique pour tous les modules. Sert de base à la page « permissions +
-     * actions » : les cases d'actions se construisent à partir de ces listes,
-     * l'état coché par rôle restant lu via {@code GET /roles/{id}/actions}.
+     * Chaque permission expose uniquement {@code totalActions} (masque des
+     * actions disponibles sur le module) : le détail des actions
+     * ({@code codeAction}, nom, libellé) n'est plus répété ici mais fourni par
+     * {@code GET /roles/actions}. Délègue à
+     * {@code RoleService.findAllPermissionsWithActions()}.
      */
     @GetMapping("/permissions/actions")
     public ResponseEntity<List<PermissionActionsResDto>> getAllPermissionsWithActions() {
@@ -170,8 +170,10 @@ public class RoleController {
      * Actions de chaque rôle ({@code GET /roles/actions-map}).
      *
      * <p>Lecture publique au niveau de la filter-chain ({@code permitAll}).
-     * Renvoie une map indexée par identifiant de rôle, chaque valeur exposant
-     * le nom du rôle et ses actions regroupées par module. Délègue à
+     * Renvoie une map indexée par identifiant de rôle ; chaque valeur expose le
+     * nom du rôle et, par module, les deux masques
+     * ({@code totalActions}, {@code totalActionsAccordees}) — sans le détail des
+     * actions (fourni par {@code GET /roles/actions}). Délègue à
      * {@code RoleService.getActionsMap()}.
      */
     @GetMapping("/actions-map")

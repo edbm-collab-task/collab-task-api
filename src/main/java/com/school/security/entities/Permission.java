@@ -4,6 +4,8 @@ import com.school.security.enums.PermissionCategoryType;
 import com.school.security.enums.PermissionType;
 import jakarta.persistence.*;
 import java.io.Serializable;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import lombok.*;
 
 @Entity
@@ -38,6 +40,28 @@ public class Permission implements Serializable {
 
     private String description;
 
+    /**
+     * Somme des {@code code_action} des actions rattachées à ce module
+     * (masque binaire). Exposé à l'API pour que le frontend sache quelles
+     * actions sont <em>possibles</em> sur ce module. Recalculé à chaque
+     * modification de {@link #actions}.
+     */
+    @Column(name = "total_actions")
+    private Integer totalActions;
+
+    /**
+     * Actions disponibles pour ce module (relation plusieurs-à-plusieurs via la
+     * table {@code permissions_actions}). Ajustable par l'administration :
+     * retirer une action la retire aussi des rôles qui la détenaient (voir
+     * {@code RoleServiceImpl.updatePermissionActions}).
+     */
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+            name = "permissions_actions",
+            joinColumns = @JoinColumn(name = "permission_id"),
+            inverseJoinColumns = @JoinColumn(name = "actions_id"))
+    private Set<Action> actions = new LinkedHashSet<>();
+
     public Long getPermissionId() {
         return permissionId;
     }
@@ -68,5 +92,21 @@ public class Permission implements Serializable {
 
     public void setCategoryPermission(PermissionCategoryType categoryPermission) {
         this.categoryPermission = categoryPermission;
+    }
+
+    public Integer getTotalActions() {
+        return totalActions;
+    }
+
+    public void setTotalActions(Integer totalActions) {
+        this.totalActions = totalActions;
+    }
+
+    public Set<Action> getActions() {
+        return actions;
+    }
+
+    public void setActions(Set<Action> actions) {
+        this.actions = actions;
     }
 }

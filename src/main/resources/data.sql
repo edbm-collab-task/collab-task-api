@@ -341,41 +341,125 @@ LEFT JOIN roles r ON r.roles_id = ur.roles_roles_id
 WHERE u.email IN ('admin@edbm.com', 'superadmin@edbm.com');
 
 -- =========================================================
--- 12. Actions par défaut des rôles (colonne sur roles_permissions)
+-- 12. Référentiel des actions (table actions + jointure permissions_actions)
+-- =========================================================
+-- Chaque action porte un code binaire (puissance de 2) ; les ensembles
+-- d'actions sont représentés par la somme de ces codes (masque).
+--   INSERT=1, SELECT=2, UPDATE=4, DELETE=8, GENERATE_REPORT=16, EXPORT=32
+
+CREATE TABLE IF NOT EXISTS actions (
+    actions_id  BIGSERIAL PRIMARY KEY,
+    code_action INTEGER NOT NULL UNIQUE,
+    name        VARCHAR(50) NOT NULL UNIQUE,
+    label       VARCHAR(100) NOT NULL
+);
+
+INSERT INTO actions (code_action, name, label)
+VALUES
+    (1,  'INSERT',          'Insérer'),
+    (2,  'SELECT',          'Voir'),
+    (4,  'UPDATE',          'Modifier'),
+    (8,  'DELETE',          'Supprimer'),
+    (16, 'GENERATE_REPORT', 'Générer un rapport'),
+    (32, 'EXPORT',          'Exporter')
+ON CONFLICT (code_action) DO NOTHING;
+
+-- Jointure plusieurs-à-plusieurs entre modules et actions : cet ensemble définit
+-- quelles actions existent pour chaque permission. Ajustable par l'API
+-- PUT /roles/permissions/{id}/actions.
+CREATE TABLE IF NOT EXISTS permissions_actions (
+    permission_id BIGINT NOT NULL REFERENCES permissions (permission_id),
+    actions_id    BIGINT NOT NULL REFERENCES actions (actions_id),
+    PRIMARY KEY (permission_id, actions_id)
+);
+
+-- Seed de la jointure, uniquement si elle est encore vide (création initiale).
+-- Une configuration ajustée via l'API n'est donc jamais réécrasée au démarrage.
+INSERT INTO permissions_actions (permission_id, actions_id)
+SELECT p.permission_id, a.actions_id
+FROM (
+         VALUES
+             ('VIEW_USERS', 'SELECT'),
+             ('MANAGE_USERS', 'SELECT'), ('MANAGE_USERS', 'INSERT'), ('MANAGE_USERS', 'UPDATE'),
+             ('MANAGE_ADMINS', 'SELECT'), ('MANAGE_ADMINS', 'INSERT'), ('MANAGE_ADMINS', 'UPDATE'),
+             ('MANAGE_ROLES', 'SELECT'), ('MANAGE_ROLES', 'INSERT'), ('MANAGE_ROLES', 'UPDATE'),
+             ('MANAGE_PROJECTS', 'SELECT'), ('MANAGE_PROJECTS', 'INSERT'), ('MANAGE_PROJECTS', 'UPDATE'), ('MANAGE_PROJECTS', 'DELETE'),
+             ('MANAGE_PROJECT_CONTRIBUTORS', 'SELECT'), ('MANAGE_PROJECT_CONTRIBUTORS', 'INSERT'), ('MANAGE_PROJECT_CONTRIBUTORS', 'DELETE'),
+             ('MANAGE_DIRECTIONS', 'SELECT'), ('MANAGE_DIRECTIONS', 'INSERT'), ('MANAGE_DIRECTIONS', 'DELETE'),
+             ('MANAGE_STATUSES', 'SELECT'), ('MANAGE_STATUSES', 'INSERT'), ('MANAGE_STATUSES', 'DELETE'),
+             ('VIEW_REPORTS', 'SELECT'), ('VIEW_REPORTS', 'GENERATE_REPORT'), ('VIEW_REPORTS', 'EXPORT'),
+             ('MANAGE_TASKS', 'SELECT'), ('MANAGE_TASKS', 'INSERT'), ('MANAGE_TASKS', 'UPDATE'), ('MANAGE_TASKS', 'DELETE'),
+             ('MANAGE_COMMENTS', 'SELECT'), ('MANAGE_COMMENTS', 'INSERT'), ('MANAGE_COMMENTS', 'UPDATE'), ('MANAGE_COMMENTS', 'DELETE'),
+             ('MANAGE_ATTACHMENTS', 'SELECT'), ('MANAGE_ATTACHMENTS', 'INSERT'), ('MANAGE_ATTACHMENTS', 'DELETE'), ('MANAGE_ATTACHMENTS', 'EXPORT'),
+             ('MANAGE_MESSAGES', 'SELECT'), ('MANAGE_MESSAGES', 'INSERT'), ('MANAGE_MESSAGES', 'DELETE'), ('MANAGE_MESSAGES', 'EXPORT')
+     ) AS mapping(perm_name, action_name)
+JOIN permissions p ON p.name = mapping.perm_name
+JOIN actions a ON a.name = mapping.action_name
+WHERE NOT EXISTS (SELECT 1 FROM permissions_actions);
+
+-- Total des actions disponibles par module (masque dénormalisé).
+ALTER TABLE permissions ADD COLUMN IF NOT EXISTS total_actions INTEGER;
+
+UPDATE permissions p
+SET total_actions = COALESCE((
+        SELECT SUM(a.code_action)
+        FROM permissions_actions pa
+        JOIN actions a ON a.actions_id = pa.actions_id
+        WHERE pa.permission_id = p.permission_id
+    ), 0)
+WHERE p.total_actions IS NULL;
+
+-- =========================================================
+-- 13. Actions par défaut des rôles (colonne sur roles_permissions)
 -- =========================================================
 
 -- La colonne est normalement déjà ajoutée par Hibernate (ddl-auto=update) ;
 -- le IF NOT EXISTS garantit l'exécution du script même dans le cas contraire.
-ALTER TABLE roles_permissions ADD COLUMN IF NOT EXISTS actions VARCHAR(255);
+-- Elle contient le masque binaire des actions accordées (somme des code_action).
+ALTER TABLE roles_permissions ADD COLUMN IF NOT EXISTS actions INTEGER;
 
 -- Seed idempotent, limité aux lignes dont la colonne est encore NULL (créées
 -- avant l'introduction de la fonctionnalité). Toute configuration définie via
--- l'API (y compris une liste vide "") n'est jamais écrasée.
+-- l'API (y compris un masque 0) n'est jamais écrasée.
+-- Les actions par défaut dépendent du module (cf. table permissions_actions) :
+-- chaque permission reçoit son propre masque, et non plus le jeu générique
+-- complet. On garde ainsi la base cohérente avec la validation de
+-- PUT /roles/{id}/actions dès le premier démarrage.
 UPDATE roles_permissions rp
-SET actions = 'SELECT,INSERT,UPDATE,DELETE,GENERATE_REPORT,EXPORT'
-FROM roles r
+SET actions = CASE p.name
+    WHEN 'VIEW_USERS' THEN 2
+    WHEN 'MANAGE_USERS' THEN 7
+    WHEN 'MANAGE_ADMINS' THEN 7
+    WHEN 'MANAGE_ROLES' THEN 7
+    WHEN 'MANAGE_PROJECTS' THEN 15
+    WHEN 'MANAGE_PROJECT_CONTRIBUTORS' THEN 11
+    WHEN 'MANAGE_DIRECTIONS' THEN 11
+    WHEN 'MANAGE_STATUSES' THEN 11
+    WHEN 'VIEW_REPORTS' THEN 50
+    WHEN 'MANAGE_TASKS' THEN 15
+    WHEN 'MANAGE_COMMENTS' THEN 15
+    WHEN 'MANAGE_ATTACHMENTS' THEN 43
+    WHEN 'MANAGE_MESSAGES' THEN 43
+    ELSE 2
+END
+FROM roles r, permissions p
 WHERE rp.roles_id = r.roles_id
-  AND r.name = 'SUPER_ADMIN'
-  AND rp.actions IS NULL;
-
-UPDATE roles_permissions rp
-SET actions = 'SELECT,INSERT,UPDATE,DELETE,GENERATE_REPORT,EXPORT'
-FROM roles r
-WHERE rp.roles_id = r.roles_id
-  AND r.name = 'ADMIN'
+  AND rp.permission_id = p.permission_id
+  AND r.name IN ('SUPER_ADMIN', 'ADMIN')
   AND rp.actions IS NULL;
 
 -- =========================================================
--- 13. Grandfathering de l'enforcement (actions Tâches/Commentaires/
+-- 14. Grandfathering de l'enforcement (actions Tâches/Commentaires/
 --     Pièces jointes/Messages)
 -- =========================================================
 -- Les contrôleurs Tâches/Commentaires/Pièces jointes/Messages appliquent
 -- désormais des @PreAuthorize du type hasAction('MANAGE_TASKS','INSERT').
 -- Or, avant cette fonctionnalité, ces endpoints n'étaient protégés que par
--- « authenticated() » : tout rôle pouvait écrire. Accorder ces modules avec
--- TOUTES les actions à TOUS les rôles garantit que l'activation de
--- l'enforcement ne RETIRE l'accès à personne (aucune régression). Les
--- administrateurs pourront ensuite affiner via l'API /roles/{id}/actions.
+-- « authenticated() » : tout rôle pouvait écrire. Accorder ces modules à TOUS
+-- les rôles, avec l'ensemble des actions réellement supportées par chacun
+-- (cf. table permissions_actions), garantit que l'activation de l'enforcement
+-- ne RETIRE l'accès à personne (aucune régression). Les administrateurs
+-- pourront ensuite affiner via l'API /roles/{id}/actions.
 
 INSERT INTO roles_permissions (roles_id, permission_id)
 SELECT r.roles_id, p.permission_id
@@ -390,10 +474,15 @@ WHERE p.name IN ('MANAGE_TASKS', 'MANAGE_COMMENTS', 'MANAGE_ATTACHMENTS', 'MANAG
   );
 
 -- Renseigne les actions de ces associations quand elles viennent d'être
--- créées (NULL). Une configuration déjà définie (y compris "") n'est pas
--- écrasée.
+-- créées (NULL). Une configuration déjà définie (y compris un masque 0) n'est
+-- pas écrasée.
 UPDATE roles_permissions rp
-SET actions = 'SELECT,INSERT,UPDATE,DELETE,GENERATE_REPORT,EXPORT'
+SET actions = CASE p.name
+    WHEN 'MANAGE_TASKS' THEN 15
+    WHEN 'MANAGE_COMMENTS' THEN 15
+    WHEN 'MANAGE_ATTACHMENTS' THEN 43
+    WHEN 'MANAGE_MESSAGES' THEN 43
+END
 FROM permissions p
 WHERE rp.permission_id = p.permission_id
   AND p.name IN ('MANAGE_TASKS', 'MANAGE_COMMENTS', 'MANAGE_ATTACHMENTS', 'MANAGE_MESSAGES')

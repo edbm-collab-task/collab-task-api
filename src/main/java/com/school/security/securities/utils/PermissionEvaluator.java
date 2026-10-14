@@ -6,10 +6,8 @@ import com.school.security.enums.PermissionType;
 import com.school.security.repositories.ProjectRepository;
 import com.school.security.repositories.UserProjectPermissionRepository;
 import com.school.security.repositories.UserRepository;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -126,8 +124,9 @@ public class PermissionEvaluator {
      * sur les associations (rôle, permission) de ses rôles.
      *
      * <p>Une action est accordée si le nom de permission correspond à une
-     * association détenue par au moins un rôle de l'utilisateur ET que la liste
-     * d'actions de cette association contient l'action demandée.
+     * association détenue par au moins un rôle de l'utilisateur ET que le
+     * <strong>masque binaire</strong> de cette association contient le bit de
+     * l'action demandée ({@code masque & codeAction != 0}).
      *
      * <p>Une permission accordée uniquement sur un projet précis
      * ({@code user_project_permissions}) ne porte pas d'actions : elle n'est
@@ -146,8 +145,9 @@ public class PermissionEvaluator {
         User user = userRepository.findByEmail(auth.getName()).orElse(null);
         if (user == null) return false;
 
+        int code;
         try {
-            ActionType.valueOf(action);
+            code = ActionType.valueOf(action).getCode();
         } catch (IllegalArgumentException | NullPointerException e) {
             return false;
         }
@@ -155,21 +155,10 @@ public class PermissionEvaluator {
         return user.getRoles().stream()
                 .flatMap(role -> role.getRolePermissions().stream())
                 .filter(rp -> rp.getPermission().getName().name().equals(permission))
-                .anyMatch(rp -> parseActions(rp.getActions()).contains(action));
-    }
-
-    /**
-     * Découpe la colonne {@code actions} (valeurs séparées par des virgules)
-     * en un ensemble de noms d'actions, en ignorant les espaces et les entrées
-     * vides. Une valeur {@code null} ou blanche donne un ensemble vide (accès
-     * en lecture seule).
-     */
-    private static Set<String> parseActions(String actions) {
-        if (actions == null || actions.isBlank()) return Set.of();
-        return Arrays.stream(actions.split(","))
-                .map(String::trim)
-                .filter(a -> !a.isEmpty())
-                .collect(Collectors.toSet());
+                .anyMatch(rp -> {
+                    int mask = rp.getActions() == null ? 0 : rp.getActions();
+                    return (mask & code) != 0;
+                });
     }
 
     /**

@@ -109,7 +109,7 @@ public class Role implements Serializable {
                 rp = new RolePermission();
                 rp.setRole(this);
                 rp.setPermission(permission);
-                rp.setActions("");
+                rp.setActions(0);
             }
             rebuilt.add(rp);
         }

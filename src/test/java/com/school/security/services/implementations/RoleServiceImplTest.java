@@ -10,15 +10,22 @@ import static org.mockito.Mockito.when;
 
 import com.school.security.dtos.requests.RoleReqDto;
 import com.school.security.dtos.responses.PermissionResDto;
+import com.school.security.entities.Action;
 import com.school.security.entities.Permission;
 import com.school.security.entities.Role;
+import com.school.security.enums.ActionType;
 import com.school.security.enums.PermissionCategoryType;
 import com.school.security.enums.PermissionType;
 import com.school.security.exceptions.EntityException;
 import com.school.security.mappers.RoleMapper;
+import com.school.security.repositories.ActionRepository;
 import com.school.security.repositories.PermissionRepository;
+import com.school.security.repositories.RolePermissionRepository;
 import com.school.security.repositories.RoleRepository;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +48,10 @@ class RoleServiceImplTest {
     @Mock private PermissionRepository permissionRepository;
 
     @Mock private RoleMapper roleMapper;
+
+    @Mock private ActionRepository actionRepository;
+
+    @Mock private RolePermissionRepository rolePermissionRepository;
 
     @InjectMocks private RoleServiceImpl roleService;
 
@@ -141,7 +152,68 @@ class RoleServiceImplTest {
                                 new RoleReqDto("editor", "EDT", List.of(PermissionType.MANAGE_PROJECTS))));
     }
 
+    // ─── setRoleActions : prérequis « Voir » (SELECT) ───────────────
+
+    @Test
+    void setRoleActionsShouldNeutralizeMaskWhenSelectMissing() {
+        Permission permission =
+                buildPermission(10L, PermissionType.MANAGE_TASKS, PermissionCategoryType.PROJETS);
+        permission.setTotalActions(ActionType.INSERT.getCode() | ActionType.SELECT.getCode());
+        permission.setActions(
+                new LinkedHashSet<>(List.of(action(ActionType.INSERT), action(ActionType.SELECT))));
+
+        Role role = new Role();
+        role.setRolesId(7L);
+        role.setName("TEST");
+        role.setRolePermissions(new ArrayList<>());
+
+        when(roleRepository.findById(7L)).thenReturn(Optional.of(role));
+        when(permissionRepository.findByName(PermissionType.MANAGE_TASKS))
+                .thenReturn(Optional.of(permission));
+        when(roleRepository.save(any(Role.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        roleService.setRoleActions(7L, Map.of("MANAGE_TASKS", List.of("INSERT")));
+
+        // INSERT demandé sans SELECT : le masque est neutralisé.
+        assertEquals(0, role.getRolePermissions().get(0).getActions().intValue());
+    }
+
+    @Test
+    void setRoleActionsShouldKeepMaskWhenSelectPresent() {
+        Permission permission =
+                buildPermission(10L, PermissionType.MANAGE_TASKS, PermissionCategoryType.PROJETS);
+        permission.setTotalActions(ActionType.INSERT.getCode() | ActionType.SELECT.getCode());
+        permission.setActions(
+                new LinkedHashSet<>(List.of(action(ActionType.INSERT), action(ActionType.SELECT))));
+
+        Role role = new Role();
+        role.setRolesId(7L);
+        role.setName("TEST");
+        role.setRolePermissions(new ArrayList<>());
+
+        when(roleRepository.findById(7L)).thenReturn(Optional.of(role));
+        when(permissionRepository.findByName(PermissionType.MANAGE_TASKS))
+                .thenReturn(Optional.of(permission));
+        when(roleRepository.save(any(Role.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        roleService.setRoleActions(7L, Map.of("MANAGE_TASKS", List.of("SELECT", "INSERT")));
+
+        assertEquals(
+                ActionType.INSERT.getCode() | ActionType.SELECT.getCode(),
+                role.getRolePermissions().get(0).getActions().intValue());
+    }
+
     // ─── helpers ───────────────────────────────────────────────────
+
+    private Action action(ActionType type) {
+        Action action = new Action();
+        action.setName(type.name());
+        action.setCodeAction(type.getCode());
+        action.setLabel(type.getLabel());
+        return action;
+    }
 
     private Permission buildPermission(
             Long id, PermissionType name, PermissionCategoryType category) {

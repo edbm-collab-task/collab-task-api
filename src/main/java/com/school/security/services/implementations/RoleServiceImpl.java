@@ -301,6 +301,8 @@ public class RoleServiceImpl implements RoleService {
                     }
                     mask |= action.getCode();
                 }
+                // Prérequis « Voir » : SELECT absent => aucune action accordée.
+                mask = ActionType.applySelectPrerequisite(mask);
 
                 RolePermission rp = existing.get(permission.getPermissionId());
                 if (rp == null) {
@@ -364,7 +366,7 @@ public class RoleServiceImpl implements RoleService {
         List<RolePermission> rows = rolePermissionRepository.findByPermissionPermissionId(permissionId);
         for (RolePermission rp : rows) {
             int current = rp.getActions() == null ? 0 : rp.getActions();
-            int clamped = current & total;
+            int clamped = ActionType.applySelectPrerequisite(current & total);
             if (clamped != current) {
                 rp.setActions(clamped);
             }
@@ -389,7 +391,7 @@ public class RoleServiceImpl implements RoleService {
             }
             permissions.put(permission.getName().name(), new RolePermissionActionsResDto(
                     permission.getTotalActions(),
-                    rp.getActions() == null ? 0 : rp.getActions()));
+                    ActionType.applySelectPrerequisite(rp.getActions() == null ? 0 : rp.getActions())));
         }
         return new RoleActionsResDto(role.getName(), permissions);
     }

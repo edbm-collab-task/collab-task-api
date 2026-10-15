@@ -157,7 +157,9 @@ public class PermissionEvaluator {
                 .filter(rp -> rp.getPermission().getName().name().equals(permission))
                 .anyMatch(rp -> {
                     int mask = rp.getActions() == null ? 0 : rp.getActions();
-                    return (mask & code) != 0;
+                    // Prérequis « Voir » : sans SELECT, aucune action n'est utilisable.
+                    int effective = ActionType.applySelectPrerequisite(mask);
+                    return (effective & code) != 0;
                 });
     }
 

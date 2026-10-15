@@ -62,6 +62,21 @@ public enum ActionType {
         return label;
     }
 
+    /**
+     * Applique le prérequis « Voir » à un masque d'actions accordées.
+     *
+     * <p>Une action n'est exploitable que si l'action {@link #SELECT} est
+     * elle-même accordée : sans accès en lecture (page masquée), l'utilisateur
+     * ne peut ni insérer, ni modifier, ni supprimer, etc. Un masque dépourvu du
+     * bit SELECT est donc neutralisé (ramené à {@code 0}).
+     *
+     * @param mask masque binaire des actions accordées
+     * @return le masque inchangé s'il contient SELECT, {@code 0} sinon
+     */
+    public static int applySelectPrerequisite(int mask) {
+        return (mask & SELECT.code) == 0 ? 0 : mask;
+    }
+
     /** Retrouve une action par son code binaire. */
     public static ActionType fromCode(int code) {
         for (ActionType action : values()) {

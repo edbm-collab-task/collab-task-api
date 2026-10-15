@@ -6,7 +6,10 @@ import com.school.security.dtos.requests.EmailReq;
 import com.school.security.dtos.requests.LoginReqDto;
 import com.school.security.dtos.requests.UserReqDto;
 import com.school.security.dtos.responses.LoginResDto;
+import com.school.security.dtos.responses.PermissionSummary;
 import com.school.security.dtos.responses.UserResDto;
+import com.school.security.entities.Permission;
+import com.school.security.entities.RolePermission;
 import com.school.security.entities.User;
 import com.school.security.mappers.DirectionMapper;
 import com.school.security.mappers.UserMapper;
@@ -30,6 +33,9 @@ import org.springframework.web.bind.annotation.*;
 import io.jsonwebtoken.JwtException;
 import java.security.SecureRandom;
 import java.util.HashMap;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -173,7 +179,7 @@ public class AuthController {
                         user.getFirstname(),
                         user.getLastname(),
                         user.getEmail(),
-                        extractPermissions(user),
+                        buildPermissionSummaries(user),
                         accessToken,
                         refreshToken
                 )
@@ -338,10 +344,10 @@ public class AuthController {
                             user.getRoles().getFirst().getCodeRole(),
                             user.getFirstname(),
                             user.getLastname(),
-                            user.getEmail(),
-                            extractPermissions(user),
-                            newAccessToken,
-                            newRefreshToken
+user.getEmail(),
+                        buildPermissionSummaries(user),
+                        newAccessToken,
+                        newRefreshToken
                     )
             );
 
@@ -588,11 +594,47 @@ public class AuthController {
      * Extrait la liste des noms de permissions d'un utilisateur (rôle par rôle,
      * sans doublon). Utilisée dans les DTOs de réponse de login/refresh/me.
      */
-    private List<String> extractPermissions(User user) {
-        return user.getRoles().stream()
+    /**
+     * Construit le résumé des permissions de l'utilisateur authentifié :
+     * pour chaque permission, le masque des actions disponibles ({@code totalActions})
+     * et le masque des actions accordées ({@code totalActionsAccordees}) via ses rôles.
+     */
+    private List<PermissionSummary> buildPermissionSummaries(User user) {
+        // Collecte des noms de permissions distincts présents dans ses rôles
+        Set<String> permNames = user.getRoles().stream()
                 .flatMap(role -> role.getPermissions().stream())
-                .map(permission -> permission.getName().name())
-                .distinct()
+                .map(p -> p.getName().name())
+                .collect(Collectors.toSet());
+
+        // Map du totalActions par permission (puisque c'est la même valeur catalogue pour tous les rôles)
+        Map<String, Integer> totalActionsMap = permNames.stream()
+                .collect(Collectors.toMap(
+                        Function.identity(),
+                        perm -> user.getRoles().stream()
+                                .flatMap(role -> role.getPermissions().stream())
+                                .filter(p -> p.getName().name().equals(perm))
+                                .findFirst()
+                                .map(Permission::getTotalActions)
+                                .orElse(0)
+                ));
+
+        // Map du totalActionsAccordees : agrégation des masques binaires sur tous les rolePermissions
+        Map<String, Integer> accruedMap = permNames.stream()
+                .collect(Collectors.toConcurrentMap(
+                        Function.identity(),
+                        perm -> user.getRoles().stream()
+                                .flatMap(role -> role.getRolePermissions().stream())
+                                .filter(rp -> rp.getPermission().getName().name().equals(perm))
+                                .map(RolePermission::getActions)
+                                .reduce(0, (a, b) -> a | b)
+                ));
+
+        return permNames.stream()
+                .map(name -> new PermissionSummary(
+                        name,
+                        totalActionsMap.get(name),
+                        accruedMap.get(name)
+                ))
                 .collect(Collectors.toList());
     }
 
@@ -627,7 +669,7 @@ public class AuthController {
                         user.getFirstname(),
                         user.getLastname(),
                         user.getEmail(),
-                        extractPermissions(user)
+                        buildPermissionSummaries(user)
                 )
         );
     }

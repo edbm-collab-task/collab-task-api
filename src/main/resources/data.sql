@@ -515,3 +515,23 @@ FROM permissions p
 WHERE rp.permission_id = p.permission_id
   AND p.name IN ('MANAGE_TASKS', 'MANAGE_COMMENTS', 'MANAGE_ATTACHMENTS', 'MANAGE_MESSAGES')
   AND rp.actions IS NULL;
+
+-- =========================================================
+-- 15. Prérequis « Voir » (SELECT) sur les masques accordés
+-- =========================================================
+-- Règle métier : une action n'est utilisable que si l'action SELECT (code 2)
+-- est également accordée — sans accès en lecture (page masquée), l'utilisateur
+-- ne peut ni insérer, ni modifier, ni supprimer, etc. Un masque dépourvu du
+-- bit SELECT est donc inexploitable et neutralisé (masque = 0).
+-- Le backend applique déjà cette règle à l'enforcement
+-- (PermissionEvaluator.hasAction), au calcul des masques accordés
+-- (AuthController.buildPermissionSummaries, RoleServiceImpl.toRoleActions) et
+-- à l'écriture (RoleServiceImpl.setRoleActions). Cette migration met la base
+-- en cohérence pour les lignes historiques qui porteraient d'autres bits sans
+-- SELECT. Idempotent : ne touche que les lignes concernées (bit 2 absent et
+-- masque déjà non nul).
+UPDATE roles_permissions
+SET actions = 0
+WHERE actions IS NOT NULL
+  AND actions <> 0
+  AND (actions & 2) = 0;

@@ -9,6 +9,7 @@ import com.school.security.dtos.responses.LoginResDto;
 import com.school.security.dtos.responses.PermissionSummary;
 import com.school.security.dtos.responses.UserResDto;
 import com.school.security.entities.Permission;
+import com.school.security.enums.ActionType;
 import com.school.security.entities.RolePermission;
 import com.school.security.entities.User;
 import com.school.security.mappers.DirectionMapper;
@@ -625,7 +626,9 @@ user.getEmail(),
                         perm -> user.getRoles().stream()
                                 .flatMap(role -> role.getRolePermissions().stream())
                                 .filter(rp -> rp.getPermission().getName().name().equals(perm))
-                                .map(RolePermission::getActions)
+                                // Prérequis « Voir » : un masque sans SELECT ne compte pour rien.
+                                .map(rp -> ActionType.applySelectPrerequisite(
+                                        rp.getActions() == null ? 0 : rp.getActions()))
                                 .reduce(0, (a, b) -> a | b)
                 ));
 

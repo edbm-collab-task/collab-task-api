@@ -13,6 +13,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 /**
  * Contrôleur des priorités de tâches, sous le préfixe {@code /priorities}.
  *
@@ -33,6 +36,7 @@ import java.util.stream.Collectors;
  *       (référentiel géré par le seed {@code data.sql}).</li>
  * </ul>
  */
+@Tag(name = "Priorités", description = "Référentiel des priorités de tâches : lecture seule, triées par ordre de priorité.")
 @RestController
 @RequestMapping("/priorities")
 public class PriorityController {
@@ -46,6 +50,7 @@ public class PriorityController {
      * priorités sans {@code sortOrder} (exceptionnelles) sont placées en fin
      * de liste.
      */
+    @Operation(summary = "Lister toutes les priorités", description = "Retourne toutes les priorités du système, triées par sortOrder croissant. Référentiel en lecture seule. Accessible à tout utilisateur authentifié.")
     @GetMapping
     public ResponseEntity<List<PriorityResDto>> getAll() {
         List<PriorityResDto> dtos = priorityRepository.findAll().stream()

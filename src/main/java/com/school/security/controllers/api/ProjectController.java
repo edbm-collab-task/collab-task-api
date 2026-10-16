@@ -12,6 +12,8 @@ import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Contrôleur de gestion des projets, sous le préfixe {@code /projects}.
@@ -36,6 +38,7 @@ import org.springframework.web.bind.annotation.*;
  *       par ce contrôleur.</li>
  * </ul>
  */
+@Tag(name = "Projets", description = "Gestion des projets : création, consultation, mise à jour, archivage et transfert de propriété.")
 @RestController
 @RequestMapping("/projects")
 public class ProjectController {
@@ -72,6 +75,10 @@ public class ProjectController {
      * la visibilité (administrateur global vs propriétaire/contributeur)
      * est déterminée dans le service.
      */
+    @Operation(
+            summary = "Lister les projets actifs",
+            description = "Retourne la liste des projets actifs visibles par l'utilisateur courant (administrateur global, propriétaire ou contributeur). Requiert la permission MANAGE_PROJECTS."
+    )
     @GetMapping
     @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_PROJECTS')")
     public List<ProjectResDto> findAllProjects() {
@@ -87,6 +94,10 @@ public class ProjectController {
      * dans sa variante avec les projets archivés
      * ({@code findAllWithUserIncludingArchived}).
      */
+    @Operation(
+            summary = "Lister les projets, archivés inclus",
+            description = "Retourne tous les projets accessibles à l'utilisateur courant, y compris ceux qui sont archivés. Requiert la permission MANAGE_PROJECTS."
+    )
     @GetMapping("/all")
     @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_PROJECTS')")
     public List<ProjectResDto> findAllProjectsIncludingArchived() {
@@ -101,6 +112,10 @@ public class ProjectController {
      * le projet tel que visible par l'utilisateur courant (contrôle
      * d'appartenance dans le service).
      */
+    @Operation(
+            summary = "Récupérer un projet par son identifiant",
+            description = "Retourne le projet tel que visible par l'utilisateur courant (contrôle d'appartenance effectué dans le service). Requiert la permission MANAGE_PROJECTS."
+    )
     @GetMapping("/{id}")
     @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_PROJECTS')")
     public ProjectResDto getProjectById(@PathVariable Long id) {
@@ -117,6 +132,10 @@ public class ProjectController {
      * automatiquement ajouté comme contributeur avec la permission
      * {@code MANAGE_PROJECT_CONTRIBUTORS} (voir service).
      */
+    @Operation(
+            summary = "Créer un nouveau projet",
+            description = "Crée un projet à partir du DTO fourni (validé). L'utilisateur courant est enregistré comme propriétaire et ajouté automatiquement comme contributeur. Requiert la permission MANAGE_PROJECTS."
+    )
     @PostMapping
     @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_PROJECTS')")
     public ProjectResDto createProject(@Valid @RequestBody ProjectReqDto projectReqDto) {
@@ -132,6 +151,10 @@ public class ProjectController {
      * service, et seule l'utilisateur qui possède le projet (chef de projet)
      * peut le modifier (contrôle d'owner dans {@code ProjectServiceImpl}).
      */
+    @Operation(
+            summary = "Mettre à jour un projet existant",
+            description = "Met à jour un projet par son identifiant. Seul le propriétaire du projet peut le modifier (contrôle dans le service) ; les règles de dates y sont également appliquées. Requiert la permission MANAGE_PROJECTS."
+    )
     @PutMapping("/{id}")
     @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_PROJECTS')")
     public ProjectResDto updateProject(
@@ -148,6 +171,10 @@ public class ProjectController {
      * {@code ProjectService.deleteById} : le projet est conservé en base et
      * n'apparaît plus dans les listes "actives".
      */
+    @Operation(
+            summary = "Archiver un projet",
+            description = "Archive un projet (suppression logique via DELETE) : le projet est conservé en base et n'apparaît plus dans les listes de projets actifs. Requiert la permission MANAGE_PROJECTS."
+    )
     @DeleteMapping("/{id}")
     @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_PROJECTS')")
     public ProjectResDto archiveProject(@PathVariable Long id) {
@@ -159,6 +186,10 @@ public class ProjectController {
      *
      * <p>Réactive un projet précédemment archivé via {@code unarchiver(id)}.
      */
+    @Operation(
+            summary = "Désarchiver un projet",
+            description = "Réactive un projet précédemment archivé. Requiert la permission MANAGE_PROJECTS."
+    )
     @PatchMapping("/{id}/unarchive")
     @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_PROJECTS')")
     public ProjectResDto unarchiveProject(@PathVariable Long id) {
@@ -177,6 +208,10 @@ public class ProjectController {
      * L'exécution du transfert est déléguée à
      * {@code ProjectService.transferOwnership(id, currentUserId, newOwnerId)}.
      */
+    @Operation(
+            summary = "Transférer la propriété d'un projet",
+            description = "Transfère la propriété du projet à un autre utilisateur. Le corps de la requête doit contenir newOwnerId, sinon réponse 400. Protégé par la permission scoped au projet MANAGE_PROJECT_CONTRIBUTORS (et non par la permission globale)."
+    )
     @PostMapping("/{id}/transfer-ownership")
     @PreAuthorize("@permissionEvaluator.hasProjectPermission(#id, 'MANAGE_PROJECT_CONTRIBUTORS')")
     public ResponseEntity<?> transferOwnership(
@@ -200,6 +235,10 @@ public class ProjectController {
      * les projets actifs ({@code !p.isActive()}) : les projets archivés sont
      * donc récupérés puis écartés en mémoire.
      */
+    @Operation(
+            summary = "Lister les projets archivés",
+            description = "Retourne uniquement les projets archivés accessibles à l'utilisateur courant (filtrage des projets actifs côté contrôleur). Requiert la permission MANAGE_PROJECTS."
+    )
     @GetMapping("/archived")
     @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_PROJECTS')")
     public List<ProjectResDto> findArchivedProjects() {

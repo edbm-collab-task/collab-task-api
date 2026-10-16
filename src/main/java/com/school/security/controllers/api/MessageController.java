@@ -10,9 +10,12 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.util.List;
 
+@Tag(name = "Messages", description = "Gestion des messages de conversation (lecture, envoi, recherche, suppression).")
 @RestController
 @RequestMapping("/conversations")
 /**
@@ -57,6 +60,7 @@ public class MessageController {
      *               plus récente, sinon les messages plus anciens que ce
      *               message
      */
+    @Operation(summary = "Lister les messages d'une conversation", description = "Retourne une page de messages d'une conversation, du plus ancien au plus récent. L'accès est réservé à un membre de la conversation. Le service vérifie l'appartenance avant de renvoyer les messages.")
     @GetMapping("/{conversationId}/messages")
     public ResponseEntity<MessagePageResponse> getMessages(
             @PathVariable Long conversationId,
@@ -91,6 +95,7 @@ public class MessageController {
      * l'utilisateur courant à la conversation est vérifiée dans le service,
      * comme pour la lecture.
      */
+    @Operation(summary = "Rechercher des messages", description = "Recherche des messages d'une conversation par terme sur leur contenu ou sur le nom des pièces jointes. Les messages supprimés sont exclus. L'accès est réservé aux membres de la conversation.")
     @GetMapping("/{conversationId}/messages/search")
     public ResponseEntity<MessagePageResponse> searchMessages(
             @PathVariable Long conversationId,
@@ -142,6 +147,7 @@ public class MessageController {
      * <p>Après la création, la réponse du service est diffusée en temps réel
      * à tous les abonnés de la conversation via WebSocket.
      */
+    @Operation(summary = "Envoyer un message", description = "Envoie un message dans une conversation (texte et/ou pièces jointes). Requiert l'autorisation 'MANAGE_MESSAGES' avec action 'INSERT'. Après création, le message est diffusé en temps réel aux abonnés via WebSocket.")
     @PostMapping(
             value = "/{conversationId}/messages",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
@@ -200,6 +206,7 @@ public class MessageController {
      * <p>Le service vérifie l'accès à la conversation d'origine du message
      * avant de renvoyer le DTO correspondant.
      */
+    @Operation(summary = "Récupérer un message", description = "Retourne un message précis. L'accès est vérifié par le service en fonction de l'appartenance à la conversation d'origine du message.")
     @GetMapping("/messages/{messageId}")
     public ResponseEntity<MessageResponse> getMessage(
             @PathVariable Long messageId
@@ -219,6 +226,7 @@ public class MessageController {
      * règle métier de suppression par l'auteur et traite également les
      * pièces jointes associées.
      */
+    @Operation(summary = "Supprimer un message", description = "Supprime un message. Requiert l'autorisation 'MANAGE_MESSAGES' avec action 'DELETE'. Les règles de suppression (notamment par l'auteur) et la gestion des pièces jointes sont appliquées par le service.")
     @DeleteMapping("/messages/{messageId}")
     @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_MESSAGES', 'DELETE')")
     public ResponseEntity<Void> deleteMessage(

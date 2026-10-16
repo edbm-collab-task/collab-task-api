@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Contrôleur de gestion des rôles et des permissions, sous le préfixe
@@ -30,6 +32,7 @@ import org.springframework.web.bind.annotation.*;
  *       ({@code hasAuthority("SUPER_ADMIN")}).</li>
  * </ul>
  */
+@Tag(name = "Rôles et permissions", description = "Gestion des rôles, permissions et actions (RBAC). Aucune annotation @PreAuthorize : la protection est portée par la filter-chain — lectures en permitAll, routes d'écriture réservées à l'autorité SUPER_ADMIN.")
 @RestController
 @RequestMapping("/roles")
 public class RoleController {
@@ -49,6 +52,7 @@ public class RoleController {
      * {@code GET /roles/permissions} pour les regrouper. Délègue à
      * {@code RoleService.findAll()}.
      */
+    @Operation(summary = "Lister tous les rôles", description = "Renvoie la liste des rôles avec, pour chacun, ses permissions complètes (nom, description, catégorie). Lecture publique en filter-chain (permitAll), sans authentification requise.")
     @GetMapping
     public ResponseEntity<List<RoleResDto>> getAll() {
         return ResponseEntity.ok(roleService.findAll());
@@ -61,6 +65,7 @@ public class RoleController {
      * soumis au {@code anyRequest().authenticated()}. Délègue à
      * {@code RoleService.findById(id)}.
      */
+    @Operation(summary = "Récupérer un rôle par son identifiant", description = "Renvoie le rôle correspondant à l'identifiant fourni. Non couvert par les permitAll : soumis à une simple authentification.")
     @GetMapping("/{id}")
     public ResponseEntity<RoleResDto> getById(@PathVariable Long id) {
         return ResponseEntity.ok(roleService.findById(id));
@@ -76,6 +81,7 @@ public class RoleController {
      * inconnue → exception métier). Délègue à
      * {@code RoleService.create(dto)}.
      */
+    @Operation(summary = "Créer un rôle", description = "Crée un rôle à partir du DTO fourni. Réservé à l'autorité SUPER_ADMIN. Le service valide le nom du rôle (enum RoleType), son unicité et la résolution des permissions ; toute valeur inconnue déclenche une exception.")
     @PostMapping
     public ResponseEntity<RoleResDto> create(@RequestBody RoleReqDto dto) {
         return ResponseEntity.ok(roleService.create(dto));
@@ -89,6 +95,7 @@ public class RoleController {
      * permissions est remplacé, le nom du rôle n'est PAS modifié. Délègue à
      * {@code RoleService.update(id, dto)}.
      */
+    @Operation(summary = "Mettre à jour un rôle", description = "Remplace le jeu de permissions du rôle indiqué — le nom du rôle n'est pas modifié. Réservé à l'autorité SUPER_ADMIN.")
     @PutMapping("/{id}")
     public ResponseEntity<RoleResDto> update(@PathVariable Long id, @RequestBody RoleReqDto dto) {
         return ResponseEntity.ok(roleService.update(id, dto));
@@ -102,6 +109,7 @@ public class RoleController {
      * Le service supprime le rôle sans vérifier s'il est encore attaché à
      * des utilisateurs. Délègue à {@code RoleService.delete(id)}.
      */
+    @Operation(summary = "Supprimer un rôle", description = "Supprime définitivement le rôle indiqué et répond 204 No Content. Réservé à l'autorité SUPER_ADMIN ; le service ne vérifie pas que le rôle est encore attaché à des utilisateurs.")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         roleService.delete(id);
@@ -116,6 +124,7 @@ public class RoleController {
      * au rôle identifié par {@code id}. Délègue à
      * {@code RoleService.addPermissions(id, permissionNames)}.
      */
+    @Operation(summary = "Ajouter des permissions à un rôle", description = "Associe les permissions indiquées (par leur nom) au rôle identifié, sans supprimer les permissions existantes. Réservé à l'autorité SUPER_ADMIN.")
     @PostMapping("/{id}/permissions")
     public ResponseEntity<Void> addPermissions(@PathVariable Long id, @RequestBody List<PermissionType> permissionNames) {
         roleService.addPermissions(id, permissionNames);
@@ -132,6 +141,7 @@ public class RoleController {
      * stable côté client. Délègue à
      * {@code RoleService.findAllPermissions()}.
      */
+    @Operation(summary = "Lister les permissions disponibles", description = "Renvoie le catalogue des permissions (id, nom, description, catégorie), trié par catégorie puis par nom pour un regroupement stable côté client. Lecture publique (permitAll).")
     @GetMapping("/permissions")
     public ResponseEntity<List<PermissionResDto>> getAllPermissions() {
         return ResponseEntity.ok(roleService.findAllPermissions());
@@ -148,6 +158,7 @@ public class RoleController {
      * {@code GET /roles/actions}. Délègue à
      * {@code RoleService.findAllPermissionsWithActions()}.
      */
+    @Operation(summary = "Permissions avec leurs actions disponibles", description = "Renvoie chaque permission avec uniquement le masque totalActions de ses actions disponibles. Lecture publique (permitAll) ; le détail des actions est fourni par GET /roles/actions.")
     @GetMapping("/permissions/actions")
     public ResponseEntity<List<PermissionActionsResDto>> getAllPermissionsWithActions() {
         return ResponseEntity.ok(roleService.findAllPermissionsWithActions());
@@ -161,6 +172,7 @@ public class RoleController {
      * ({@code [{codeAction, name, label}]}). Délègue à
      * {@code RoleService.findAllActions()}.
      */
+    @Operation(summary = "Lister les actions gérables", description = "Renvoie le catalogue des actions avec leur code binaire et leur libellé. Lecture publique (permitAll).")
     @GetMapping("/actions")
     public ResponseEntity<List<ActionResDto>> getActions() {
         return ResponseEntity.ok(roleService.findAllActions());
@@ -176,6 +188,7 @@ public class RoleController {
      * actions (fourni par {@code GET /roles/actions}). Délègue à
      * {@code RoleService.getActionsMap()}.
      */
+    @Operation(summary = "Carte des actions par rôle", description = "Renvoie, pour chaque rôle, les deux masques d'actions par module (totalActions et totalActionsAccordees). Lecture publique (permitAll).")
     @GetMapping("/actions-map")
     public ResponseEntity<Map<Long, RoleActionsResDto>> getActionsMap() {
         return ResponseEntity.ok(roleService.getActionsMap());
@@ -188,6 +201,7 @@ public class RoleController {
      * {@code anyRequest().authenticated()}. Délègue à
      * {@code RoleService.getRoleActions(id)}.
      */
+    @Operation(summary = "Actions d'un rôle", description = "Renvoie les actions accordées au rôle indiqué, module par module. Soumis à une simple authentification (non couvert par les permitAll).")
     @GetMapping("/{id}/actions")
     public ResponseEntity<RoleActionsResDto> getRoleActions(@PathVariable Long id) {
         return ResponseEntity.ok(roleService.getRoleActions(id));
@@ -201,6 +215,7 @@ public class RoleController {
      * une liste vide conserve l'accès en lecture seule. Délègue à
      * {@code RoleService.setRoleActions(id, actions)}.
      */
+    @Operation(summary = "Remplacer les actions d'un rôle", description = "Définit pour chaque module la liste des actions accordées au rôle ; une liste vide conserve l'accès en lecture seule. Réservé à l'autorité SUPER_ADMIN.")
     @PutMapping("/{id}/actions")
     public ResponseEntity<RoleActionsResDto> setRoleActions(
             @PathVariable Long id, @RequestBody Map<String, List<String>> actions) {
@@ -217,6 +232,7 @@ public class RoleController {
      * retirées sont retirées des masques accordés des rôles. Délègue à
      * {@code RoleService.updatePermissionActions(id, actionNames)}.
      */
+    @Operation(summary = "Redéfinir les actions d'un module", description = "Remplace la liste des actions disponibles d'une permission : totalActions est recalculé et les actions retirées sont aussi retirées des masques accordés des rôles. Réservé à l'autorité SUPER_ADMIN.")
     @PutMapping("/permissions/{id}/actions")
     public ResponseEntity<PermissionActionsResDto> updatePermissionActions(
             @PathVariable Long id, @RequestBody List<String> actionNames) {

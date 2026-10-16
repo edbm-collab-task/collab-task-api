@@ -8,6 +8,8 @@ import com.school.security.repositories.UserRepository;
 import com.school.security.securities.utils.SecurityUtils;
 import com.school.security.services.contracts.AdminDashboardReportService;
 import com.school.security.services.contracts.AdminDashboardService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -46,6 +48,7 @@ import java.util.Set;
  *       introuvable en base.</li>
  * </ul>
  */
+@Tag(name = "Tableau de bord administration", description = "Statistiques administratives de la plateforme et export du rapport PDF administratif.")
 @RestController
 @RequestMapping("/admin/dashboard")
 public class AdminDashboardController {
@@ -116,6 +119,8 @@ public class AdminDashboardController {
      * profils uniquement leurs projets accessibles. Un utilisateur inexistant
      * en base donne des statistiques vides.
      */
+    @Operation(summary = "Statistiques administratives",
+            description = "Retourne les statistiques administratives pour la période demandée. Le périmètre est déterminé par le rôle : SUPER_ADMIN voit tous les projets actifs, les autres profils uniquement leurs projets accessibles. Période ou dates invalides => IllegalArgumentException.")
     @GetMapping("/stats")
     public AdminDashboardStatsResDto getAdminDashboardStats(
             @RequestParam String period,
@@ -155,6 +160,8 @@ public class AdminDashboardController {
      * Content-Type {@code application/pdf}, Content-Disposition {@code
      * attachment} et une Content-Length explicite.
      */
+    @Operation(summary = "Générer le rapport PDF administratif",
+            description = "Génère et retourne le rapport PDF administratif (fichier rapport-admin-<date>.pdf) pour la période demandée, le contenu étant ajusté au rôle principal de l'utilisateur. Période ou dates invalides => 400.")
     @GetMapping("/reports/pdf")
     public ResponseEntity<byte[]> generatePdfReport(
             @RequestParam String period,

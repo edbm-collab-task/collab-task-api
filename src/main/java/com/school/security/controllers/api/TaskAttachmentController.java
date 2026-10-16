@@ -25,6 +25,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 /**
  * Contrôleur de gestion des pièces jointes associées aux tâches.
  *
@@ -55,6 +58,7 @@ import java.util.stream.Collectors;
  *   <li>injection de dépendances par champs ({@code @Autowired}).</li>
  * </ul>
  */
+@Tag(name = "Pièces jointes de tâches", description = "Gestion des pièces jointes des tâches : liste, upload, téléchargement et suppression physique.")
 @RestController
 public class TaskAttachmentController {
 
@@ -78,6 +82,7 @@ public class TaskAttachmentController {
      * projet ou de membership n'est appliqué : tout utilisateur authentifié
      * peut consulter les pièces jointes de n'importe quelle tâche.
      */
+    @Operation(summary = "Lister les pièces jointes d'une tâche", description = "Retourne la liste des pièces jointes d'une tâche, triées par date d'upload décroissante. Accessible à tout utilisateur authentifié.")
     @GetMapping("/tasks/{taskId}/attachments")
     public ResponseEntity<List<TaskAttachmentResDto>> getAttachments(@PathVariable Long taskId) {
         List<TaskAttachment> attachments = attachmentRepository.findByTaskTaskIdOrderByUploadedAtDesc(taskId);
@@ -100,6 +105,7 @@ public class TaskAttachmentController {
      * taille n'est appliquée au niveau du contrôleur ; seuls les contrôles
      * éventuels dans {@code FileStorageService} s'appliquent.
      */
+    @Operation(summary = "Ajouter une pièce jointe", description = "Upload une pièce jointe sur une tâche (multipart/form-data). Requiert la permission MANAGE_ATTACHMENTS avec action INSERT. Le fichier est stocké physiquement et enregistré en base.")
     @PostMapping(value = "/tasks/{taskId}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_ATTACHMENTS', 'INSERT')")
     public ResponseEntity<TaskAttachmentResDto> uploadAttachment(
@@ -143,6 +149,7 @@ public class TaskAttachmentController {
      * authentifié peut télécharger n'importe quelle pièce jointe à partir de
      * son identifiant.
      */
+    @Operation(summary = "Télécharger une pièce jointe", description = "Télécharge le fichier associé à une pièce jointe par son identifiant. Accessible à tout utilisateur authentifié.")
     @GetMapping("/tasks/attachments/{id}/download")
     public ResponseEntity<Resource> downloadAttachment(@PathVariable Long id) throws IOException {
         TaskAttachment attachment = attachmentRepository.findById(id)
@@ -175,6 +182,7 @@ public class TaskAttachmentController {
      * authentifié peut supprimer n'importe quelle pièce jointe à partir de
      * son identifiant.
      */
+    @Operation(summary = "Supprimer une pièce jointe", description = "Suppression physique : efface le fichier du disque et supprime l'enregistrement en base. Requiert la permission MANAGE_ATTACHMENTS avec action DELETE.")
     @DeleteMapping("/tasks/attachments/{id}")
     @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_ATTACHMENTS', 'DELETE')")
     public ResponseEntity<?> deleteAttachment(@PathVariable Long id) {

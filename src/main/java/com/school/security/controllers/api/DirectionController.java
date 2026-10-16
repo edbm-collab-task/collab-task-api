@@ -6,6 +6,8 @@ import com.school.security.services.contracts.DirectionService;
 import java.util.List;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Contrôleur de gestion des directions (entités organisationnelles), sous le
@@ -33,6 +35,7 @@ import org.springframework.web.bind.annotation.*;
  * du backend (PUT nommé {@code registerDirection}, POST nommé
  * {@code save}).
  */
+@Tag(name = "Directions", description = "Gestion des directions (entités organisationnelles). La lecture est publique ; l'écriture nécessite la permission MANAGE_DIRECTIONS.")
 @RestController
 @RequestMapping("/directions")
 public class DirectionController {
@@ -50,6 +53,10 @@ public class DirectionController {
      * accessible sans authentification (cf. {@code SecurityConfig}/
      * {@code permitAll}). Délègue à {@code DirectionService.findAll()}.
      */
+    @Operation(
+            summary = "Lister toutes les directions",
+            description = "Retourne la liste de toutes les directions. Endpoint public accessible sans authentification."
+    )
     @GetMapping
     public List<DirectionResDto> findAllDirection() {
         return this.directionService.findAll();
@@ -61,6 +68,10 @@ public class DirectionController {
      * <p>Endpoint de LECTURE public (aucune annotation de sécurité, accès sans
      * authentification). Délègue à {@code DirectionService.findById(id)}.
      */
+    @Operation(
+            summary = "Récupérer une direction par identifiant",
+            description = "Retourne la direction correspondant à l'identifiant fourni. Endpoint public accessible sans authentification."
+    )
     @GetMapping("/{id}")
     public DirectionResDto getByIdDirection(@PathVariable Long id) {
         return this.directionService.findById(id);
@@ -73,6 +84,10 @@ public class DirectionController {
      * {@code MANAGE_DIRECTIONS} ({@code @PreAuthorize}). Délègue à
      * {@code DirectionService.save(toSave, id)}.
      */
+    @Operation(
+            summary = "Mettre à jour une direction",
+            description = "Met à jour une direction existante par son identifiant. Protégé par la permission MANAGE_DIRECTIONS (utilisateur authentifié requis)."
+    )
     @PutMapping("{id}")
     @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_DIRECTIONS')")
     public DirectionResDto registerDirection(
@@ -87,6 +102,10 @@ public class DirectionController {
      * {@code MANAGE_DIRECTIONS} ({@code @PreAuthorize}). Délègue à
      * {@code DirectionService.deleteById(id)}.
      */
+    @Operation(
+            summary = "Supprimer une direction",
+            description = "Supprime la direction correspondant à l'identifiant fourni. Protégé par la permission MANAGE_DIRECTIONS (utilisateur authentifié requis)."
+    )
     @DeleteMapping("/{id}")
     @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_DIRECTIONS')")
     public DirectionResDto deleteDirection(@PathVariable Long id) {
@@ -100,6 +119,10 @@ public class DirectionController {
      * {@code MANAGE_DIRECTIONS} ({@code @PreAuthorize}). Délègue à
      * {@code DirectionService.createOrUpdate(directionReqDto)}.
      */
+    @Operation(
+            summary = "Créer une nouvelle direction",
+            description = "Crée une nouvelle direction à partir du DTO fourni. Protégé par la permission MANAGE_DIRECTIONS (utilisateur authentifié requis)."
+    )
     @PostMapping
     @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_DIRECTIONS')")
     public DirectionResDto save(@RequestBody DirectionReqDto directionReqDto) {

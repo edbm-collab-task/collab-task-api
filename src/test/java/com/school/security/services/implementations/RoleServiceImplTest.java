@@ -210,7 +210,6 @@ class RoleServiceImplTest {
     private Action action(ActionType type) {
         Action action = new Action();
         action.setName(type.name());
-        action.setCodeAction(type.getCode());
         action.setLabel(type.getLabel());
         return action;
     }

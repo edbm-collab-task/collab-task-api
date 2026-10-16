@@ -373,26 +373,30 @@ WHERE u.email IN ('admin@edbm.com', 'superadmin@edbm.com');
 -- =========================================================
 -- 12. Référentiel des actions (table actions + jointure permissions_actions)
 -- =========================================================
--- Chaque action porte un code binaire (puissance de 2) ; les ensembles
--- d'actions sont représentés par la somme de ces codes (masque).
+-- Le code binaire (code_action) n'est plus stocké : il est CALCULÉ en Java
+-- depuis la position de l'action (ActionType.getCode() = 1 << bitIndex).
+-- Correspondance figée (append-only) :
 --   INSERT=1, SELECT=2, UPDATE=4, DELETE=8, GENERATE_REPORT=16, EXPORT=32
+-- L'ordre de déclaration de l'enum ActionType est la source de vérité.
 
 CREATE TABLE IF NOT EXISTS actions (
     actions_id  BIGSERIAL PRIMARY KEY,
-    code_action INTEGER NOT NULL UNIQUE,
     name        VARCHAR(50) NOT NULL UNIQUE,
     label       VARCHAR(100) NOT NULL
 );
 
-INSERT INTO actions (code_action, name, label)
+-- Migration : retire la colonne code_action des bases existantes (no-op si absente).
+ALTER TABLE actions DROP COLUMN IF EXISTS code_action;
+
+INSERT INTO actions (name, label)
 VALUES
-    (1,  'INSERT',          'Insérer'),
-    (2,  'SELECT',          'Voir'),
-    (4,  'UPDATE',          'Modifier'),
-    (8,  'DELETE',          'Supprimer'),
-    (16, 'GENERATE_REPORT', 'Générer un rapport'),
-    (32, 'EXPORT',          'Exporter')
-ON CONFLICT (code_action) DO NOTHING;
+    ('INSERT',          'Insérer'),
+    ('SELECT',          'Voir'),
+    ('UPDATE',          'Modifier'),
+    ('DELETE',          'Supprimer'),
+    ('GENERATE_REPORT', 'Générer un rapport'),
+    ('EXPORT',          'Exporter')
+ON CONFLICT (name) DO NOTHING;
 
 -- Jointure plusieurs-à-plusieurs entre modules et actions : cet ensemble définit
 -- quelles actions existent pour chaque permission. Ajustable par l'API
@@ -427,16 +431,10 @@ JOIN actions a ON a.name = mapping.action_name
 WHERE NOT EXISTS (SELECT 1 FROM permissions_actions);
 
 -- Total des actions disponibles par module (masque dénormalisé).
+-- La colonne est créée ici, mais sa VALEUR est calculée en Java au démarrage
+-- par PermissionActionMaskInitializer : le code binaire n'existant plus en base,
+-- on ne peut plus le sommer en SQL (SUM(a.code_action)).
 ALTER TABLE permissions ADD COLUMN IF NOT EXISTS total_actions INTEGER;
-
-UPDATE permissions p
-SET total_actions = COALESCE((
-        SELECT SUM(a.code_action)
-        FROM permissions_actions pa
-        JOIN actions a ON a.actions_id = pa.actions_id
-        WHERE pa.permission_id = p.permission_id
-    ), 0)
-WHERE p.total_actions IS NULL;
 
 -- =========================================================
 -- 13. Actions par défaut des rôles (colonne sur roles_permissions)

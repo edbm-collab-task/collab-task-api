@@ -9,10 +9,10 @@ import lombok.*;
  *
  * <p>Chaque action possède :
  * <ul>
- *   <li>un <strong>code binaire</strong> ({@code code_action}, puissance de 2)
- *       qui permet de représenter un ensemble d'actions par un masque ;</li>
  *   <li>un <strong>nom technique</strong> ({@code name}, ex. {@code INSERT})
- *       utilisé par l'enforcement ({@code hasAction('MANAGE_TASKS','INSERT')}) ;</li>
+ *       qui fait le lien avec {@link com.school.security.enums.ActionType} :
+ *       c'est là que le <strong>code binaire</strong> de l'action est calculé
+ *       ({@code 1 << bitIndex}), il n'est plus stocké en base ;</li>
  *   <li>un <strong>libellé</strong> affichable ({@code label}, ex. « Insérer »).</li>
  * </ul>
  *
@@ -33,10 +33,6 @@ public class Action implements Serializable {
     @Column(name = "actions_id")
     private Long actionsId;
 
-    /** Code binaire de l'action (1, 2, 4, 8, 16, 32). */
-    @Column(name = "code_action", nullable = false, unique = true)
-    private Integer codeAction;
-
     /** Nom technique de l'action (valeur de {@code ActionType}). */
     @Column(name = "name", nullable = false, unique = true, length = 50)
     private String name;
@@ -51,14 +47,6 @@ public class Action implements Serializable {
 
     public void setActionsId(Long actionsId) {
         this.actionsId = actionsId;
-    }
-
-    public Integer getCodeAction() {
-        return codeAction;
-    }
-
-    public void setCodeAction(Integer codeAction) {
-        this.codeAction = codeAction;
     }
 
     public String getName() {

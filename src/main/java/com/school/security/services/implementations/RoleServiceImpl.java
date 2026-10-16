@@ -22,6 +22,7 @@ import com.school.security.repositories.RolePermissionRepository;
 import com.school.security.repositories.RoleRepository;
 import com.school.security.services.contracts.RoleService;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -232,8 +233,8 @@ public class RoleServiceImpl implements RoleService {
      */
     @Override
     public List<ActionResDto> findAllActions() {
-        return actionRepository.findAllByOrderByCodeActionAsc().stream()
-                .map(a -> new ActionResDto(a.getCodeAction(), a.getName(), a.getLabel()))
+        return Arrays.stream(ActionType.values())
+                .map(a -> new ActionResDto(a.getCode(), a.name(), a.getLabel()))
                 .collect(Collectors.toList());
     }
 
@@ -396,9 +397,15 @@ public class RoleServiceImpl implements RoleService {
         return new RoleActionsResDto(role.getName(), permissions);
     }
 
-    /** Masque (somme des codes) d'un ensemble d'actions. */
+    /**
+     * Masque (somme des codes) d'un ensemble d'actions. Le code binaire de
+     * chaque action est calculé depuis {@link ActionType} (et non plus lu en
+     * base), à partir de son nom technique.
+     */
     private int maskOf(Collection<Action> actions) {
-        return actions.stream().mapToInt(Action::getCodeAction).sum();
+        return actions.stream()
+                .mapToInt(a -> ActionType.valueOf(a.getName()).getCode())
+                .sum();
     }
 
     /** Noms techniques des actions disponibles sur une permission. */

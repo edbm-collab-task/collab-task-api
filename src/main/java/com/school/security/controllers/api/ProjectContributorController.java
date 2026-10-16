@@ -25,6 +25,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Contrôleur de gestion des contributeurs d'un projet, sous le préfixe
@@ -52,6 +54,7 @@ import java.util.stream.Collectors;
  *       mais inutilisé (l'annotation utilisée est {@code @RestController}).</li>
  * </ul>
  */
+@Tag(name = "Contributeurs de projet", description = "Gestion des contributeurs d'un projet : consultation, ajout et retrait. L'ajout et le retrait sont réservés au propriétaire du projet.")
 @Slf4j
 @RestController
 @RequestMapping("/projects")
@@ -101,6 +104,10 @@ public class ProjectContributorController {
      * @param projectId identifiant du projet concerné
      * @return liste des contributeurs sous forme de DTO
      */
+    @Operation(
+            summary = "Lister les contributeurs d'un projet",
+            description = "Retourne les contributeurs du projet triés du plus récent au plus ancien. Consultation ouverte à tout utilisateur authentifié : aucun contrôle d'appartenance au projet n'est appliqué."
+    )
     @GetMapping("/{projectId}/contributors")
     public ResponseEntity<List<ProjectContributorResDto>> getContributors(@PathVariable Long projectId) {
         Project project = projectRepository.findById(projectId)
@@ -156,6 +163,10 @@ public class ProjectContributorController {
      * contributeur, la notification et l'activité sont des opérations
      * distinctes.
      */
+    @Operation(
+            summary = "Ajouter un contributeur au projet",
+            description = "Ajoute un utilisateur (userId dans le corps) comme contributeur du projet. Seul le propriétaire du projet y a accès (403 sinon) ; doublon → 400. Envoie une notification et un email de bienvenue à l'utilisateur ajouté."
+    )
     @PostMapping("/{projectId}/contributors")
     public ResponseEntity<?> addContributor(
             @PathVariable Long projectId,
@@ -231,6 +242,10 @@ public class ProjectContributorController {
      * sans activité). Aucune notification ni email n'est envoyé au retrait
      * (contrairement à l'ajout).
      */
+    @Operation(
+            summary = "Retirer un contributeur du projet",
+            description = "Retire un utilisateur de la liste des contributeurs du projet. Seul le propriétaire du projet y a accès (403 sinon) ; l'utilisateur n'étant pas contributeur → 400. Opération transactionnelle."
+    )
     @DeleteMapping("/{projectId}/contributors/{userId}")
     @Transactional
     public ResponseEntity<?> removeContributor(

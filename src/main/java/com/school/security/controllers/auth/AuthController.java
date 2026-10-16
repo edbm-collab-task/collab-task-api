@@ -41,6 +41,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 
 
@@ -74,6 +76,7 @@ import java.util.stream.Collectors;
  * {@code POST /auth/create} est soumis à {@code @PreAuthorize(MANAGE_USERS)}
  * pour réserver la création de compte à l'administration.
  */
+@Tag(name = "Authentification", description = "Endpoints d'authentification et de gestion des sessions : connexion, inscription, rafraîchissement des tokens JWT, récupération de mot de passe et statut de présence. La plupart des routes sont publiques (permitAll), sauf la création de compte réservée à la permission MANAGE_USERS.")
 @RestController
 @Slf4j
 @RequestMapping("/auth")
@@ -128,6 +131,7 @@ public class AuthController {
     /**
      * LOGIN
      */
+    @Operation(summary = "Connexion d'un utilisateur", description = "Authentifie un utilisateur par email et mot de passe. En cas de succès, marque l'utilisateur en ligne et remet l'access token (1 h), le refresh token (7 j) et l'email sous forme de cookies HTTP ; renvoie aussi le premier rôle et les permissions de l'utilisateur. Endpoint public.")
     @PostMapping("/login")
     public ResponseEntity<LoginResDto> login(
             @RequestBody LoginReqDto credential,
@@ -194,6 +198,7 @@ public class AuthController {
     /**
      * REGISTER
      */
+    @Operation(summary = "Inscription ou mise à jour d'un compte", description = "Crée ou met à jour un utilisateur à partir des données fournies, via UserService.createOrUpdate. Endpoint public, sans authentification requise.")
     @PostMapping("/register")
     public UserResDto register(@RequestBody UserReqDto userReqDto)
     {
@@ -213,6 +218,7 @@ public class AuthController {
     /**
      * CREATE
      */
+    @Operation(summary = "Création d'un compte par un administrateur", description = "Crée un utilisateur avec un mot de passe temporaire généré automatiquement. Restreint aux requêtes authentifiées disposant de la permission MANAGE_USERS via @PreAuthorize, malgré le permitAll de la filter-chain.")
     @PostMapping("/create")
     @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_USERS')")
     public UserResDto create(@RequestBody UserReqDto userReqDto) {return userService.create(userReqDto);}
@@ -284,6 +290,7 @@ public class AuthController {
     /**
      * REFRESH TOKEN
      */
+    @Operation(summary = "Renouvellement des tokens JWT", description = "Valide le refresh token présent dans le cookie refreshToken puis le fait tourner : renvoie un nouvel access token (1 h) et un nouveau refresh token (7 j) en cookies. Renvoie 401 si le cookie est absent, invalide ou expiré, auquel cas les cookies de session sont supprimés. Endpoint public.")
     @PostMapping("/refresh")
     public ResponseEntity<?> refreshToken(
             HttpServletRequest request,
@@ -413,6 +420,7 @@ user.getEmail(),
     /**
      * GENERATE CODE
      */
+    @Operation(summary = "Génération d'un code de récupération", description = "Génère un code à 6 chiffres et un recovery token (10 min) posé en cookie, puis envoie le code par email. Répond 403 si le compte est désactivé. Endpoint public, utilisé dans le flux de récupération de mot de passe.")
     @PostMapping("/code")
     public ResponseEntity<?> generateCode(
             @RequestBody EmailReq emailReq,
@@ -478,6 +486,7 @@ user.getEmail(),
      * vérifiée ici — seul le code est extrait. Un token signé valide portant un
      * code permettrait la vérification.
      */
+    @Operation(summary = "Vérification du code de récupération", description = "Compare le code saisi en query param avec celui du recovery token conservé dans le cookie. Répond 401 si le token est absent ou expiré, 400 si le code est incorrect. Endpoint public.")
     @GetMapping("/verification-code")
     public ResponseEntity<?> verification(
             @RequestParam int code,
@@ -526,6 +535,7 @@ user.getEmail(),
     /**
      * LOGOUT
      */
+    @Operation(summary = "Déconnexion de l'utilisateur", description = "Marque l'utilisateur comme hors ligne à partir du cookie email, puis expire les cookies accessToken, refreshToken et email côté client. Endpoint public.")
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpServletRequest request,HttpServletResponse response) {
 
@@ -579,6 +589,7 @@ user.getEmail(),
      * contrôleur, mais aussi accessible directement par le front via cette URL
      * (cf. filter-chain SecurityConfig, {@code permitAll}).
      */
+    @Operation(summary = "Mise à jour du statut de présence", description = "Passe le statut de présence (en ligne / hors ligne) d'un utilisateur identifié par email. Appelé par le login et le logout, mais aussi accessible directement au front. Endpoint public.")
     @PutMapping("/status")
     public ResponseEntity<?> updateStatus(
             @RequestParam String email,
@@ -653,6 +664,7 @@ user.getEmail(),
      * <p>NOTE : {@code user.getRoles().getFirst()} est appelé sans contrôle :
      * un rôle absent ferait échouer la construction du DTO.
      */
+    @Operation(summary = "Profil de l'utilisateur connecté", description = "Renvoie les informations (rôle, permissions) de l'utilisateur tiré du SecurityContext, sans les tokens. Répond 401 si aucun utilisateur n'est authentifié. Nécessite donc une session valide.")
     @GetMapping("/me")
     public ResponseEntity<LoginResDto> me(Authentication authentication) {
 
@@ -687,6 +699,7 @@ user.getEmail(),
      * au front d'afficher l'email et de valider que la session de récupération
      * est toujours ouverte).
      */
+    @Operation(summary = "Vérification d'une session de récupération", description = "Contrôle la validité du recovery token sans le consommer et renvoie l'email associé, permettant au front de poursuivre la réinitialisation. Répond 401 si le cookie est absent ou invalide. Endpoint public.")
     @GetMapping("/recovery/me")
     public ResponseEntity<?> recoveryMe(
             @CookieValue(value = "recoveryToken", required = false) String recoveryToken

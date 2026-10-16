@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.Set;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Contrôleur de rapport d'un projet, sous le préfixe
@@ -36,6 +38,7 @@ import java.util.Set;
  *       ({@code "Projet non accessible"}).</li>
  * </ul>
  */
+@Tag(name = "Rapports de projet", description = "Consultation des statistiques et génération du rapport PDF d'un projet. L'accès est réservé aux administrateurs, au propriétaire et aux contributeurs du projet.")
 @RestController
 @RequestMapping("/projects/{projectId}/report")
 public class ProjectReportController {
@@ -100,6 +103,10 @@ public class ProjectReportController {
      * complet ; sinon (ou si l'utilisateur ou le projet n'existe pas) le
      * service renvoie {@code null}, donc réponse HTTP 200 au corps vide.
      */
+    @Operation(
+            summary = "Obtenir les statistiques d'un projet",
+            description = "Retourne le rapport statistique du projet. Réservé aux SUPER_ADMIN, ADMIN, au propriétaire et aux contributeurs du projet ; sinon réponse 200 avec un corps vide."
+    )
     @GetMapping
     public ProjectReportResDto getProjectReport(@PathVariable Long projectId) {
         Long currentUserId = getCurrentUserId();
@@ -122,6 +129,10 @@ public class ProjectReportController {
      * la réponse porte {@code application/pdf}, Content-Disposition
      * {@code attachment} et Content-Length explicite.
      */
+    @Operation(
+            summary = "Générer le rapport PDF d'un projet",
+            description = "Génère le rapport du projet au format PDF pour la période demandée. Période invalide ou plage CUSTOM mal formée → réponse 400. Le projet doit être accessible à l'utilisateur courant, sinon une exception métier est levée."
+    )
     @GetMapping("/pdf")
     public ResponseEntity<byte[]> generatePdfReport(
             @PathVariable Long projectId,

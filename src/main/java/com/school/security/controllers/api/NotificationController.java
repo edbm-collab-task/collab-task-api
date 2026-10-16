@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Contrôleur de gestion des notifications de l'utilisateur courant, sous le
@@ -30,6 +32,7 @@ import org.springframework.web.bind.annotation.*;
  *       {@code /read-all}) sont bien scopés à l'utilisateur courant.</li>
  * </ul>
  */
+@Tag(name = "Notifications", description = "Gestion des notifications de l'utilisateur courant (liste, nombre non lues, marquage lu).")
 @RestController
 @RequestMapping("/notifications")
 public class NotificationController {
@@ -61,6 +64,7 @@ public class NotificationController {
      * <p>Délègue à {@code NotificationService.findByUserId(currentUserId)} :
      * les notifications sont retournées de la plus récente à la plus ancienne.
      */
+    @Operation(summary = "Lister mes notifications", description = "Liste les notifications de l'utilisateur courant, de la plus récente à la plus ancienne. Scopé à l'utilisateur authentifié.")
     @GetMapping
     public List<NotificationResDto> getNotifications() {
         Long currentUserId = getCurrentUserId();
@@ -75,6 +79,7 @@ public class NotificationController {
      * {@code NotificationService.countUnread(currentUserId)} (recherche scopée
      * à l'utilisateur).
      */
+    @Operation(summary = "Nombre de notifications non lues", description = "Retourne le nombre de notifications non lues pour l'utilisateur courant. Scopé à l'utilisateur authentifié.")
     @GetMapping("/unread-count")
     public Map<String, Long> getUnreadCount() {
         Long currentUserId = getCurrentUserId();
@@ -91,6 +96,7 @@ public class NotificationController {
      * ("Notification non trouvée") ; une notification appartenant à un autre
      * utilisateur provoque une {@code EntityException} (→ 404).
      */
+    @Operation(summary = "Marquer une notification comme lue", description = "Marque une notification spécifique comme lue. Le service vérifie que la notification appartient à l'utilisateur courant. Accès réservé à l'utilisateur authentifié.")
     @PatchMapping("/{id}/read")
     public ResponseEntity<NotificationResDto> markAsRead(@PathVariable Long id) {
         Long currentUserId = getCurrentUserId();
@@ -105,6 +111,7 @@ public class NotificationController {
      * {@code NotificationService.markAllAsRead}). Retourne un message de
      * confirmation.
      */
+    @Operation(summary = "Marquer toutes les notifications comme lues", description = "Marque toutes les notifications de l'utilisateur courant comme lues. Scopé à l'utilisateur authentifié.")
     @PatchMapping("/read-all")
     public ResponseEntity<Map<String, String>> markAllAsRead() {
         Long currentUserId = getCurrentUserId();

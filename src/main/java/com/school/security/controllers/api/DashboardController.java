@@ -9,6 +9,8 @@ import com.school.security.repositories.UserRepository;
 import com.school.security.securities.utils.SecurityUtils;
 import com.school.security.services.contracts.DashboardReportService;
 import com.school.security.services.contracts.DashboardService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Set;
@@ -43,6 +45,7 @@ import org.springframework.web.bind.annotation.*;
  *       inconnu en retournant un tableau de bord vide).</li>
  * </ul>
  */
+@Tag(name = "Tableau de bord", description = "Statistiques personnelles du tableau de bord et export du rapport PDF.")
 @RestController
 @RequestMapping("/dashboard")
 public class DashboardController {
@@ -97,6 +100,8 @@ public class DashboardController {
      * "personnel" (tâches assignées à l'utilisateur) est appliqué par le
      * service pour les profils non admin.
      */
+    @Operation(summary = "Statistiques du tableau de bord",
+            description = "Retourne les statistiques du tableau de bord pour la période demandée (period obligatoire, dates requises pour CUSTOM, projectId optionnel). Le périmètre est restreint à ce que l'utilisateur peut réellement voir ; période ou dates invalides => 400.")
     @GetMapping("/stats")
     public ResponseEntity<DashboardDataResDto> getDashboardStats(
             @RequestParam String period,
@@ -146,6 +151,8 @@ public class DashboardController {
      * Content-Type {@code application/pdf}, l'entête Content-Disposition
      * {@code attachment} et une Content-Length explicite.
      */
+    @Operation(summary = "Générer le rapport PDF",
+            description = "Génère et retourne le rapport PDF du tableau de bord pour la période demandée, adapté au rôle principal de l'utilisateur (plateforme, administration ou activité personnelle). Période ou dates invalides => 400.")
     @GetMapping("/reports/pdf")
     public ResponseEntity<byte[]> generatePdfReport(
             @RequestParam String period,

@@ -375,8 +375,9 @@ WHERE u.email IN ('admin@edbm.com', 'superadmin@edbm.com');
 -- =========================================================
 -- Le code binaire (code_action) n'est plus stocké : il est CALCULÉ en Java
 -- depuis la position de l'action (ActionType.getCode() = 1 << bitIndex).
--- Correspondance figée (append-only) :
---   INSERT=1, SELECT=2, UPDATE=4, DELETE=8, GENERATE_REPORT=16, EXPORT=32
+-- Correspondance figée (append-only, un index retiré n'est jamais réutilisé) :
+--   INSERT=1, SELECT=2, UPDATE=4, DELETE=8, EXPORT=32, DOWNLOAD=64, ARCHIVE=128
+--   (ancienne action GENERATE_REPORT=16 : supprimée, redondante avec EXPORT)
 -- L'ordre de déclaration de l'enum ActionType est la source de vérité.
 
 CREATE TABLE IF NOT EXISTS actions (
@@ -390,13 +391,25 @@ ALTER TABLE actions DROP COLUMN IF EXISTS code_action;
 
 INSERT INTO actions (name, label)
 VALUES
-    ('INSERT',          'Insérer'),
-    ('SELECT',          'Voir'),
-    ('UPDATE',          'Modifier'),
-    ('DELETE',          'Supprimer'),
-    ('GENERATE_REPORT', 'Générer un rapport'),
-    ('EXPORT',          'Exporter')
+    ('INSERT',   'Insérer'),
+    ('SELECT',   'Voir'),
+    ('UPDATE',   'Modifier'),
+    ('DELETE',   'Supprimer'),
+    ('EXPORT',   'Exporter'),
+    ('DOWNLOAD', 'Télécharger'),
+    ('ARCHIVE',  'Archiver')
 ON CONFLICT (name) DO NOTHING;
+
+-- Migration idempotente du référentiel :
+--   - suppression de GENERATE_REPORT (l'export suffit) — détachée d'abord de
+--     permissions_actions à cause de la clé étrangère ;
+--   - les nouvelles actions DOWNLOAD et ARCHIVE sont déjà insérées ci-dessus.
+DELETE FROM permissions_actions pa
+USING actions a
+WHERE pa.actions_id = a.actions_id
+  AND a.name = 'GENERATE_REPORT';
+
+DELETE FROM actions WHERE name = 'GENERATE_REPORT';
 
 -- Jointure plusieurs-à-plusieurs entre modules et actions : cet ensemble définit
 -- quelles actions existent pour chaque permission. Ajustable par l'API
@@ -416,14 +429,14 @@ FROM (
              ('MANAGE_USERS', 'SELECT'), ('MANAGE_USERS', 'INSERT'), ('MANAGE_USERS', 'UPDATE'),
              ('MANAGE_ADMINS', 'SELECT'), ('MANAGE_ADMINS', 'INSERT'), ('MANAGE_ADMINS', 'UPDATE'),
              ('MANAGE_ROLES', 'SELECT'), ('MANAGE_ROLES', 'INSERT'), ('MANAGE_ROLES', 'UPDATE'),
-             ('MANAGE_PROJECTS', 'SELECT'), ('MANAGE_PROJECTS', 'INSERT'), ('MANAGE_PROJECTS', 'UPDATE'), ('MANAGE_PROJECTS', 'DELETE'),
+              ('MANAGE_PROJECTS', 'SELECT'), ('MANAGE_PROJECTS', 'INSERT'), ('MANAGE_PROJECTS', 'UPDATE'), ('MANAGE_PROJECTS', 'ARCHIVE'),
              ('MANAGE_PROJECT_CONTRIBUTORS', 'SELECT'), ('MANAGE_PROJECT_CONTRIBUTORS', 'INSERT'), ('MANAGE_PROJECT_CONTRIBUTORS', 'DELETE'),
              ('MANAGE_DIRECTIONS', 'SELECT'), ('MANAGE_DIRECTIONS', 'INSERT'), ('MANAGE_DIRECTIONS', 'DELETE'),
              ('MANAGE_STATUSES', 'SELECT'), ('MANAGE_STATUSES', 'INSERT'), ('MANAGE_STATUSES', 'DELETE'),
-             ('VIEW_REPORTS', 'SELECT'), ('VIEW_REPORTS', 'GENERATE_REPORT'), ('VIEW_REPORTS', 'EXPORT'),
+              ('VIEW_REPORTS', 'SELECT'), ('VIEW_REPORTS', 'EXPORT'),
              ('MANAGE_TASKS', 'SELECT'), ('MANAGE_TASKS', 'INSERT'), ('MANAGE_TASKS', 'UPDATE'), ('MANAGE_TASKS', 'DELETE'),
              ('MANAGE_COMMENTS', 'SELECT'), ('MANAGE_COMMENTS', 'INSERT'), ('MANAGE_COMMENTS', 'UPDATE'), ('MANAGE_COMMENTS', 'DELETE'),
-             ('MANAGE_ATTACHMENTS', 'SELECT'), ('MANAGE_ATTACHMENTS', 'INSERT'), ('MANAGE_ATTACHMENTS', 'DELETE'), ('MANAGE_ATTACHMENTS', 'EXPORT'),
+              ('MANAGE_ATTACHMENTS', 'SELECT'), ('MANAGE_ATTACHMENTS', 'INSERT'), ('MANAGE_ATTACHMENTS', 'DELETE'), ('MANAGE_ATTACHMENTS', 'DOWNLOAD'),
              ('MANAGE_MESSAGES', 'SELECT'), ('MANAGE_MESSAGES', 'INSERT'), ('MANAGE_MESSAGES', 'DELETE'), ('MANAGE_MESSAGES', 'EXPORT')
      ) AS mapping(perm_name, action_name)
 JOIN permissions p ON p.name = mapping.perm_name
@@ -457,14 +470,14 @@ SET actions = CASE p.name
     WHEN 'MANAGE_USERS' THEN 7
     WHEN 'MANAGE_ADMINS' THEN 7
     WHEN 'MANAGE_ROLES' THEN 7
-    WHEN 'MANAGE_PROJECTS' THEN 15
+    WHEN 'MANAGE_PROJECTS' THEN 135
     WHEN 'MANAGE_PROJECT_CONTRIBUTORS' THEN 11
     WHEN 'MANAGE_DIRECTIONS' THEN 11
     WHEN 'MANAGE_STATUSES' THEN 11
-    WHEN 'VIEW_REPORTS' THEN 50
+    WHEN 'VIEW_REPORTS' THEN 34
     WHEN 'MANAGE_TASKS' THEN 15
     WHEN 'MANAGE_COMMENTS' THEN 15
-    WHEN 'MANAGE_ATTACHMENTS' THEN 43
+    WHEN 'MANAGE_ATTACHMENTS' THEN 75
     WHEN 'MANAGE_MESSAGES' THEN 43
     ELSE 2
 END
@@ -506,7 +519,7 @@ UPDATE roles_permissions rp
 SET actions = CASE p.name
     WHEN 'MANAGE_TASKS' THEN 15
     WHEN 'MANAGE_COMMENTS' THEN 15
-    WHEN 'MANAGE_ATTACHMENTS' THEN 43
+    WHEN 'MANAGE_ATTACHMENTS' THEN 75
     WHEN 'MANAGE_MESSAGES' THEN 43
 END
 FROM permissions p
@@ -533,3 +546,61 @@ SET actions = 0
 WHERE actions IS NOT NULL
   AND actions <> 0
   AND (actions & 2) = 0;
+
+-- =========================================================
+-- 16. Réalignement du catalogue d'actions sur le métier réel
+-- =========================================================
+-- Trois corrections du référentiel :
+--   a) PIECES JOINTES : l'action pertinente est TELECHARGER (DOWNLOAD, 64),
+--      plus EXPORTER (EXPORT, 32) ;
+--   b) PROJETS : on n'efface jamais un projet, on l'archive -> ARCHIVE (128)
+--      remplace DELETE (8) ;
+--   c) RAPPORTS : "Generer un rapport" (16) est redondant avec "Exporter" (32),
+--      l'action est supprimee (detachee puis retiree en section 12).
+-- Chaque item est idempotent et ne concerne que sa permission.
+
+-- a) + b) : rattache les nouvelles actions.
+INSERT INTO permissions_actions (permission_id, actions_id)
+SELECT p.permission_id, a.actions_id
+FROM permissions p, actions a
+WHERE (p.name = 'MANAGE_ATTACHMENTS' AND a.name = 'DOWNLOAD')
+   OR (p.name = 'MANAGE_PROJECTS'    AND a.name = 'ARCHIVE')
+ON CONFLICT DO NOTHING;
+
+-- a) + b) : detache les anciennes actions de ces permissions.
+DELETE FROM permissions_actions pa
+USING permissions p, actions a
+WHERE pa.permission_id = p.permission_id
+  AND pa.actions_id    = a.actions_id
+  AND ((p.name = 'MANAGE_ATTACHMENTS' AND a.name = 'EXPORT')
+    OR (p.name = 'MANAGE_PROJECTS'    AND a.name = 'DELETE'));
+
+-- Migration des masques DEJA ACCORDES : sans elle, les bits des anciennes
+-- actions resteraient morts dans roles_permissions.actions et les rôles
+-- perdraient l'accès qu'ils avaient.
+
+-- a) MANAGE_ATTACHMENTS : EXPORT (32) devient DOWNLOAD (64) -> 43 devient 75.
+UPDATE roles_permissions rp
+SET actions = rp.actions - 32 + 64
+FROM permissions p
+WHERE rp.permission_id = p.permission_id
+  AND p.name = 'MANAGE_ATTACHMENTS'
+  AND (rp.actions & 32) <> 0
+  AND (rp.actions & 64) = 0;
+
+-- b) MANAGE_PROJECTS : DELETE (8) devient ARCHIVE (128) -> 15 devient 135.
+UPDATE roles_permissions rp
+SET actions = rp.actions - 8 + 128
+FROM permissions p
+WHERE rp.permission_id = p.permission_id
+  AND p.name = 'MANAGE_PROJECTS'
+  AND (rp.actions & 8) <> 0
+  AND (rp.actions & 128) = 0;
+
+-- c) VIEW_REPORTS : bit GENERATE_REPORT (16) retire -> 50 devient 34.
+UPDATE roles_permissions rp
+SET actions = rp.actions - 16
+FROM permissions p
+WHERE rp.permission_id = p.permission_id
+  AND p.name = 'VIEW_REPORTS'
+  AND (rp.actions & 16) <> 0;

@@ -21,15 +21,19 @@ class ActionTypeTest {
         assertEquals(2, ActionType.SELECT.getCode());
         assertEquals(4, ActionType.UPDATE.getCode());
         assertEquals(8, ActionType.DELETE.getCode());
-        assertEquals(16, ActionType.GENERATE_REPORT.getCode());
         assertEquals(32, ActionType.EXPORT.getCode());
+        assertEquals(64, ActionType.DOWNLOAD.getCode());
+        assertEquals(128, ActionType.ARCHIVE.getCode());
     }
 
     @Test
     void bitIndexShouldBeThePosition() {
         assertEquals(0, ActionType.INSERT.getBitIndex());
         assertEquals(1, ActionType.SELECT.getBitIndex());
+        assertEquals(3, ActionType.DELETE.getBitIndex());
         assertEquals(5, ActionType.EXPORT.getBitIndex());
+        assertEquals(6, ActionType.DOWNLOAD.getBitIndex());
+        assertEquals(7, ActionType.ARCHIVE.getBitIndex());
     }
 
     @Test
@@ -37,6 +41,8 @@ class ActionTypeTest {
         assertEquals(1, ActionType.codeFor(0));
         assertEquals(2, ActionType.codeFor(1));
         assertEquals(32, ActionType.codeFor(5));
+        assertEquals(64, ActionType.codeFor(6));
+        assertEquals(128, ActionType.codeFor(7));
     }
 
     @Test

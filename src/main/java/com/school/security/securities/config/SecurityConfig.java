@@ -1,6 +1,7 @@
 package com.school.security.securities.config;
 
 import com.school.security.services.contracts.UserService;
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -75,10 +76,41 @@ public class SecurityConfig {
                                 response.setHeader("Content-Security-Policy", "frame-ancestors *");
                             }
                         }))
-.authorizeHttpRequests(auth -> auth
+                // Sans AuthenticationEntryPoint explicite, Spring Security retombe
+                // sur Http403ForbiddenEntryPoint : une requête non authentifiée reçoit
+                // 403 au lieu de 401, et le client ne peut pas distinguer « pas
+                // connecté / token expiré » de « droits insuffisants ». Le frontend ne
+                // déclenche son POST /auth/refresh que sur 401, donc ce 403 rend la
+                // rotation de jeton inopérante. Le corps est écrit directement plutôt
+                // que via sendError() pour éviter un forward ERROR vers /error.
+                .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(
+                        (request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.getWriter()
+                                    .write(
+                                            "{\"status\":401,\"error\":\"Unauthorized\""
+                                                    + ",\"message\":\"Access token manquant ou expiré\"}");
+                        }))
+                .authorizeHttpRequests(auth -> auth
+        // Dispatch interne d'erreur (forward vers /error) : sans cette règle, un
+        // appelant non authentifié qui passe par sendError() se voit renvoyer un
+        // second 403 par anyRequest().authenticated() au lieu de la page d'erreur.
+        // Le matcher est relatif au context-path (/api), donc "/error" et non "/api/error".
+        .requestMatchers("/error").permitAll()
         // Endpoint WebSocket public (STOMP handshake) : l'authentification
         // n'est pas requise pour l'ouverture initiale de la connexion.
         .requestMatchers("/ws").permitAll()
+        // Endpoints Swagger / OpenAPI
+        .requestMatchers(
+                "/v3/api-docs",
+                "/v3/api-docs/**",
+                "/swagger-ui/**",
+                "/docs/**",
+                "/swagger-ui.html",
+                "/api-docs",
+                "/api-docs/**"
+        ).permitAll()
         // Endpoints d'authentification publics : login, register, create
         // (création par admin), logout, refresh (rotation du refresh token),
         // code (envoi de code de récupération par email).
@@ -117,10 +149,12 @@ public class SecurityConfig {
         // Téléchargement de pièces jointes de messages — public.
         .requestMatchers(HttpMethod.GET, "/uploads/messages/{filename}").permitAll()
         .requestMatchers(HttpMethod.GET, "/uploads/comments/{filename}").permitAll()
-        .requestMatchers(HttpMethod.GET, "/roles", "/roles/permissions").permitAll()
+        .requestMatchers(HttpMethod.GET, "/roles", "/roles/permissions", "/roles/permissions/actions", "/roles/actions", "/roles/actions-map").permitAll()
         // Gestion des rôles (POST/PUT/DELETE) : réservée exclusivement au SUPER_ADMIN.
         .requestMatchers(HttpMethod.POST, "/roles").hasAuthority("SUPER_ADMIN")
         .requestMatchers(HttpMethod.PUT, "/roles/{id}").hasAuthority("SUPER_ADMIN")
+        .requestMatchers(HttpMethod.PUT, "/roles/{id}/actions").hasAuthority("SUPER_ADMIN")
+        .requestMatchers(HttpMethod.PUT, "/roles/permissions/{id}/actions").hasAuthority("SUPER_ADMIN")
         .requestMatchers(HttpMethod.DELETE, "/roles/{id}").hasAuthority("SUPER_ADMIN")
         // Rapports projet : publics au niveau filter-chain, mais la logique
         // d'accès (super-admin, admin, owner ou contributeur) est vérifiée
@@ -130,6 +164,21 @@ public class SecurityConfig {
         // Par défaut : toute requête non couverte par les règles ci-dessus
         // exige un token JWT valide (utilisateur authentifié).
         .anyRequest().authenticated())
+                // Distingue 401 (non authentifié) de 403 (authentifié mais refusé).
+                // Sans cette configuration, Spring renvoie 403 même pour un token
+                // absent/expiré : le refresh automatique du frontend (déclenché
+                // uniquement sur 401) ne fonctionnerait jamais.
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"message\":\"Non authentifie\"}");
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"message\":\"Acces refuse\"}");
+                        }))
                 // Le filtre JWT est placé AVANT UsernamePasswordAuthenticationFilter
                 // afin de peupler le SecurityContext dès réception de la requête,
                 // avant que les @PreAuthorize des contrôleurs ne soient évalués.

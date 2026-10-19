@@ -11,6 +11,7 @@ import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -107,6 +108,23 @@ public class EmailService implements ISendMail{
         }
     }
 
+    /**
+     * Envoi d'un email HTML.
+     *
+     * <p>Exécution asynchrone sur {@link AsyncConfig#MAIL_EXECUTOR} : l'appelant
+     * n'attend pas le handshake TLS ni les allers-retours SMTP. Le temps de
+     * réponse HTTP n'en dépend donc plus.
+     *
+     * <p>Conséquence : une {@link EmailSendingException} n'est plus propagée à
+     * l'appelant, elle est journalisée par
+     * {@link AsyncConfig#mailExceptionHandler()}. L'envoi reste best-effort.
+     *
+     * <p>Les appels internes à cette méthode ({@link #sendRecoveryCodeEmail},
+     * {@link #createPwdForUser}) ne sont PAS asynchrones : l'auto-invocation
+     * contourne le proxy Spring, ces envois restent bloquants et leurs
+     * exceptions toujours remontées.
+     */
+    @Async(AsyncConfig.MAIL_EXECUTOR)
     @Override
     public void sendHtmlEmail(String emailAddress, String subject, String htmlMsg) {
         try {

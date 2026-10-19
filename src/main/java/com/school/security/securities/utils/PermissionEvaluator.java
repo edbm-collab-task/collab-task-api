@@ -1,6 +1,7 @@
 package com.school.security.securities.utils;
 
 import com.school.security.entities.User;
+import com.school.security.enums.ActionType;
 import com.school.security.enums.PermissionType;
 import com.school.security.repositories.ProjectRepository;
 import com.school.security.repositories.UserProjectPermissionRepository;
@@ -115,6 +116,51 @@ public class PermissionEvaluator {
         } catch (IllegalArgumentException e) {
             return false;
         }
+    }
+
+    /**
+     * Vérifie si l'utilisateur authentifié possède une ACTION donnée sur une
+     * permission GLOBALE, en se basant uniquement sur les actions configurées
+     * sur les associations (rôle, permission) de ses rôles.
+     *
+     * <p>Une action est accordée si le nom de permission correspond à une
+     * association détenue par au moins un rôle de l'utilisateur ET que le
+     * <strong>masque binaire</strong> de cette association contient le bit de
+     * l'action demandée ({@code masque & codeAction != 0}).
+     *
+     * <p>Une permission accordée uniquement sur un projet précis
+     * ({@code user_project_permissions}) ne porte pas d'actions : elle n'est
+     * pas prise en compte ici. Un nom d'action inconnu de {@link ActionType}
+     * est refusé.
+     *
+     * @param permission nom de la permission (module), ex. {@code "MANAGE_TASKS"}
+     * @param action     action demandée, ex. {@code "INSERT"}
+     * @return {@code true} si l'action est accordée via un rôle, sinon
+     *         {@code false}
+     */
+    public boolean hasAction(String permission, String action) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+
+        User user = userRepository.findByEmail(auth.getName()).orElse(null);
+        if (user == null) return false;
+
+        int code;
+        try {
+            code = ActionType.valueOf(action).getCode();
+        } catch (IllegalArgumentException | NullPointerException e) {
+            return false;
+        }
+
+        return user.getRoles().stream()
+                .flatMap(role -> role.getRolePermissions().stream())
+                .filter(rp -> rp.getPermission().getName().name().equals(permission))
+                .anyMatch(rp -> {
+                    int mask = rp.getActions() == null ? 0 : rp.getActions();
+                    // Prérequis « Voir » : sans SELECT, aucune action n'est utilisable.
+                    int effective = ActionType.applySelectPrerequisite(mask);
+                    return (effective & code) != 0;
+                });
     }
 
     /**

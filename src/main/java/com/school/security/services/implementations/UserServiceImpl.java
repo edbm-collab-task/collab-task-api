@@ -5,7 +5,6 @@ import com.school.security.dtos.requests.UserReqDto;
 import com.school.security.dtos.responses.UserResDto;
 import com.school.security.entities.Role;
 import com.school.security.entities.User;
-import com.school.security.enums.RoleType;
 import com.school.security.exceptions.BadRequestException;
 import com.school.security.exceptions.EntityException;
 import com.school.security.mappers.UserMapper;
@@ -114,7 +113,7 @@ public class UserServiceImpl implements UserService {
             user.setLastname(toSave.lastname());
             User savedUser = userRepository.save(user);
 
-            String roleName = (toSave.role() != null && !toSave.role().isBlank()) ? toSave.role() : "USER";
+String roleName = (toSave.role() != null && !toSave.role().isBlank()) ? toSave.role() : "USER";
             attachRole(savedUser.getEmail(), roleName);
             emailService.createPwdForUser(
                     savedUser.getEmail(),
@@ -232,7 +231,7 @@ public class UserServiceImpl implements UserService {
      * pratique, un utilisateur ne porte donc qu'un seul rôle à la fois.
      */
     @Override
-    public UserResDto attachRole(String email, String roleRef) {
+public UserResDto attachRole(String email, String roleRef) {
         Optional<User> optionalUser = userRepository.findByEmail(email);
         Optional<Role> optionalRole = findRole(roleRef);
 
@@ -248,7 +247,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserResDto detachRole(String email, String roleRef) {
+public UserResDto detachRole(String email, String roleRef) {
         Optional<User> optionalUser = userRepository.findByEmail(email);
         Optional<Role> optionalRole = findRole(roleRef);
 
@@ -394,7 +393,7 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * Liste les utilisateurs actifs proposables pour un projet : il s'agit des
+     * Liste des utilisateurs actifs proposables pour un projet : il s'agit des
      * comptes actifs qui ne sont PAS encore assignés à une tâche du projet
      * (les assignations sont lues depuis la table {@code task_assignees}, et non
      * depuis la liste des contributeurs du projet).
@@ -405,14 +404,14 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     public List<UserResDto> findPotentialContributors(Long projectId) {
-        var existingAssigneeIds = taskRepository.findAssigneeIdsByProjectId(List.of(projectId));
-        var allUsers = userRepository.findByIsActiveTrue().stream()
+        // Set plutôt que List : findAssigneeIdsByProjectId renvoie un id par ligne
+        // de task_assignees, donc des doublons. Le test d'appartenance était un
+        // stream imbriqué O(n) sur cette liste, il devient O(1) ici.
+        Set<Long> existingAssigneeIds = new HashSet<>(taskRepository.findAssigneeIdsByProjectId(List.of(projectId)));
+
+        return userRepository.findActiveWithRoles().stream()
                 .map(userMapper::toDto)
-                .collect(Collectors.toList());
-        
-        return allUsers.stream()
-                .filter(user -> existingAssigneeIds.stream()
-                        .noneMatch(id -> id.equals(user.id())))
+                .filter(user -> !existingAssigneeIds.contains(user.id()))
                 .collect(Collectors.toList());
     }
 

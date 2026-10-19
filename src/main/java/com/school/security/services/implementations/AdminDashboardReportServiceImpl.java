@@ -103,7 +103,7 @@ public class AdminDashboardReportServiceImpl implements AdminDashboardReportServ
     @Override
     public byte[] generateReport(Long userId, String period, String startDate, String endDate) {
         var user = userRepository.findById(userId).orElse(null);
-        String role = user != null
+String role = user != null
                 ? user.getRoles().stream().findFirst().map(r -> RoleType.fromNameOrUser(r.getName()).name()).orElse("USER")
                 : "USER";
         return generateReport(userId, role, period, startDate, endDate);

@@ -6,12 +6,15 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+@Tag(name = "Pièces jointes de message", description = "Accès aux fichiers joints aux messages (service des fichiers physiques depuis le stockage local).")
 @RestController
 @RequestMapping("/uploads/messages")
 /**
@@ -49,6 +52,7 @@ public class MessageAttachmentController {
      * est positionné en {@code inline} pour permettre l'affichage ou le
      * téléchargement côté client selon le type du fichier.
      */
+    @Operation(summary = "Télécharger/afficher une pièce jointe", description = "Expose un fichier joint à partir de son nom de fichier, résolu depuis le répertoire local des pièces jointes. Le contrôleur vérifie que le chemin reste dans le répertoire attendu et renvoie le fichier avec le type MIME approprié.")
     @GetMapping("/{filename:.+}")
     public ResponseEntity<Resource> getAttachment(
             @PathVariable String filename

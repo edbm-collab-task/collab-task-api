@@ -23,8 +23,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
@@ -253,7 +255,8 @@ public class TaskServiceImpl implements TaskService {
             Optional<Status> statusOptional = this.statusRepository.findById(statusId);
             if (statusOptional.isPresent()) {
                 Task task = taskOptional.get();
-                String oldStatus = task.getStatus().getName();
+                Status oldStatus = task.getStatus();
+                String oldStatusName = oldStatus.getName();
                 Status newStatus = statusOptional.get();
                 task.setStatus(newStatus);
 
@@ -265,13 +268,18 @@ public class TaskServiceImpl implements TaskService {
                     task.setCompletedAt(null);
                 }
 
-                Long currentUserId = getCurrentUserId();
-                activityService.logActivity(task.getProject().getProjectId(), currentUserId,
-                        com.school.security.enums.ActivityType.TASK_STATUS_CHANGED,
-                        "Statut changé de \"" + oldStatus + "\" à \"" + statusOptional.get().getName() + "\" pour la tâche \"" + task.getTitle() + "\"",
-                        task.getTaskId());
                 Task saved = this.taskRepository.save(task);
                 autoUnarchiveProject(saved.getProject());
+
+                // Journalise uniquement si le statut change réellement
+                // (comparaison par id : plusieurs statuts partagent le nom "OK").
+                if (!oldStatus.getStatusId().equals(newStatus.getStatusId())) {
+                    Long currentUserId = getCurrentUserId();
+                    activityService.logActivity(saved.getProject().getProjectId(), currentUserId,
+                            com.school.security.enums.ActivityType.TASK_STATUS_CHANGED,
+                            buildStatusChangedMessage(oldStatusName, newStatus.getName(), saved.getTitle()),
+                            saved.getTaskId());
+                }
                 return this.taskMapper.toDto(saved, this.taskCommentRepository.countByTaskTaskId(saved.getTaskId()));
             }
             throw new EntityException("Status not found");
@@ -289,6 +297,135 @@ public class TaskServiceImpl implements TaskService {
             return this.taskMapper.toDto(saved, this.taskCommentRepository.countByTaskTaskId(saved.getTaskId()));
         }
         throw new EntityException("Task not found");
+    }
+
+    /**
+     * Déplace une tâche (drag & drop) dans une colonne ou une priorité.
+     *
+     * <p>Le statut cible est appliqué (avec la même règle de complétion que
+     * {@link #changerStatut}). Si une carte de référence {@code beforeTaskId}
+     * est fournie, la tâche adopte la priorité de cette carte et s'insère juste
+     * avant elle dans son groupe (statut + priorité) ; sinon elle garde sa
+     * priorité et rejoint la fin de ce groupe dans le nouveau statut. Le
+     * {@code sortOrder} du groupe cible puis de l'ancien groupe est renuméroté
+     * de 1 à N. Les changements réels de statut et/ou de priorité sont
+     * journalisés dans le fil d'activité.
+     */
+    @Override
+    public TaskResDto moveTask(Long taskId, Long statusId, Long beforeTaskId) {
+        Optional<Task> taskOptional = this.taskRepository.findById(taskId);
+        if (taskOptional.isEmpty()) {
+            throw new EntityException("Task not found");
+        }
+        Task task = taskOptional.get();
+
+        Optional<Status> statusOptional = this.statusRepository.findById(statusId);
+        if (statusOptional.isEmpty()) {
+            throw new EntityException("Status not found");
+        }
+        Status newStatus = statusOptional.get();
+
+        Priority oldPriority = task.getPriority();
+        Status oldStatus = task.getStatus();
+        String oldStatusName = oldStatus.getName();
+
+        // Statut + règle de complétion identiques à changerStatut : "Termine"
+        // fige la date de complétion, tout autre statut la réinitialise.
+        task.setStatus(newStatus);
+        if ("Termine".equals(newStatus.getName()) && task.getCompletedAt() == null) {
+            task.setCompletedAt(LocalDateTime.now());
+        } else if (!"Termine".equals(newStatus.getName())) {
+            task.setCompletedAt(null);
+        }
+
+        // Priorité cible : celle de la carte de référence si fournie, sinon la
+        // priorité actuelle de la tâche (déplacement simple de colonne).
+        Priority targetPriority = oldPriority;
+        if (beforeTaskId != null) {
+            Optional<Task> beforeOptional = this.taskRepository.findById(beforeTaskId);
+            if (beforeOptional.isEmpty()) {
+                throw new EntityException("Before task not found");
+            }
+            targetPriority = beforeOptional.get().getPriority();
+        }
+        task.setPriority(targetPriority);
+
+        // Groupe cible (statut + priorité), tâche déplacée exclue, trié par
+        // sortOrder, puis insertion juste avant la carte de référence (ou en fin
+        // de groupe si non fournie / absente du groupe) et renumérotation 1..N.
+        List<Task> targetGroup = new ArrayList<>(this.taskRepository
+                .findByIsActiveTrueAndStatusStatusIdAndPriorityPriorityId(
+                        newStatus.getStatusId(), targetPriority.getPriorityId()));
+        targetGroup.removeIf(other -> other.getTaskId().equals(taskId));
+        targetGroup.sort(Comparator.comparing(Task::getSortOrder,
+                Comparator.nullsLast(Comparator.naturalOrder())));
+
+        int insertIndex = targetGroup.size();
+        if (beforeTaskId != null) {
+            for (int i = 0; i < targetGroup.size(); i++) {
+                if (targetGroup.get(i).getTaskId().equals(beforeTaskId)) {
+                    insertIndex = i;
+                    break;
+                }
+            }
+        }
+        targetGroup.add(insertIndex, task);
+        for (int i = 0; i < targetGroup.size(); i++) {
+            targetGroup.get(i).setSortOrder(i + 1);
+        }
+        this.taskRepository.saveAll(targetGroup);
+
+        // Ancien groupe (statut + priorité de départ) si différent du groupe
+        // cible : renumérotation des tâches restantes pour combler la trouée.
+        if (!oldStatus.getStatusId().equals(newStatus.getStatusId())
+                || !Objects.equals(oldPriority.getPriorityId(), targetPriority.getPriorityId())) {
+            List<Task> oldGroup = new ArrayList<>(this.taskRepository
+                    .findByIsActiveTrueAndStatusStatusIdAndPriorityPriorityId(
+                            oldStatus.getStatusId(), oldPriority.getPriorityId()));
+            oldGroup.removeIf(other -> other.getTaskId().equals(taskId));
+            oldGroup.sort(Comparator.comparing(Task::getSortOrder,
+                    Comparator.nullsLast(Comparator.naturalOrder())));
+            for (int i = 0; i < oldGroup.size(); i++) {
+                oldGroup.get(i).setSortOrder(i + 1);
+            }
+            this.taskRepository.saveAll(oldGroup);
+        }
+
+        // Journalise un changement de statut et/ou de priorité selon ce qui a
+        // réellement changé (comparaison par id) ; un simple réordonnancement au
+        // sein d'un même groupe n'est pas une activité.
+        boolean statusChanged = !oldStatus.getStatusId().equals(newStatus.getStatusId());
+        boolean priorityChanged = !Objects.equals(oldPriority.getPriorityId(), targetPriority.getPriorityId());
+        if (statusChanged) {
+            Long currentUserId = getCurrentUserId();
+            activityService.logActivity(task.getProject().getProjectId(), currentUserId,
+                    com.school.security.enums.ActivityType.TASK_STATUS_CHANGED,
+                    buildStatusChangedMessage(oldStatusName, newStatus.getName(), task.getTitle()),
+                    task.getTaskId());
+        }
+        if (priorityChanged) {
+            Long currentUserId = getCurrentUserId();
+            activityService.logActivity(task.getProject().getProjectId(), currentUserId,
+                    com.school.security.enums.ActivityType.TASK_PRIORITY_CHANGED,
+                    "Priorité changée de \"" + oldPriority.getName() + "\" à \"" + targetPriority.getName()
+                            + "\" pour la tâche \"" + task.getTitle() + "\"",
+                    task.getTaskId());
+            notifyPriorityChange(task, oldPriority.getPriorityId());
+        }
+
+        return this.taskMapper.toDto(task, this.taskCommentRepository.countByTaskTaskId(task.getTaskId()));
+    }
+
+    /**
+     * Message d'activité pour un changement de statut. Si l'ancien et le
+     * nouveau statut partagent le même nom (plusieurs statuts "OK" en base),
+     * l'aller-retour "X à X" est omis pour éviter un libellé trompeur.
+     */
+    private String buildStatusChangedMessage(String oldName, String newName, String title) {
+        if (Objects.equals(oldName, newName)) {
+            return "Statut changé pour la tâche \"" + title + "\"";
+        }
+        return "Statut changé de \"" + oldName + "\" à \"" + newName + "\" pour la tâche \"" + title + "\"";
     }
 
     private Long getCurrentUserId() {

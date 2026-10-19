@@ -13,5 +13,7 @@ public interface TaskService extends Service<TaskReqDto, TaskResDto, Long> {
 
     TaskResDto updateTaskSortOrder(Long taskId, Integer sortOrder);
 
+    TaskResDto moveTask(Long taskId, Long statusId, Long beforeTaskId);
+
     List<TaskResDto> findByProject(Long projectId);
 }

@@ -45,6 +45,13 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     @Query("SELECT t FROM Task t WHERE t.project.projectId = :projectId AND t.status.statusId = :statusId ORDER BY t.sortOrder ASC")
 List<Task> findByProjectProjectIdAndStatusIdOrderBySortOrderAsc(@Param("projectId") Long projectId, @Param("statusId") Long statusId);
 
+    /**
+     * Tâches actives d'un statut et d'une priorité donnés. Alimente la
+     * renumérotation du {@code sortOrder} lors du drag & drop (groupe cible et
+     * ancien groupe de la tâche déplacée).
+     */
+    List<Task> findByIsActiveTrueAndStatusStatusIdAndPriorityPriorityId(Long statusId, Long priorityId);
+
     List<Task> findByParentIsNull();
 
     /** Nombre de tâches actives dans les projets donnés. */

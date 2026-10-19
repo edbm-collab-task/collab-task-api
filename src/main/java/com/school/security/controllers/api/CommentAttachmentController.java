@@ -1,5 +1,7 @@
 package com.school.security.controllers.api;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
@@ -12,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+@Tag(name = "Pièces jointes de commentaires", description = "Consultation des fichiers joints uploadés sur les commentaires.")
 @RestController
 @RequestMapping("/uploads/comments")
 public class CommentAttachmentController {
@@ -23,6 +26,8 @@ public class CommentAttachmentController {
                     "comments"
             );
 
+    @Operation(summary = "Récupérer une pièce jointe",
+            description = "Sert un fichier joint de commentaire par son nom, en aperçu inline par défaut ou en téléchargement si download=true. Rejette les chemins hors du dossier d'upload (404 si le fichier n'existe pas). Tout utilisateur authentifié y a accès.")
     @GetMapping("/{filename:.+}")
     public ResponseEntity<Resource> getAttachment(
             @PathVariable String filename,

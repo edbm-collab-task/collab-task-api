@@ -2,6 +2,8 @@ package com.school.security.controllers.api;
 
 import com.school.security.dtos.responses.ActivityResDto;
 import com.school.security.services.contracts.ActivityService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -27,6 +29,7 @@ import org.springframework.web.bind.annotation.*;
  *   <li>aucune pagination ni limitation du nombre d'activités retournées.</li>
  * </ul>
  */
+@Tag(name = "Activités", description = "Consultation du journal d'activités d'un projet.")
 @RestController
 @RequestMapping("/projects/{projectId}/activities")
 public class ActivityController {
@@ -49,6 +52,8 @@ public class ActivityController {
      * <p>Aucun contrôle d'appartenance au projet n'est appliqué (ni ici ni
      * dans le service).
      */
+    @Operation(summary = "Lister les activités d'un projet",
+            description = "Retourne les événements enregistrés pour un projet, du plus récent au plus ancien (type d'événement, description, auteur et tâche concernée éventuelle). Tout utilisateur authentifié y a accès ; un projet inexistant renvoie une liste vide.")
     @GetMapping
     public ResponseEntity<List<ActivityResDto>> getActivities(@PathVariable Long projectId) {
         return ResponseEntity.ok(activityService.findByProjectId(projectId));

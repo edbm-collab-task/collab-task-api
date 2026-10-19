@@ -604,7 +604,7 @@ class DashboardServiceImplTest {
         direction.setName("DSI");
 
         Role role = new Role();
-        role.setRolesId("ADMIN".equals(roleName) ? 1L : 2L);
+role.setRolesId("ADMIN".equals(roleName) ? 1L : 2L);
         role.setName(roleName);
 
         User user = new User();

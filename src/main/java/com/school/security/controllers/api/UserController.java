@@ -19,6 +19,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Contrôleur de gestion des utilisateurs, sous le préfixe {@code /users}.
@@ -29,7 +31,8 @@ import org.springframework.web.multipart.MultipartFile;
  * d'ensemble par endpoint (vérifié dans {@code SecurityConfig}) :
  * <ul>
  *   <li>publics (aucune sécurité, via {@code permitAll}) : {@code GET
- *       /users} reste toutefois soumis à {@code @PreAuthorize(VIEW_USERS)},
+ *       /users} reste toutefois soumis à
+ *       {@code @PreAuthorize(hasAction('MANAGE_USERS','SELECT'))},
  *       {@code GET /users/email}, {@code GET /users/active},
  *       {@code GET /users/disable} et {@code GET /users/{id}/image} ;</li>
  *   <li>{@code PUT /users/pwd} reste {@code permitAll} (récupération de
@@ -40,7 +43,7 @@ import org.springframework.web.multipart.MultipartFile;
  *       {@code SUPER_ADMIN}, et {@code GET /users/admins} exige
  *       {@code SUPER_ADMIN} ;</li>
  *   <li>protégés par {@code @PreAuthorize} : {@code GET /users}
- *       ({@code VIEW_USERS}), {@code DELETE /users/{id}}
+ *       ({@code MANAGE_USERS} + action {@code SELECT}), {@code DELETE /users/{id}}
  *       ({@code MANAGE_USERS}), {@code PUT /users/role} et
  *       {@code DELETE /users/role} ({@code MANAGE_USERS}) ainsi que
  *       {@code GET /users/project/{id}/contributors}
@@ -50,6 +53,7 @@ import org.springframework.web.multipart.MultipartFile;
  *       {@code anyRequest().authenticated()}.</li>
  * </ul>
  */
+@Tag(name = "Utilisateurs", description = "Gestion des comptes utilisateurs : consultation, création de comptes par un admin, rôles, activation/désactivation, mot de passe et images de profil. L'accès combine la filter-chain et les annotations @PreAuthorize (MANAGE_USERS, SUPER_ADMIN, MANAGE_PROJECT_CONTRIBUTORS).")
 @RestController
 @RequestMapping("/users")
 
@@ -66,12 +70,15 @@ public class UserController {
     /**
      * Liste tous les utilisateurs ({@code GET /users}).
      *
-     * <p>Bien que {@code permitAll} au niveau de la filter-chain, l'accès est
-     * restreint à la permission métier {@code VIEW_USERS} par
-     * {@code @PreAuthorize}. Délègue à {@code UserService.findAll()}.
+     * <p>Bien que {@code permitAll} au niveau de la filter-chain, l'accès exige
+     * la permission {@code MANAGE_USERS} et l'action {@code SELECT}
+     * ({@code VIEW_USERS} a été supprimée : la consultation est désormais
+     * couverte par l'action SELECT de {@code MANAGE_USERS}). Délègue à
+     * {@code UserService.findAll()}.
      */
+    @Operation(summary = "Lister tous les utilisateurs", description = "Retourne la liste complète des utilisateurs. Endpoint public en filter-chain mais soumis à la permission MANAGE_USERS avec l'action SELECT via @PreAuthorize.")
     @GetMapping
-    @PreAuthorize("@permissionEvaluator.hasPermission('VIEW_USERS')")
+    @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_USERS', 'SELECT')")
     public List<UserResDto> getAllUsers() {
         return this.userService.findAll();
     }
@@ -83,6 +90,7 @@ public class UserController {
      * authentification (rule {@code anyRequest().authenticated()}). Délègue à
      * {@code UserService.deleteById(id)}.
      */
+    @Operation(summary = "Supprimer définitivement un utilisateur", description = "Supprime l'utilisateur identifié par son id. Protégé par la permission MANAGE_USERS via @PreAuthorize et soumis à authentification.")
     @DeleteMapping("/{id}")
     @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_USERS')")
     public UserResDto deleteById(@PathVariable Long id) {
@@ -96,6 +104,7 @@ public class UserController {
      * endpoint public, accessible sans authentification. Délègue à
      * {@code UserService.findById(id)}.
      */
+    @Operation(summary = "Récupérer un utilisateur par son identifiant", description = "Renvoie les informations d'un utilisateur à partir de son identifiant. Endpoint public, accessible sans authentification.")
     @GetMapping("/{id}")
     public UserResDto getUser(@PathVariable Long id) {
         return this.userService.findById(id);
@@ -108,6 +117,7 @@ public class UserController {
      * endpoint public exposant les données d'un utilisateur à partir de son
      * email. Délègue à {@code UserService.getUserRestByEmail(email)}.
      */
+    @Operation(summary = "Récupérer un utilisateur par email", description = "Renvoie les informations d'un utilisateur à partir de son adresse email. Endpoint public, accessible sans authentification.")
     @GetMapping("/email")
     public UserResDto getUserByEmail(@RequestParam String email) {
         return this.userService.getUserRestByEmail(email);
@@ -126,6 +136,7 @@ public class UserController {
      * {@code EntityException} est levée. Délègue à
      * {@code UserService.updatePassword(email, password)}.
      */
+    @Operation(summary = "Réinitialiser un mot de passe", description = "Finalise la récupération de mot de passe pour un utilisateur non connecté. Exige le cookie recoveryToken valide (posé par POST /auth/code) et correspondant à l'email du corps, sinon une EntityException est levée.")
     @PutMapping("/pwd")
     public UserResDto updatePassword(
             @RequestBody PwdReqDto pwdReqDto,
@@ -149,6 +160,7 @@ public class UserController {
      * métier {@code MANAGE_USERS} (refusée aux requêtes non authentifiées).
      * Délègue à {@code UserService.attachRole(email, role)}.
      */
+    @Operation(summary = "Attribuer un rôle à un utilisateur", description = "Assigne un rôle à l'utilisateur identifié par son email. Protégé par la permission MANAGE_USERS via @PreAuthorize, refusée aux requêtes non authentifiées.")
     @PutMapping("/role")
     @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_USERS')")
     public ResponseEntity<UserResDto> updateRole(@RequestBody AttachRoleReqDto attachRoleRegDto) {
@@ -166,6 +178,7 @@ public class UserController {
      * {@code anyRequest().authenticated()}. Délègue à
      * {@code UserService.detachRole(email, role)}.
      */
+    @Operation(summary = "Retirer un rôle à un utilisateur", description = "Retire le rôle spécifié de l'utilisateur identifié par son email. Protégé par la permission MANAGE_USERS via @PreAuthorize et soumis à authentification.")
     @DeleteMapping("/role")
     @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_USERS')")
     public ResponseEntity<UserResDto> deleteRole(@RequestBody AttachRoleReqDto attachRoleRegDto) {
@@ -184,6 +197,7 @@ public class UserController {
      * réponse est un simple message ({@code Map}). Délègue à
      * {@code UserService.updateAccount(email, isActive)}.
      */
+    @Operation(summary = "Activer ou désactiver un compte", description = "Active ou désactive le compte correspondant à l'email fourni. Sans @PreAuthorize mais limité en filter-chain aux autorités ADMIN et SUPER_ADMIN.")
     @PutMapping("/account")
     public ResponseEntity<?> updateAccountStatus(
             @RequestParam String email,
@@ -203,6 +217,7 @@ public class UserController {
      * <p>Aucune {@code @PreAuthorize} et {@code permitAll} en filter-chain :
      * endpoint public. Délègue à {@code UserService.findAllUserActive()}.
      */
+    @Operation(summary = "Lister les comptes actifs", description = "Renvoie la liste des utilisateurs dont le compte est actif. Endpoint public, sans authentification requise.")
     @GetMapping("/active")
     public ResponseEntity<List<UserResDto>> findAllUserActive() {
         return ResponseEntity.ok(userService.findAllUserActive());
@@ -214,6 +229,7 @@ public class UserController {
      * <p>Aucune {@code @PreAuthorize} et {@code permitAll} en filter-chain :
      * endpoint public. Délègue à {@code UserService.findAllUserDisable()}.
      */
+    @Operation(summary = "Lister les comptes désactivés", description = "Renvoie la liste des utilisateurs dont le compte est désactivé. Endpoint public, sans authentification requise.")
     @GetMapping("/disable")
     public ResponseEntity<List<UserResDto>> findAllUsersDisable() {
         return ResponseEntity.ok(userService.findAllUserDisable());
@@ -227,6 +243,7 @@ public class UserController {
      * à l'autorité {@code SUPER_ADMIN}. Délègue à
      * {@code UserService.findAllByRole(RoleType.ADMIN)}.
      */
+    @Operation(summary = "Lister les administrateurs", description = "Renvoie tous les utilisateurs possédant le rôle ADMIN. Sans @PreAuthorize mais limité en filter-chain à l'autorité SUPER_ADMIN.")
     @GetMapping("/admins")
     public ResponseEntity<List<UserResDto>> findAllAdmins() {
         return ResponseEntity.ok(userService.findAllByRole("ADMIN"));
@@ -243,6 +260,7 @@ public class UserController {
      * {@code permitAll} de la filter-chain). Délègue à
      * {@code UserService.findPotentialContributors(projectId)}.
      */
+    @Operation(summary = "Contributeurs potentiels d'un projet", description = "Liste les utilisateurs pouvant être ajoutés comme contributeurs du projet indiqué. Protégé par la permission MANAGE_PROJECT_CONTRIBUTORS sur le projet via @PreAuthorize, avec authentification requise.")
     @GetMapping("/project/{projectId}/contributors")
     @PreAuthorize("@permissionEvaluator.hasProjectPermission(#projectId, 'MANAGE_PROJECT_CONTRIBUTORS')")
     public List<UserResDto> getPotentialContributors(@PathVariable Long projectId) {
@@ -257,6 +275,7 @@ public class UserController {
      * endpoint public, tout client peut poser l'image de n'importe quel
      * utilisateur. Délègue à {@code UserService.addImageToUser(id, image)}.
      */
+    @Operation(summary = "Ajouter ou remplacer une image de profil", description = "Téléverse (multipart/form-data) l'image de l'utilisateur identifié et renvoie le compte mis à jour. Endpoint public : aucune restriction d'accès n'est appliquée au niveau de la filter-chain ou des permissions.")
     @PostMapping(value = "/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<UserResDto> addImageToUser(
             @PathVariable Long id,
@@ -277,6 +296,7 @@ public class UserController {
      * {@code application/octet-stream}). Délègue à
      * {@code UserService.getUserImage(id)}.
      */
+    @Operation(summary = "Récupérer l'image de profil", description = "Renvoie l'image de l'utilisateur identifié, le Content-Type étant déduit du fichier (avec repli sur application/octet-stream). Endpoint public, sans authentification requise.")
     @GetMapping("/{id}/image")
     public ResponseEntity<Resource> getUserImage(
             @PathVariable Long id

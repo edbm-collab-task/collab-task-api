@@ -14,6 +14,7 @@ import com.school.security.repositories.UserRepository;
 import com.school.security.securities.utils.SecurityUtils;
 import com.school.security.services.contracts.ActivityService;
 import com.school.security.services.contracts.NotificationService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -24,6 +25,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Contrôleur de gestion des contributeurs d'un projet, sous le préfixe
@@ -51,6 +54,8 @@ import java.util.stream.Collectors;
  *       mais inutilisé (l'annotation utilisée est {@code @RestController}).</li>
  * </ul>
  */
+@Tag(name = "Contributeurs de projet", description = "Gestion des contributeurs d'un projet : consultation, ajout et retrait. L'ajout et le retrait sont réservés au propriétaire du projet.")
+@Slf4j
 @RestController
 @RequestMapping("/projects")
 public class ProjectContributorController {
@@ -99,6 +104,10 @@ public class ProjectContributorController {
      * @param projectId identifiant du projet concerné
      * @return liste des contributeurs sous forme de DTO
      */
+    @Operation(
+            summary = "Lister les contributeurs d'un projet",
+            description = "Retourne les contributeurs du projet triés du plus récent au plus ancien. Consultation ouverte à tout utilisateur authentifié : aucun contrôle d'appartenance au projet n'est appliqué."
+    )
     @GetMapping("/{projectId}/contributors")
     public ResponseEntity<List<ProjectContributorResDto>> getContributors(@PathVariable Long projectId) {
         Project project = projectRepository.findById(projectId)
@@ -154,6 +163,10 @@ public class ProjectContributorController {
      * contributeur, la notification et l'activité sont des opérations
      * distinctes.
      */
+    @Operation(
+            summary = "Ajouter un contributeur au projet",
+            description = "Ajoute un utilisateur (userId dans le corps) comme contributeur du projet. Seul le propriétaire du projet y a accès (403 sinon) ; doublon → 400. Envoie une notification et un email de bienvenue à l'utilisateur ajouté."
+    )
     @PostMapping("/{projectId}/contributors")
     public ResponseEntity<?> addContributor(
             @PathVariable Long projectId,
@@ -201,7 +214,9 @@ public class ProjectContributorController {
         activityService.logActivity(projectId, currentUserId, ActivityType.CONTRIBUTOR_ADDED,
                 userName + " a été ajouté(e) comme contributeur", null);
 
-        // Envoi d'email "ajouté(e) comme contributeur" (échec silencieux).
+        // Envoi d'email "ajouté(e) comme contributeur". L'envoi est asynchrone
+        // (EmailService.sendHtmlEmail est @Async) : la réponse HTTP n'attend plus
+        // le relais SMTP, et un échec éventuel n'est plus visible d'ici.
         sendContributorAddedEmail(user, project, ownerName);
 
         return ResponseEntity.ok(toDto(saved));
@@ -227,6 +242,10 @@ public class ProjectContributorController {
      * sans activité). Aucune notification ni email n'est envoyé au retrait
      * (contrairement à l'ajout).
      */
+    @Operation(
+            summary = "Retirer un contributeur du projet",
+            description = "Retire un utilisateur de la liste des contributeurs du projet. Seul le propriétaire du projet y a accès (403 sinon) ; l'utilisateur n'étant pas contributeur → 400. Opération transactionnelle."
+    )
     @DeleteMapping("/{projectId}/contributors/{userId}")
     @Transactional
     public ResponseEntity<?> removeContributor(
@@ -261,12 +280,16 @@ public class ProjectContributorController {
     }
 
     /**
-     * Envoi (best-effort) de l'email "ajouté comme contributeur" à
-     * l'utilisateur concerné.
+     * Déclenche l'email "ajouté comme contributeur" à l'utilisateur concerné.
      *
-     * <p>L'email est généré via le template et envoyé en HTML. Toute
-     * exception (template, SMTP, destinataire invalide...) est absorbée : un
-     * échec d'email ne doit jamais faire échouer la requête HTTP.
+     * <p>L'email est généré via le template puis confié à
+     * {@link EmailService#sendHtmlEmail}, qui s'exécute de façon asynchrone
+     * (pool {@code mailExecutor}).
+     *
+     * <p>Le {@code try/catch} ne couvre plus que la génération du template
+     * (Thymeleaf) : l'envoi SMTP lui-même est exécuté ailleurs et ses erreurs
+     * sont journalisées par le handler asynchrone. Un échec d'email ne doit
+     * jamais faire échouer la requête HTTP.
      */
     private void sendContributorAddedEmail(User user, Project project, String ownerName) {
         try {
@@ -281,7 +304,7 @@ public class ProjectContributorController {
                     html
             );
         } catch (Exception e) {
-            // Email failure should not block the request
+            log.warn("Email 'contributeur ajouté' non généré pour {} : {}", user.getEmail(), e.getMessage());
         }
     }
 

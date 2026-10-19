@@ -3,11 +3,14 @@ package com.school.security.controllers.api;
 import com.school.security.dtos.requests.CommentReqDto;
 import com.school.security.dtos.responses.CommentResDto;
 import com.school.security.services.contracts.CommentService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -35,6 +38,7 @@ import org.springframework.web.multipart.MultipartFile;
  *   <li>aucune notification n'est déclenchée à la création d'un commentaire.</li>
  * </ul>
  */
+@Tag(name = "Commentaires", description = "Gestion des commentaires d'une tâche : lecture, création, modification, suppression et réactions.")
 @RestController
 @RequestMapping("/tasks/{taskId}/comments")
 public class CommentController {
@@ -54,6 +58,8 @@ public class CommentController {
      * réponses étant imbriquées ({@code replies}) et triées chronologiquement.
      * L'état des réactions est calculé par rapport à l'utilisateur courant.
      */
+    @Operation(summary = "Lister les commentaires d'une tâche",
+            description = "Retourne les commentaires racines d'une tâche du plus récent au plus ancien, avec leurs réponses imbriquées et l'état des réactions pour l'utilisateur courant. Tout utilisateur authentifié y a accès.")
     @GetMapping
     public List<CommentResDto> getComments(@PathVariable Long taskId) {
         return commentService.getCommentsByTask(taskId);
@@ -66,6 +72,8 @@ public class CommentController {
      * TOUS les commentaires de la tâche (commentaires racines ET réponses),
      * via {@code CommentService.countCommentsByTask(taskId)}.
      */
+    @Operation(summary = "Compter les commentaires d'une tâche",
+            description = "Retourne une map {\"count\": n} avec le nombre total de commentaires de la tâche, réponses comprises. Accessible à tout utilisateur authentifié.")
     @GetMapping("/count")
     public Map<String, Long> countComments(@PathVariable Long taskId) {
         return Map.of("count", commentService.countCommentsByTask(taskId));
@@ -84,7 +92,10 @@ public class CommentController {
      * réactive automatiquement un projet archivé si sa tâche appartient à ce
      * projet.
      */
+    @Operation(summary = "Créer un commentaire",
+            description = "Crée un commentaire (ou une réponse si parentCommentId est fourni) sur une tâche, avec fichier joint optionnel. Nécessite la permission MANAGE_COMMENTS en INSERT. Réactive automatiquement un projet archivé.")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_COMMENTS', 'INSERT')")
     public CommentResDto createComment(
             @PathVariable Long taskId,
             @RequestParam("content") String content,
@@ -104,7 +115,10 @@ public class CommentController {
      * <p>NOTE : {@code taskId} n'est pas utilisé par le service, seule
      * {@code commentId} est exploité (voir le point d'attention de la classe).
      */
+    @Operation(summary = "Modifier un commentaire",
+            description = "Met à jour le contenu d'un commentaire existant. L'utilisateur doit être l'auteur du commentaire et disposer de la permission MANAGE_COMMENTS en UPDATE.")
     @PutMapping("/{commentId}")
+    @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_COMMENTS', 'UPDATE')")
     public CommentResDto updateComment(
             @PathVariable Long commentId,
             @Valid @RequestBody CommentReqDto dto) {
@@ -121,7 +135,10 @@ public class CommentController {
      * <p>NOTE : {@code taskId} n'est pas utilisé par le service, seule
      * {@code commentId} est exploité.
      */
+    @Operation(summary = "Supprimer un commentaire",
+            description = "Supprime un commentaire appartenant à l'utilisateur courant (sinon erreur). Nécessite la permission MANAGE_COMMENTS en DELETE. Répond 204 No Content en cas de succès.")
     @DeleteMapping("/{commentId}")
+    @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_COMMENTS', 'DELETE')")
     public ResponseEntity<Void> deleteComment(@PathVariable Long commentId) {
         commentService.deleteComment(commentId);
         return ResponseEntity.noContent().build();
@@ -140,6 +157,8 @@ public class CommentController {
      * {@code commentId} est exploité. Aucune restriction d'auteur n'est
      * appliquée pour les réactions.
      */
+    @Operation(summary = "Basculer une réaction",
+            description = "Ajoute ou retire (toggle) la réaction emoji de l'utilisateur courant sur un commentaire, puis retourne le commentaire mis à jour. Aucune restriction d'auteur ni permission spécifique.")
     @PostMapping("/{commentId}/reactions")
     public CommentResDto toggleReaction(
             @PathVariable Long commentId,

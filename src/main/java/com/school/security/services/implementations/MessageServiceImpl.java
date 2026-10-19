@@ -1,5 +1,6 @@
 package com.school.security.services.implementations;
 
+import com.school.security.dtos.responses.MessagePageResponse;
 import com.school.security.dtos.responses.MessageResponse;
 import com.school.security.entities.Conversation;
 import com.school.security.entities.ConversationMember;
@@ -15,6 +16,8 @@ import com.school.security.repositories.MessageRepository;
 import com.school.security.repositories.UserRepository;
 import com.school.security.services.contracts.MessageService;
 import com.school.security.securities.services.FileStorageService;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -128,13 +131,75 @@ public class MessageServiceImpl
     }
 
     /**
-     * Liste les messages d'une conversation, dans l'ordre chronologique
-     * croissant ({@code createdAt ASC}), après vérification que l'utilisateur
-     * courant est membre de la conversation.
+     * Page de messages d'une conversation, du plus ancien au plus récent, après
+     * vérification que l'utilisateur courant est membre de la conversation.
+     *
+     * <p>La requête est exécutée du plus récent au plus ancien sur
+     * {@code messageId}, puis ré-inversée : {@code before} nul renvoie la page
+     * la plus récente, sinon la page des messages plus anciens.
      */
     @Override
     @Transactional(readOnly = true)
-    public List<MessageResponse> getMessages(
+    public MessagePageResponse getMessages(
+            Long conversationId,
+            int limit,
+            Long before
+    ) {
+
+        requireConversation(
+                conversationId
+        );
+
+        /*
+         * Un message de plus que la limite est demandé, afin de pouvoir
+         * détecter s'il reste des messages à renvoyer au client.
+         */
+        Pageable window =
+                PageRequest.of(
+                        0,
+                        limit + 1
+                );
+
+        List<Message> fetched =
+                before == null
+                        ? messageRepository
+                                .findByConversationConversationIdOrderByMessageIdDesc(
+                                        conversationId,
+                                        window
+                                )
+                        : messageRepository
+                                .findByConversationConversationIdAndMessageIdLessThanOrderByMessageIdDesc(
+                                        conversationId,
+                                        before,
+                                        window
+                                );
+
+        boolean hasMore =
+                fetched.size() > limit;
+
+        List<Message> page =
+                hasMore
+                        ? fetched.subList(
+                                0,
+                                limit
+                        )
+                        : fetched;
+
+        return new MessagePageResponse(
+                page.reversed()
+                        .stream()
+                        .map(messageMapper::toResponse)
+                        .toList(),
+                hasMore
+        );
+    }
+
+    /**
+     * Charge une conversation et vérifie que l'utilisateur courant en est
+     * membre. Point d'entrée unique de tout accès aux messages d'une
+     * conversation.
+     */
+    private Conversation requireConversation(
             Long conversationId
     ) {
 
@@ -157,13 +222,58 @@ public class MessageServiceImpl
                 currentUserId
         );
 
-        return messageRepository
-                .findByConversationConversationIdOrderByCreatedAtAsc(
-                        conversationId
-                )
-                .stream()
-                .map(messageMapper::toResponse)
-                .toList();
+        return conversation;
+    }
+
+    /**
+     * Page de messages correspondant à un terme, après vérification que
+     * l'utilisateur courant est membre de la conversation.
+     *
+     * <p>La requête est exécutée du plus récent au plus ancien puis
+     * ré-inversée, comme {@link #getMessages(Long, int, Long)}.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public MessagePageResponse searchMessages(
+            Long conversationId,
+            String query,
+            int limit,
+            Long before
+    ) {
+
+        requireConversation(
+                conversationId
+        );
+
+        List<Message> fetched =
+                messageRepository.search(
+                        conversationId,
+                        query.trim(),
+                        before,
+                        PageRequest.of(
+                                0,
+                                limit + 1
+                        )
+                );
+
+        boolean hasMore =
+                fetched.size() > limit;
+
+        List<Message> page =
+                hasMore
+                        ? fetched.subList(
+                                0,
+                                limit
+                        )
+                        : fetched;
+
+        return new MessagePageResponse(
+                page.reversed()
+                        .stream()
+                        .map(messageMapper::toResponse)
+                        .toList(),
+                hasMore
+        );
     }
 
     /**

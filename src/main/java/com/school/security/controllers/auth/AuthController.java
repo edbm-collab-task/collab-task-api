@@ -6,7 +6,11 @@ import com.school.security.dtos.requests.EmailReq;
 import com.school.security.dtos.requests.LoginReqDto;
 import com.school.security.dtos.requests.UserReqDto;
 import com.school.security.dtos.responses.LoginResDto;
+import com.school.security.dtos.responses.PermissionSummary;
 import com.school.security.dtos.responses.UserResDto;
+import com.school.security.entities.Permission;
+import com.school.security.enums.ActionType;
+import com.school.security.entities.RolePermission;
 import com.school.security.entities.User;
 import com.school.security.mappers.DirectionMapper;
 import com.school.security.mappers.UserMapper;
@@ -27,11 +31,18 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
+import io.jsonwebtoken.JwtException;
 import java.security.SecureRandom;
 import java.util.HashMap;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 
 
@@ -65,6 +76,7 @@ import java.util.stream.Collectors;
  * {@code POST /auth/create} est soumis à {@code @PreAuthorize(MANAGE_USERS)}
  * pour réserver la création de compte à l'administration.
  */
+@Tag(name = "Authentification", description = "Endpoints d'authentification et de gestion des sessions : connexion, inscription, rafraîchissement des tokens JWT, récupération de mot de passe et statut de présence. La plupart des routes sont publiques (permitAll), sauf la création de compte réservée à la permission MANAGE_USERS.")
 @RestController
 @Slf4j
 @RequestMapping("/auth")
@@ -119,6 +131,7 @@ public class AuthController {
     /**
      * LOGIN
      */
+    @Operation(summary = "Connexion d'un utilisateur", description = "Authentifie un utilisateur par email et mot de passe. En cas de succès, marque l'utilisateur en ligne et remet l'access token (1 h), le refresh token (7 j) et l'email sous forme de cookies HTTP ; renvoie aussi le premier rôle et les permissions de l'utilisateur. Endpoint public.")
     @PostMapping("/login")
     public ResponseEntity<LoginResDto> login(
             @RequestBody LoginReqDto credential,
@@ -167,10 +180,11 @@ public class AuthController {
                 new LoginResDto(
                         user.getUsersId(),
                         user.getRoles().getFirst().getName(),
+                        user.getRoles().getFirst().getCodeRole(),
                         user.getFirstname(),
                         user.getLastname(),
                         user.getEmail(),
-                        extractPermissions(user),
+                        buildPermissionSummaries(user),
                         accessToken,
                         refreshToken
                 )
@@ -184,6 +198,7 @@ public class AuthController {
     /**
      * REGISTER
      */
+    @Operation(summary = "Inscription ou mise à jour d'un compte", description = "Crée ou met à jour un utilisateur à partir des données fournies, via UserService.createOrUpdate. Endpoint public, sans authentification requise.")
     @PostMapping("/register")
     public UserResDto register(@RequestBody UserReqDto userReqDto)
     {
@@ -203,6 +218,7 @@ public class AuthController {
     /**
      * CREATE
      */
+    @Operation(summary = "Création d'un compte par un administrateur", description = "Crée un utilisateur avec un mot de passe temporaire généré automatiquement. Restreint aux requêtes authentifiées disposant de la permission MANAGE_USERS via @PreAuthorize, malgré le permitAll de la filter-chain.")
     @PostMapping("/create")
     @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_USERS')")
     public UserResDto create(@RequestBody UserReqDto userReqDto) {return userService.create(userReqDto);}
@@ -263,12 +279,18 @@ public class AuthController {
      *       token (un access token ou un token de récupération placé dans le
      *       cookie serait aussi accepté) ;</li>
      *   <li>sur validation refusée ({@code isTokenValid == false}), les cookies
-     *       ne sont PAS supprimés (seule l'exception de la rotation les efface).</li>
+     *       ne sont PAS supprimés ;</li>
+     *   <li>les cookies ne sont effacés que sur une invalidation réelle de la
+     *       session ({@code JwtException}, compte supprimé, compte sans rôle). Les
+     *       erreurs serveur (indisponibilité de la base, erreur de
+     *       configuration) remontent en 500 et préservent la session, qui reste
+     *       récupérable ;</li>
      * </ul>
      */
     /**
      * REFRESH TOKEN
      */
+    @Operation(summary = "Renouvellement des tokens JWT", description = "Valide le refresh token présent dans le cookie refreshToken puis le fait tourner : renvoie un nouvel access token (1 h) et un nouveau refresh token (7 j) en cookies. Renvoie 401 si le cookie est absent, invalide ou expiré, auquel cas les cookies de session sont supprimés. Endpoint public.")
     @PostMapping("/refresh")
     public ResponseEntity<?> refreshToken(
             HttpServletRequest request,
@@ -291,17 +313,10 @@ public class AuthController {
 
             String email = jwtService.extractUsername(refreshToken);
 
+            // findByEmail lève une IllegalArgumentException si la ligne a disparu
+            // (jamais de null) : l'ancien test « if (user == null) » était donc
+            // du code mort et ce cas retombait dans le message « expiré ».
             var user = userService.findByEmail(email);
-
-            if (user == null) {
-
-                return ResponseEntity.status(401).body(
-                        Map.of(
-                                "message",
-                                "User not found"
-                        )
-                );
-            }
 
             if (!jwtService.isTokenValid(refreshToken, user)) {
 
@@ -334,16 +349,23 @@ public class AuthController {
                     new LoginResDto(
                             user.getUsersId(),
                             user.getRoles().getFirst().getName(),
+                            user.getRoles().getFirst().getCodeRole(),
                             user.getFirstname(),
                             user.getLastname(),
-                            user.getEmail(),
-                            extractPermissions(user),
-                            newAccessToken,
-                            newRefreshToken
+user.getEmail(),
+                        buildPermissionSummaries(user),
+                        newAccessToken,
+                        newRefreshToken
                     )
             );
 
-        } catch (Exception e) {
+        } catch (JwtException | IllegalArgumentException e) {
+
+            // Session réellement invalide : jeton expiré, malformé, signature
+            // invalide, ou compte supprimé. Ces cas-là seuls justifient la
+            // suppression des cookies.
+            log.warn("[AUTH-REFRESH] refresh token rejeté : {} - {}",
+                    e.getClass().getSimpleName(), e.getMessage());
 
             response.addCookie(CookieUtils.deleteAccessTokenCookie());
             response.addCookie(CookieUtils.deleteRefreshTokenCookie());
@@ -351,7 +373,23 @@ public class AuthController {
             return ResponseEntity.status(401).body(
                     Map.of(
                             "message",
-                            "Refresh token expired"
+                            "Refresh token invalide ou expiré"
+                    )
+            );
+
+        } catch (NoSuchElementException e) {
+
+            // Compte sans rôle : getFirst() échoue sur une liste vide. Ce n'est
+            // pas une expiration ; le dire plutôt que de le masquer.
+            log.warn("[AUTH-REFRESH] aucun rôle associé au compte");
+
+            response.addCookie(CookieUtils.deleteAccessTokenCookie());
+            response.addCookie(CookieUtils.deleteRefreshTokenCookie());
+
+            return ResponseEntity.status(401).body(
+                    Map.of(
+                            "message",
+                            "Aucun rôle associé à ce compte"
                     )
             );
         }
@@ -382,6 +420,7 @@ public class AuthController {
     /**
      * GENERATE CODE
      */
+    @Operation(summary = "Génération d'un code de récupération", description = "Génère un code à 6 chiffres et un recovery token (10 min) posé en cookie, puis envoie le code par email. Répond 403 si le compte est désactivé. Endpoint public, utilisé dans le flux de récupération de mot de passe.")
     @PostMapping("/code")
     public ResponseEntity<?> generateCode(
             @RequestBody EmailReq emailReq,
@@ -447,6 +486,7 @@ public class AuthController {
      * vérifiée ici — seul le code est extrait. Un token signé valide portant un
      * code permettrait la vérification.
      */
+    @Operation(summary = "Vérification du code de récupération", description = "Compare le code saisi en query param avec celui du recovery token conservé dans le cookie. Répond 401 si le token est absent ou expiré, 400 si le code est incorrect. Endpoint public.")
     @GetMapping("/verification-code")
     public ResponseEntity<?> verification(
             @RequestParam int code,
@@ -495,6 +535,7 @@ public class AuthController {
     /**
      * LOGOUT
      */
+    @Operation(summary = "Déconnexion de l'utilisateur", description = "Marque l'utilisateur comme hors ligne à partir du cookie email, puis expire les cookies accessToken, refreshToken et email côté client. Endpoint public.")
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpServletRequest request,HttpServletResponse response) {
 
@@ -548,6 +589,7 @@ public class AuthController {
      * contrôleur, mais aussi accessible directement par le front via cette URL
      * (cf. filter-chain SecurityConfig, {@code permitAll}).
      */
+    @Operation(summary = "Mise à jour du statut de présence", description = "Passe le statut de présence (en ligne / hors ligne) d'un utilisateur identifié par email. Appelé par le login et le logout, mais aussi accessible directement au front. Endpoint public.")
     @PutMapping("/status")
     public ResponseEntity<?> updateStatus(
             @RequestParam String email,
@@ -564,11 +606,49 @@ public class AuthController {
      * Extrait la liste des noms de permissions d'un utilisateur (rôle par rôle,
      * sans doublon). Utilisée dans les DTOs de réponse de login/refresh/me.
      */
-    private List<String> extractPermissions(User user) {
-        return user.getRoles().stream()
+    /**
+     * Construit le résumé des permissions de l'utilisateur authentifié :
+     * pour chaque permission, le masque des actions disponibles ({@code totalActions})
+     * et le masque des actions accordées ({@code totalActionsAccordees}) via ses rôles.
+     */
+    private List<PermissionSummary> buildPermissionSummaries(User user) {
+        // Collecte des noms de permissions distincts présents dans ses rôles
+        Set<String> permNames = user.getRoles().stream()
                 .flatMap(role -> role.getPermissions().stream())
-                .map(permission -> permission.getName().name())
-                .distinct()
+                .map(p -> p.getName().name())
+                .collect(Collectors.toSet());
+
+        // Map du totalActions par permission (puisque c'est la même valeur catalogue pour tous les rôles)
+        Map<String, Integer> totalActionsMap = permNames.stream()
+                .collect(Collectors.toMap(
+                        Function.identity(),
+                        perm -> user.getRoles().stream()
+                                .flatMap(role -> role.getPermissions().stream())
+                                .filter(p -> p.getName().name().equals(perm))
+                                .findFirst()
+                                .map(Permission::getTotalActions)
+                                .orElse(0)
+                ));
+
+        // Map du totalActionsAccordees : agrégation des masques binaires sur tous les rolePermissions
+        Map<String, Integer> accruedMap = permNames.stream()
+                .collect(Collectors.toConcurrentMap(
+                        Function.identity(),
+                        perm -> user.getRoles().stream()
+                                .flatMap(role -> role.getRolePermissions().stream())
+                                .filter(rp -> rp.getPermission().getName().name().equals(perm))
+                                // Prérequis « Voir » : un masque sans SELECT ne compte pour rien.
+                                .map(rp -> ActionType.applySelectPrerequisite(
+                                        rp.getActions() == null ? 0 : rp.getActions()))
+                                .reduce(0, (a, b) -> a | b)
+                ));
+
+        return permNames.stream()
+                .map(name -> new PermissionSummary(
+                        name,
+                        totalActionsMap.get(name),
+                        accruedMap.get(name)
+                ))
                 .collect(Collectors.toList());
     }
 
@@ -584,6 +664,7 @@ public class AuthController {
      * <p>NOTE : {@code user.getRoles().getFirst()} est appelé sans contrôle :
      * un rôle absent ferait échouer la construction du DTO.
      */
+    @Operation(summary = "Profil de l'utilisateur connecté", description = "Renvoie les informations (rôle, permissions) de l'utilisateur tiré du SecurityContext, sans les tokens. Répond 401 si aucun utilisateur n'est authentifié. Nécessite donc une session valide.")
     @GetMapping("/me")
     public ResponseEntity<LoginResDto> me(Authentication authentication) {
 
@@ -599,10 +680,11 @@ public class AuthController {
                 new LoginResDto(
                         user.getUsersId(),
                         user.getRoles().getFirst().getName(),
+                        user.getRoles().getFirst().getCodeRole(),
                         user.getFirstname(),
                         user.getLastname(),
                         user.getEmail(),
-                        extractPermissions(user)
+                        buildPermissionSummaries(user)
                 )
         );
     }
@@ -617,6 +699,7 @@ public class AuthController {
      * au front d'afficher l'email et de valider que la session de récupération
      * est toujours ouverte).
      */
+    @Operation(summary = "Vérification d'une session de récupération", description = "Contrôle la validité du recovery token sans le consommer et renvoie l'email associé, permettant au front de poursuivre la réinitialisation. Répond 401 si le cookie est absent ou invalide. Endpoint public.")
     @GetMapping("/recovery/me")
     public ResponseEntity<?> recoveryMe(
             @CookieValue(value = "recoveryToken", required = false) String recoveryToken

@@ -1,19 +1,37 @@
 package com.school.security.services.implementations;
 
 import com.school.security.dtos.requests.RoleReqDto;
+import com.school.security.dtos.responses.ActionResDto;
+import com.school.security.dtos.responses.PermissionActionsResDto;
 import com.school.security.dtos.responses.PermissionResDto;
+import com.school.security.dtos.responses.RoleActionsResDto;
+import com.school.security.dtos.responses.RolePermissionActionsResDto;
 import com.school.security.dtos.responses.RoleResDto;
+import com.school.security.enums.ActionType;
 import com.school.security.enums.PermissionType;
+import com.school.security.entities.Action;
 import com.school.security.entities.Permission;
 import com.school.security.entities.Role;
+import com.school.security.entities.RolePermission;
 import com.school.security.exceptions.BadRequestException;
 import com.school.security.exceptions.EntityException;
 import com.school.security.mappers.RoleMapper;
+import com.school.security.repositories.ActionRepository;
 import com.school.security.repositories.PermissionRepository;
+import com.school.security.repositories.RolePermissionRepository;
 import com.school.security.repositories.RoleRepository;
 import com.school.security.services.contracts.RoleService;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,22 +40,24 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Service de gestion des rôles et des permissions.
  *
- * <p>Règles métier constatées (documentées, non modifiées) :
+ * <p>Les actions sont représentées par un <strong>masque binaire</strong> :
+ * chaque {@link ActionType} porte un code (puissance de 2) et un ensemble
+ * d'actions se réduit à la somme de leurs codes.
  * <ul>
- *   <li>la création d'un rôle ({@code create}) n'est autorisée que si ce rôle
- *       n'existe pas déjà ; une {@code EntityException} est levée en cas de doublon.</li>
- *   <li>la modification d'un rôle ({@code update}) ne remplace que les {@link
- *       PermissionType permissions} fournis dans le DTO ; les autres attributs
- *       du rôle ne sont pas modifiés.</li>
- *   <li>la suppression d'un rôle ({@code delete}) ne vérifie pas la présence de
- *       dépendances (utilisateurs ou projets affectés) ; la suppression en base
- *       est directe via {@code roleRepository.delete}.</li>
- *   <li>les permissions sont résolues via {@link PermissionRepository} à partir
- *       de leur nom ({@code PermissionType.name}) ; une {@code EntityException}
- *       est levée si une permission sollicitée est introuvable.</li>
- *   <li>Aucune vérification {@code @PreAuthorize} {@code SUPER_ADMIN} n'est
- *       effectuée dans ce service ; les contrôles d'accès s'appliquent au niveau
- *       des contrôleurs ou de la filter-chain {@code SecurityConfig}.</li>
+ *   <li>le masque des actions <em>disponibles</em> d'un module est stocké dans
+ *       {@code permissions.total_actions} (référentiel éditable) ;</li>
+ *   <li>le masque des actions <em>accordées</em> à un rôle sur un module est
+ *       stocké dans {@code roles_permissions.actions}.</li>
+ * </ul>
+ *
+ * <p>Règles métier (documentées) :
+ * <ul>
+ *   <li>la création d'un rôle ({@code create}) est refusée si le rôle existe déjà ;</li>
+ *   <li>la modification d'un rôle ({@code update}) ne remplace que les
+ *       permissions fournies ; les actions déjà configurées sont préservées ;</li>
+ *   <li>la suppression d'un rôle est refusée s'il est affecté à des utilisateurs ;</li>
+ *   <li>les permissions sont résolues par leur nom ({@code PermissionType}) ;
+ *       une {@code EntityException} est levée si introuvable.</li>
  * </ul>
  */
 @Service
@@ -48,6 +68,22 @@ public class RoleServiceImpl implements RoleService {
     private RoleRepository roleRepository;
     private PermissionRepository permissionRepository;
     private RoleMapper roleMapper;
+    private ActionRepository actionRepository;
+    private RolePermissionRepository rolePermissionRepository;
+
+    /**
+     * Permissions volontairement exclues de la gestion d'actions (masques).
+     *
+     * <p>{@code MANAGE_MESSAGES} n'est pas manipulé via l'API d'actions pour le
+     * moment : le module est masqué du catalogue ({@code GET
+     * /roles/permissions/actions}) et de la carte des rôles ({@code GET
+     * /roles/actions-map}). La permission et son enforcement ({@code
+     * @PreAuthorize} de {@code MessageController}) restent actifs, et sa
+     * configuration est préservée lors d'un {@code PUT /roles/{id}/actions}.
+     * Pour réactiver la gestion des actions des messages, retirer l'entrée ici.
+     */
+    private static final Set<PermissionType> ACTIONS_MANAGEMENT_EXCLUDED =
+            EnumSet.of(PermissionType.MANAGE_MESSAGES);
 
     /** Retourne l'ensemble des rôles avec leurs permissions associées. */
     @Override
@@ -68,11 +104,14 @@ public class RoleServiceImpl implements RoleService {
         return roleMapper.toDto(role);
     }
 
-    /** Crée un nouveau rôle.
+/** Crée un nouveau rôle.
      *
-     * <p>Vérifie que le rôle n'existe pas déjà ; lève une {@code EntityException}
-     * en cas de doublon. Les permissions optionnelles sont résolues depuis la
- * base de données via {@link PermissionRepository}.</p>
+     * <p>Le nom est un libellé libre (normalisé en majuscules) associé à un
+     * {@code codeRole} distinct. Vérifie que le rôle n'existe pas déjà ; lève
+     * une {@code BadRequestException} si le nom est vide et une
+     * {@code EntityException} en cas de doublon. Les permissions optionnelles
+     * sont résolues depuis la base de données via
+     * {@code PermissionRepository}.</p>
      */
     @Override
     public RoleResDto create(RoleReqDto dto) {
@@ -96,16 +135,19 @@ public class RoleServiceImpl implements RoleService {
         return roleMapper.toDto(roleRepository.save(role));
     }
 
-    /** Met à jour les permissions d'un rôle existant.
+    /** Modifie un rôle existant : remplace le {@code codeRole} fourni et/ou les
+     * permissions fournies (les actions déjà configurées sont préservées).
      *
-     * <p>Lève une {@code EntityException} si le rôle n'existe pas. Les
-     * permissions optionnelles du DTO remplacent les permissions existantes ;
-     * les autres attributs du rôle ne sont pas modifiés.</p>
+     * <p>Lève une {@code EntityException} si le rôle n'existe pas.</p>
      */
     @Override
     public RoleResDto update(Long id, RoleReqDto dto) {
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new EntityException("Role not found with ID " + id));
+
+        if (dto.codeRole() != null && !dto.codeRole().isBlank()) {
+            role.setCodeRole(dto.codeRole());
+        }
 
         if (dto.permissions() != null) {
             List<Permission> permissions = dto.permissions().stream()
@@ -120,9 +162,8 @@ public class RoleServiceImpl implements RoleService {
 
     /** Supprime un rôle existant.
      *
-     * <p>Lève une {@code EntityException} si le rôle n'existe pas. Aucune
-     * vérification de dépendances (utilisateurs ou projets affectés) n'est
-     * effectuée ; la suppression en base est directe.</p>
+     * <p>Lève une {@code EntityException} si le rôle n'existe pas ou s'il est
+     * encore affecté à des utilisateurs.</p>
      */
     @Override
     public void delete(Long id) {
@@ -134,15 +175,41 @@ public class RoleServiceImpl implements RoleService {
         roleRepository.delete(role);
     }
 
-    /** Retourne la liste de toutes les permissions du système. */
+    /**
+     * Retourne la liste de toutes les permissions du système.
+     *
+     * <p>Les permissions sont triées par catégorie puis par nom afin que le
+     * regroupement affiché par le client soit déterministe.
+     */
     @Override
     public List<PermissionResDto> findAllPermissions() {
-        return permissionRepository.findAll().stream()
-                .map(p -> new PermissionResDto(p.getPermissionId(), p.getName().name(), p.getDescription()))
+        return permissionRepository.findAllByOrderByCategoryPermissionAscNameAsc().stream()
+                .map(p -> new PermissionResDto(p.getPermissionId(), p.getName().name(), p.getDescription(), p.getCategoryPermission()))
                 .collect(Collectors.toList());
     }
 
-    /** Ajoute des permissions à un rôle existant.
+    /**
+     * Catalogue : chaque permission accompagnée de son masque
+     * {@code totalActions} (somme des codes des actions disponibles).
+     *
+     * <p>Sert au frontend à construire les cases à cocher d'actions. Les
+     * permissions sont triées par catégorie puis par nom. Les modules exclus de
+     * la gestion d'actions ({@link #ACTIONS_MANAGEMENT_EXCLUDED}) sont omis.
+     */
+    @Override
+    public List<PermissionActionsResDto> findAllPermissionsWithActions() {
+        return permissionRepository.findAllByOrderByCategoryPermissionAscNameAsc().stream()
+                .filter(p -> !ACTIONS_MANAGEMENT_EXCLUDED.contains(p.getName()))
+                .map(p -> new PermissionActionsResDto(
+                        p.getPermissionId(),
+                        p.getName().name(),
+                        p.getDescription(),
+                        p.getCategoryPermission(),
+                        p.getTotalActions()))
+                .collect(Collectors.toList());
+    }
+
+/** Ajoute des permissions à un rôle existant.
      *
      * @param roleId Identifiant du rôle
      * @param permissionNames Noms des permissions à associer (enum PermissionType)
@@ -158,6 +225,210 @@ public class RoleServiceImpl implements RoleService {
                 .collect(Collectors.toList());
         role.setPermissions(permissions);
         roleRepository.save(role);
+    }
+
+    /**
+     * Catalogue des actions gérables, triées par code binaire et exposées
+     * avec leur code et leur libellé ({@code [{codeAction, name, label}]}).
+     */
+    @Override
+    public List<ActionResDto> findAllActions() {
+        return Arrays.stream(ActionType.values())
+                .map(a -> new ActionResDto(a.getCode(), a.name(), a.getLabel()))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Actions de chaque rôle, indexées par identifiant de rôle, triées par
+     * identifiant pour un rendu déterministe.
+     */
+    @Override
+    public Map<Long, RoleActionsResDto> getActionsMap() {
+        Map<Long, RoleActionsResDto> result = new LinkedHashMap<>();
+        roleRepository.findAll().stream()
+                .sorted(Comparator.comparing(Role::getRolesId))
+                .forEach(role -> result.put(role.getRolesId(), toRoleActions(role)));
+        return result;
+    }
+
+    /** Actions d'un rôle, regroupées par module, avec les deux totaux. */
+    @Override
+    public RoleActionsResDto getRoleActions(Long roleId) {
+        Role role = roleRepository.findById(roleId)
+                .orElseThrow(() -> new EntityException("Role not found with ID " + roleId));
+        return toRoleActions(role);
+    }
+
+    /**
+     * Remplace la configuration d'actions d'un rôle.
+     *
+     * <p>Le corps associe chaque module à sa liste d'actions (noms techniques) ;
+     * une liste vide conserve l'accès en lecture seule (masque 0). Les modules
+     * absents sont retirés du rôle. Les lignes existantes sont réutilisées afin
+     * d'éviter toute collision de clé composite lors du flush.
+     *
+     * <p>Seules les actions disponibles sur le module ({@code permissions_actions})
+     * sont acceptées : une action étrangère au module lève une
+     * {@code BadRequestException}.
+     */
+    @Override
+    public RoleActionsResDto setRoleActions(Long roleId, Map<String, List<String>> actions) {
+        Role role = roleRepository.findById(roleId)
+                .orElseThrow(() -> new EntityException("Role not found: " + roleId));
+
+        Map<Long, RolePermission> existing = role.getRolePermissions().stream()
+                .collect(Collectors.toMap(
+                        rp -> rp.getPermission().getPermissionId(),
+                        rp -> rp,
+                        (a, b) -> a));
+
+        List<RolePermission> rebuilt = new ArrayList<>();
+        if (actions != null) {
+            for (Map.Entry<String, List<String>> entry : actions.entrySet()) {
+                PermissionType permType = parsePermission(entry.getKey());
+                if (ACTIONS_MANAGEMENT_EXCLUDED.contains(permType)) {
+                    continue;
+                }
+                Permission permission = permissionRepository.findByName(permType)
+                        .orElseThrow(() -> new EntityException("Permission not found: " + entry.getKey()));
+
+                Set<String> available = actionNames(permission);
+                int mask = 0;
+                for (String actionName : entry.getValue()) {
+                    ActionType action = parseAction(actionName);
+                    if (!available.contains(action.name())) {
+                        throw new BadRequestException(
+                                "Action non disponible pour le module " + entry.getKey() + " : " + actionName);
+                    }
+                    mask |= action.getCode();
+                }
+                // Prérequis « Voir » : SELECT absent => aucune action accordée.
+                mask = ActionType.applySelectPrerequisite(mask);
+
+                RolePermission rp = existing.get(permission.getPermissionId());
+                if (rp == null) {
+                    rp = new RolePermission();
+                    rp.setRole(role);
+                    rp.setPermission(permission);
+                }
+                rp.setActions(mask);
+                rebuilt.add(rp);
+            }
+        }
+
+        // Les modules exclus de la gestion d'actions (MANAGE_MESSAGES) ne figurent
+        // pas dans le corps : on réinjecte leur configuration existante pour ne
+        // pas la perdre, le PUT remplaçant l'ensemble des permissions du rôle.
+        for (PermissionType excluded : ACTIONS_MANAGEMENT_EXCLUDED) {
+            permissionRepository.findByName(excluded).ifPresent(permission -> {
+                RolePermission rp = existing.get(permission.getPermissionId());
+                if (rp != null) {
+                    rebuilt.add(rp);
+                }
+            });
+        }
+
+        role.getRolePermissions().clear();
+        role.getRolePermissions().addAll(rebuilt);
+        roleRepository.save(role);
+        return toRoleActions(role);
+    }
+
+    /**
+     * Redéfinit les actions disponibles d'un module.
+     *
+     * <p>La liste fournie (noms techniques) devient la référence. Le
+     * {@code totalActions} du module est recalculé, puis, pour tous les rôles
+     * possédant ce module, les bits des actions désormais indisponibles sont
+     * retirés de leur masque accordé (cohérence : on ne peut pas conserver une
+     * action qui n'existe plus).
+     */
+    @Override
+    public PermissionActionsResDto updatePermissionActions(Long permissionId, List<String> actionNames) {
+        Permission permission = permissionRepository.findById(permissionId)
+                .orElseThrow(() -> new EntityException("Permission not found: " + permissionId));
+
+        Set<Action> resolved = new LinkedHashSet<>();
+        if (actionNames != null) {
+            for (String name : actionNames) {
+                ActionType type = parseAction(name);
+                Action action = actionRepository.findByName(type.name())
+                        .orElseThrow(() -> new EntityException("Action not found: " + name));
+                resolved.add(action);
+            }
+        }
+
+        permission.setActions(resolved);
+        int total = maskOf(resolved);
+        permission.setTotalActions(total);
+        permissionRepository.save(permission);
+
+        // Retire des masques accordés les bits devenus indisponibles.
+        List<RolePermission> rows = rolePermissionRepository.findByPermissionPermissionId(permissionId);
+        for (RolePermission rp : rows) {
+            int current = rp.getActions() == null ? 0 : rp.getActions();
+            int clamped = ActionType.applySelectPrerequisite(current & total);
+            if (clamped != current) {
+                rp.setActions(clamped);
+            }
+        }
+        rolePermissionRepository.saveAll(rows);
+
+        return new PermissionActionsResDto(
+                permission.getPermissionId(),
+                permission.getName().name(),
+                permission.getDescription(),
+                permission.getCategoryPermission(),
+                total);
+    }
+
+    /** Regroupe les actions d'un rôle par module, modules triés par nom. */
+    private RoleActionsResDto toRoleActions(Role role) {
+        Map<String, RolePermissionActionsResDto> permissions = new java.util.TreeMap<>();
+        for (RolePermission rp : role.getRolePermissions()) {
+            Permission permission = rp.getPermission();
+            if (ACTIONS_MANAGEMENT_EXCLUDED.contains(permission.getName())) {
+                continue;
+            }
+            permissions.put(permission.getName().name(), new RolePermissionActionsResDto(
+                    permission.getTotalActions(),
+                    ActionType.applySelectPrerequisite(rp.getActions() == null ? 0 : rp.getActions())));
+        }
+        return new RoleActionsResDto(role.getName(), permissions);
+    }
+
+    /**
+     * Masque (somme des codes) d'un ensemble d'actions. Le code binaire de
+     * chaque action est calculé depuis {@link ActionType} (et non plus lu en
+     * base), à partir de son nom technique.
+     */
+    private int maskOf(Collection<Action> actions) {
+        return actions.stream()
+                .mapToInt(a -> ActionType.valueOf(a.getName()).getCode())
+                .sum();
+    }
+
+    /** Noms techniques des actions disponibles sur une permission. */
+    private Set<String> actionNames(Permission permission) {
+        return permission.getActions().stream()
+                .map(Action::getName)
+                .collect(Collectors.toSet());
+    }
+
+    private PermissionType parsePermission(String name) {
+        try {
+            return PermissionType.valueOf(name);
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("Permission inconnue : " + name);
+        }
+    }
+
+    private ActionType parseAction(String name) {
+        try {
+            return ActionType.valueOf(name);
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("Action inconnue : " + name);
+        }
     }
 
     /**

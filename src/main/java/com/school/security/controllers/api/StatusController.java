@@ -14,6 +14,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 /**
  * Contrôleur de gestion des statuts (états de tâches), sous le préfixe
  * {@code /statuses}.
@@ -39,6 +42,7 @@ import java.util.stream.Collectors;
  *       bean validation ({@code @Valid} absent).</li>
  * </ul>
  */
+@Tag(name = "Statuts", description = "Gestion des statuts de tâches : statuts globaux (défaut) et statuts spécifiques à un projet.")
 @RestController
 @RequestMapping("/statuses")
 public class StatusController {
@@ -61,6 +65,7 @@ public class StatusController {
      *       (défaut et projets confondus), sans tri garanti.</li>
      * </ul>
      */
+    @Operation(summary = "Lister les statuts", description = "Retourne les statuts. Si projectId est fourni, inclut aussi les statuts par défaut, triés par sortOrder. Accessible à tout utilisateur authentifié.")
     @GetMapping
     public ResponseEntity<List<StatusResDto>> getAll(
             @RequestParam(required = false) Long projectId) {
@@ -90,6 +95,7 @@ public class StatusController {
      *
      * <p>Aucune validation du contenu n'est appliquée au niveau du contrôleur.
      */
+    @Operation(summary = "Créer un statut", description = "Crée un statut. Si projectId est absent, crée un statut par défaut (global). Si projectId est fourni, crée un statut spécifique au projet. Accessible à tout utilisateur authentifié.")
     @PostMapping
     public ResponseEntity<StatusResDto> create(@RequestBody StatusReqDto dto) {
         Status status = new Status();
@@ -114,6 +120,7 @@ public class StatusController {
      * <p>Point d'attention : aucun contrôle n'est effectué sur l'existence de
      * tâches utilisant encore ce statut avant la suppression.
      */
+    @Operation(summary = "Supprimer un statut", description = "Supprime un statut spécifique à un projet. Un statut par défaut ne peut pas être supprimé (retour HTTP 400). Accessible à tout utilisateur authentifié.")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable Long id) {
         Status status = statusRepository.findById(id)

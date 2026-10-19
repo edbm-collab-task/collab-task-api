@@ -12,13 +12,21 @@ package com.school.security.enums;
  * bit à bit : {@code (masqueAccorde & codeAction) != 0}.
  *
  * <pre>
- *   INSERT          bitIndex 0 -> 1
- *   SELECT          bitIndex 1 -> 2
- *   UPDATE          bitIndex 2 -> 4
- *   DELETE          bitIndex 3 -> 8
- *   GENERATE_REPORT bitIndex 4 -> 16
- *   EXPORT          bitIndex 5 -> 32
+ *   INSERT   bitIndex 0 -&gt; 1
+ *   SELECT   bitIndex 1 -&gt; 2
+ *   UPDATE   bitIndex 2 -&gt; 4
+ *   DELETE   bitIndex 3 -&gt; 8
+ *   -- bitIndex 4 (16) : ancienne action GENERATE_REPORT, supprimée (redondante
+ *   --                    avec EXPORT) ; l'index 4 n'est jamais réutilisé.
+ *   EXPORT   bitIndex 5 -&gt; 32
+ *   DOWNLOAD bitIndex 6 -&gt; 64
+ *   ARCHIVE  bitIndex 7 -&gt; 128
  * </pre>
+ *
+ * <p>Les actions sont alignées sur le métier réel : les pièces jointes se
+ * <em>téléchargent</em> (DOWNLOAD) et les projets s'<em>archivent</em>
+ * (ARCHIVE) — il n'y a ni suppression de fichier de projet, ni action
+ * « générer un rapport » distincte de l'export.
  *
  * <p><strong>IMPORTANT :</strong> l'ordre de déclaration est la source de
  * vérité. On ne réordonne jamais les constantes et on ajoute toute nouvelle
@@ -48,11 +56,14 @@ public enum ActionType {
     /** Supprimer / archiver un élément. */
     DELETE(3, "Supprimer"),
 
-    /** Générer un rapport (document mis en forme, ex. PDF). */
-    GENERATE_REPORT(4, "Générer un rapport"),
-
     /** Exporter / télécharger des données. */
-    EXPORT(5, "Exporter");
+    EXPORT(5, "Exporter"),
+
+    /** Télécharger un fichier (pièces jointes). */
+    DOWNLOAD(6, "Télécharger"),
+
+    /** Archiver un projet (suppression logique, l'élément reste en base). */
+    ARCHIVE(7, "Archiver");
 
     private final int bitIndex;
     private final String label;

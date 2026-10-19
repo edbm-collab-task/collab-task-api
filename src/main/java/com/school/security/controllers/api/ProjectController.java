@@ -173,7 +173,7 @@ public class ProjectController {
      */
     @Operation(
             summary = "Archiver un projet",
-            description = "Archive un projet (suppression logique via DELETE) : le projet est conservé en base et n'apparaît plus dans les listes de projets actifs. Requiert la permission MANAGE_PROJECTS."
+            description = "Archive un projet (suppression logique, via le verbe HTTP DELETE) : le projet est conservé en base et n'apparaît plus dans les listes de projets actifs. Requiert la permission MANAGE_PROJECTS."
     )
     @DeleteMapping("/{id}")
     @PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_PROJECTS')")

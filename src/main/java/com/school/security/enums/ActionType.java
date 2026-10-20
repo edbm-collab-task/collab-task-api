@@ -16,12 +16,15 @@ package com.school.security.enums;
  *   SELECT   bitIndex 1 -&gt; 2
  *   UPDATE   bitIndex 2 -&gt; 4
  *   DELETE   bitIndex 3 -&gt; 8
- *   -- bitIndex 4 (16) : ancienne action GENERATE_REPORT, supprimée (redondante
- *   --                    avec EXPORT) ; l'index 4 n'est jamais réutilisé.
- *   EXPORT   bitIndex 5 -&gt; 32
- *   DOWNLOAD bitIndex 6 -&gt; 64
- *   ARCHIVE  bitIndex 7 -&gt; 128
+ *   EXPORT   bitIndex 4 -&gt; 16
+ *   DOWNLOAD bitIndex 5 -&gt; 32
+ *   ARCHIVE  bitIndex 6 -&gt; 64
  * </pre>
+ *
+ * <p>Les codes ont été <em>réalignés une fois</em> (migration SQL
+ * {@code actions-realign-v2}) après la suppression de l'ancienne action
+ * GENERATE_REPORT, afin de supprimer le « trou » du bit 4. Depuis, la suite
+ * est dense et reprend la règle append-only.
  *
  * <p>Les actions sont alignées sur le métier réel : les pièces jointes se
  * <em>téléchargent</em> (DOWNLOAD) et les projets s'<em>archivent</em>
@@ -57,13 +60,13 @@ public enum ActionType {
     DELETE(3, "Supprimer"),
 
     /** Exporter / télécharger des données. */
-    EXPORT(5, "Exporter"),
+    EXPORT(4, "Exporter"),
 
     /** Télécharger un fichier (pièces jointes). */
-    DOWNLOAD(6, "Télécharger"),
+    DOWNLOAD(5, "Télécharger"),
 
     /** Archiver un projet (suppression logique, l'élément reste en base). */
-    ARCHIVE(7, "Archiver");
+    ARCHIVE(6, "Archiver");
 
     private final int bitIndex;
     private final String label;

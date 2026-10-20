@@ -375,9 +375,10 @@ WHERE u.email IN ('admin@edbm.com', 'superadmin@edbm.com');
 -- =========================================================
 -- Le code binaire (code_action) n'est plus stocké : il est CALCULÉ en Java
 -- depuis la position de l'action (ActionType.getCode() = 1 << bitIndex).
--- Correspondance figée (append-only, un index retiré n'est jamais réutilisé) :
---   INSERT=1, SELECT=2, UPDATE=4, DELETE=8, EXPORT=32, DOWNLOAD=64, ARCHIVE=128
---   (ancienne action GENERATE_REPORT=16 : supprimée, redondante avec EXPORT)
+-- Correspondance figée (append-only) :
+--   INSERT=1, SELECT=2, UPDATE=4, DELETE=8, EXPORT=16, DOWNLOAD=32, ARCHIVE=64
+--   (ancienne action GENERATE_REPORT supprimée — redondante avec EXPORT ; ses
+--    codes ont été réalignés par la migration « actions-realign-v2 »)
 -- L'ordre de déclaration de l'enum ActionType est la source de vérité.
 
 CREATE TABLE IF NOT EXISTS actions (
@@ -465,6 +466,10 @@ ALTER TABLE roles_permissions ADD COLUMN IF NOT EXISTS actions INTEGER;
 -- chaque permission reçoit son propre masque, et non plus le jeu générique
 -- complet. On garde ainsi la base cohérente avec la validation de
 -- PUT /roles/{id}/actions dès le premier démarrage.
+-- Masques exprimés dans l'AVANT-réalignement (EXPORT=32, DOWNLOAD=64,
+-- ARCHIVE=128) : la section 17 les traduit vers les codes denses
+-- (EXPORT=16, DOWNLOAD=32, ARCHIVE=64). Base neuve et base existante
+-- convergent donc vers exactement les mêmes valeurs après la migration.
 UPDATE roles_permissions rp
 SET actions = CASE p.name
     WHEN 'MANAGE_USERS' THEN 7
@@ -514,7 +519,7 @@ WHERE p.name IN ('MANAGE_TASKS', 'MANAGE_COMMENTS', 'MANAGE_ATTACHMENTS', 'MANAG
 
 -- Renseigne les actions de ces associations quand elles viennent d'être
 -- créées (NULL). Une configuration déjà définie (y compris un masque 0) n'est
--- pas écrasée.
+-- pas écrasée. Valeurs avant-réalignement, traduites par la section 17.
 UPDATE roles_permissions rp
 SET actions = CASE p.name
     WHEN 'MANAGE_TASKS' THEN 15
@@ -557,7 +562,9 @@ WHERE actions IS NOT NULL
 --      remplace DELETE (8) ;
 --   c) RAPPORTS : "Generer un rapport" (16) est redondant avec "Exporter" (32),
 --      l'action est supprimee (detachee puis retiree en section 12).
--- Chaque item est idempotent et ne concerne que sa permission.
+-- Les attaches/detaches de permissions_actions sont idempotents et ne
+-- concernent que leur permission. Les migrations de masques ci-dessous ne le
+-- sont PAS : on les gate donc avec un marqueur (une seule application).
 
 -- a) + b) : rattache les nouvelles actions.
 INSERT INTO permissions_actions (permission_id, actions_id)
@@ -578,6 +585,16 @@ WHERE pa.permission_id = p.permission_id
 -- Migration des masques DEJA ACCORDES : sans elle, les bits des anciennes
 -- actions resteraient morts dans roles_permissions.actions et les rôles
 -- perdraient l'accès qu'ils avaient.
+--
+-- ATTENTION : ces trois UPDATE ne sont PAS idempotents (les bits EXPORT=32,
+-- DOWNLOAD=64 et ARCHIVE=128 sont reutilises par la section 17, qui re-aligne
+-- ensuite les codes). On les gate avec un marqueur de migration : ils ne
+-- s'appliquent qu'une seule fois, sur les bases anterieures a la v1.
+
+CREATE TABLE IF NOT EXISTS app_migrations (
+    key        TEXT PRIMARY KEY,
+    applied_at TIMESTAMP NOT NULL DEFAULT now()
+);
 
 -- a) MANAGE_ATTACHMENTS : EXPORT (32) devient DOWNLOAD (64) -> 43 devient 75.
 UPDATE roles_permissions rp
@@ -586,7 +603,9 @@ FROM permissions p
 WHERE rp.permission_id = p.permission_id
   AND p.name = 'MANAGE_ATTACHMENTS'
   AND (rp.actions & 32) <> 0
-  AND (rp.actions & 64) = 0;
+  AND (rp.actions & 64) = 0
+  AND NOT EXISTS (SELECT 1 FROM app_migrations
+                  WHERE key = 'actions-download-archive-v1');
 
 -- b) MANAGE_PROJECTS : DELETE (8) devient ARCHIVE (128) -> 15 devient 135.
 UPDATE roles_permissions rp
@@ -595,7 +614,9 @@ FROM permissions p
 WHERE rp.permission_id = p.permission_id
   AND p.name = 'MANAGE_PROJECTS'
   AND (rp.actions & 8) <> 0
-  AND (rp.actions & 128) = 0;
+  AND (rp.actions & 128) = 0
+  AND NOT EXISTS (SELECT 1 FROM app_migrations
+                  WHERE key = 'actions-download-archive-v1');
 
 -- c) VIEW_REPORTS : bit GENERATE_REPORT (16) retire -> 50 devient 34.
 UPDATE roles_permissions rp
@@ -603,4 +624,42 @@ SET actions = rp.actions - 16
 FROM permissions p
 WHERE rp.permission_id = p.permission_id
   AND p.name = 'VIEW_REPORTS'
-  AND (rp.actions & 16) <> 0;
+  AND (rp.actions & 16) <> 0
+  AND NOT EXISTS (SELECT 1 FROM app_migrations
+                  WHERE key = 'actions-download-archive-v1');
+
+INSERT INTO app_migrations (key) VALUES ('actions-download-archive-v1')
+ON CONFLICT DO NOTHING;
+
+-- =========================================================
+-- 17. Realignement des codes d'actions (fin du trou du bit 4)
+-- =========================================================
+-- L'action GENERATE_REPORT (16), supprimee en section 12/16, laissait un "trou"
+-- a l'index 4 de l'enum ActionType. On referme la suite pour retrouver une
+-- numerotation dense :
+--     EXPORT   32 -> 16
+--     DOWNLOAD 64 -> 32
+--     ARCHIVE 128 -> 64
+-- (INSERT/SELECT/UPDATE/DELETE = 1/2/4/8 sont inchanges ; un eventuel bit 16
+--  mort est abandonne au passage.)
+--
+-- Les masques accordes vivent dans roles_permissions.actions : ils doivent
+-- etre traduits bit a bit. permissions.total_actions n'a rien a faire :
+-- PermissionActionMaskInitializer le recalcule au demarrage.
+--
+-- ATTENTION : cette traduction n'est PAS idempotente (une seconde application
+-- corromprait les masques). On la "gate" donc avec une table de marquage :
+-- elle ne s'execute qu'une seule fois, a la premiere execution du script.
+
+CREATE TABLE IF NOT EXISTS app_migrations (
+    key        TEXT PRIMARY KEY,
+    applied_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+UPDATE roles_permissions
+SET actions = (actions & 15) | ((actions & 224) >> 1)
+WHERE actions IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM app_migrations WHERE key = 'actions-realign-v2');
+
+INSERT INTO app_migrations (key) VALUES ('actions-realign-v2')
+ON CONFLICT DO NOTHING;

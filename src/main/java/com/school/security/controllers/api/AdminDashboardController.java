@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -30,11 +31,10 @@ import java.util.Set;
  *
  * <p>Points d'attention (comportement actuel, documentés, non corrigés) :
  * <ul>
- *   <li>AUCUNE annotation {@code @PreAuthorize} et AUCUNE règle
- *       {@code hasAuthority} dans {@code SecurityConfig} ne protège les
- *       routes {@code /admin/dashboard/**} : le préfixe "admin" n'implique
- *       donc pas de contrôle SUPER_ADMIN au niveau HTTP, seule la règle
- *       globale {@code anyRequest().authenticated()} s'applique ;</li>
+ *   <li>la protection est assurée par l'annotation {@code @PreAuthorize} posée
+ *       sur la classe : la permission {@code MANAGE_GLOBAL_REPORTS} est exigée
+ *       sur toutes les routes {@code /admin/dashboard/**} (réservées au
+ *       super administrateur, ce qui corrige l'ancienne absence de contrôle) ;</li>
  *   <li>la limitation du périmètre selon le rôle est déléguée au service :
  *       un utilisateur SUPER_ADMIN voit tous les projets actifs, un autre
  *       profil ne voit que ses projets accessibles
@@ -48,7 +48,8 @@ import java.util.Set;
  *       introuvable en base.</li>
  * </ul>
  */
-@Tag(name = "Tableau de bord administration", description = "Statistiques administratives de la plateforme et export du rapport PDF administratif.")
+@Tag(name = "Tableau de bord administration", description = "Statistiques administratives de la plateforme et export du rapport PDF administratif. Nécessite la permission MANAGE_GLOBAL_REPORTS.")
+@PreAuthorize("@permissionEvaluator.hasPermission('MANAGE_GLOBAL_REPORTS')")
 @RestController
 @RequestMapping("/admin/dashboard")
 public class AdminDashboardController {

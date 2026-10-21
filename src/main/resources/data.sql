@@ -87,7 +87,7 @@ WHERE permission_id IN (SELECT permission_id FROM permissions WHERE name = 'VIEW
 DELETE FROM permissions WHERE name = 'VIEW_USERS';
 
 ALTER TABLE permissions DROP CONSTRAINT IF EXISTS permissions_name_check;
-ALTER TABLE permissions ADD CONSTRAINT permissions_name_check CHECK (name IN ('MANAGE_USERS','MANAGE_ADMINS','MANAGE_ROLES','MANAGE_PROJECTS','MANAGE_PROJECT_CONTRIBUTORS','MANAGE_DIRECTIONS','MANAGE_STATUSES','VIEW_REPORTS','MANAGE_TASKS','MANAGE_COMMENTS','MANAGE_ATTACHMENTS','MANAGE_MESSAGES'));
+ALTER TABLE permissions ADD CONSTRAINT permissions_name_check CHECK (name IN ('MANAGE_USERS','MANAGE_ADMINS','MANAGE_ROLES','MANAGE_PROJECTS','MANAGE_PROJECT_CONTRIBUTORS','MANAGE_DIRECTIONS','MANAGE_STATUSES','VIEW_REPORTS','MANAGE_GLOBAL_REPORTS','MANAGE_TASKS','MANAGE_COMMENTS','MANAGE_ATTACHMENTS','MANAGE_MESSAGES'));
 
 INSERT INTO permissions (name, description, category_permission)
 SELECT perm_name, perm_desc, perm_cat
@@ -100,7 +100,8 @@ FROM (
              ('MANAGE_PROJECTS', 'Créer et gérer les projets', 'PROJETS'),
              ('MANAGE_PROJECT_CONTRIBUTORS', 'Gérer les contributeurs d''un projet', 'PROJETS'),
              ('MANAGE_STATUSES', 'Gérer les statuts', 'AUTRES'),
-             ('VIEW_REPORTS', 'Voir les rapports et statistiques', 'RAPPORTS'),
+             ('VIEW_REPORTS', 'Consulter mes rapports et statistiques personnelles', 'RAPPORTS'),
+             ('MANAGE_GLOBAL_REPORTS', 'Consulter et exporter les rapports globaux de la plateforme (tableau de bord super administrateur)', 'RAPPORTS'),
              ('MANAGE_TASKS', 'Créer et gérer les tâches', 'PROJETS'),
              ('MANAGE_COMMENTS', 'Commenter et gérer les commentaires', 'COMMENTAIRE'),
              ('MANAGE_ATTACHMENTS', 'Ajouter et gérer les pièces jointes', 'COMMENTAIRE'),
@@ -111,6 +112,16 @@ WHERE NOT EXISTS (
     FROM permissions
     WHERE permissions.name = permissions_to_insert.perm_name
 );
+
+-- Rattrapage idempotent des descriptions : l'INSERT ci-dessus ne s'applique
+-- qu'aux permissions encore absentes en base, la description d'une permission
+-- existante ne serait donc jamais mise a jour.
+UPDATE permissions SET description = CASE name
+    WHEN 'VIEW_REPORTS' THEN 'Consulter mes rapports et statistiques personnelles'
+    WHEN 'MANAGE_GLOBAL_REPORTS' THEN 'Consulter et exporter les rapports globaux de la plateforme (tableau de bord super administrateur)'
+    ELSE description
+END
+WHERE name IN ('VIEW_REPORTS', 'MANAGE_GLOBAL_REPORTS');
 
 -- Rattrapage idempotent des permissions déjà présentes en base.
 -- Couvre deux cas : les lignes dont la colonne est NULL (colonne ajoutée a
@@ -131,6 +142,7 @@ UPDATE permissions SET category_permission = CASE name
      WHEN 'MANAGE_PROJECT_CONTRIBUTORS' THEN 'PROJETS'
      WHEN 'MANAGE_STATUSES' THEN 'AUTRES'
      WHEN 'VIEW_REPORTS' THEN 'RAPPORTS'
+     WHEN 'MANAGE_GLOBAL_REPORTS' THEN 'RAPPORTS'
      WHEN 'MANAGE_TASKS' THEN 'PROJETS'
      WHEN 'MANAGE_COMMENTS' THEN 'COMMENTAIRE'
      WHEN 'MANAGE_ATTACHMENTS' THEN 'COMMENTAIRE'
@@ -435,6 +447,7 @@ FROM (
              ('MANAGE_DIRECTIONS', 'SELECT'), ('MANAGE_DIRECTIONS', 'INSERT'), ('MANAGE_DIRECTIONS', 'DELETE'),
              ('MANAGE_STATUSES', 'SELECT'), ('MANAGE_STATUSES', 'INSERT'), ('MANAGE_STATUSES', 'DELETE'),
               ('VIEW_REPORTS', 'SELECT'), ('VIEW_REPORTS', 'EXPORT'),
+              ('MANAGE_GLOBAL_REPORTS', 'SELECT'), ('MANAGE_GLOBAL_REPORTS', 'EXPORT'),
              ('MANAGE_TASKS', 'SELECT'), ('MANAGE_TASKS', 'INSERT'), ('MANAGE_TASKS', 'UPDATE'), ('MANAGE_TASKS', 'DELETE'),
              ('MANAGE_COMMENTS', 'SELECT'), ('MANAGE_COMMENTS', 'INSERT'), ('MANAGE_COMMENTS', 'UPDATE'), ('MANAGE_COMMENTS', 'DELETE'),
               ('MANAGE_ATTACHMENTS', 'SELECT'), ('MANAGE_ATTACHMENTS', 'INSERT'), ('MANAGE_ATTACHMENTS', 'DELETE'), ('MANAGE_ATTACHMENTS', 'DOWNLOAD'),
@@ -480,6 +493,7 @@ SET actions = CASE p.name
     WHEN 'MANAGE_DIRECTIONS' THEN 11
     WHEN 'MANAGE_STATUSES' THEN 11
     WHEN 'VIEW_REPORTS' THEN 34
+    WHEN 'MANAGE_GLOBAL_REPORTS' THEN 18
     WHEN 'MANAGE_TASKS' THEN 15
     WHEN 'MANAGE_COMMENTS' THEN 15
     WHEN 'MANAGE_ATTACHMENTS' THEN 75
@@ -662,4 +676,20 @@ WHERE actions IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM app_migrations WHERE key = 'actions-realign-v2');
 
 INSERT INTO app_migrations (key) VALUES ('actions-realign-v2')
+ON CONFLICT DO NOTHING;
+
+-- =========================================================
+-- 18. Permission « rapports globaux » (dashboard super administrateur)
+-- =========================================================
+-- Nouvelle permission MANAGE_GLOBAL_REPORTS (categorie RAPPORTS), reservee a
+-- SUPER_ADMIN (la section 4 l'accorde automatiquement). Le seed de la section
+-- 12 ne s'appliquant que sur une table permissions_actions vide, on rattache
+-- ici les actions SELECT + EXPORT de facon idempotente pour les bases
+-- existantes (masque 18).
+
+INSERT INTO permissions_actions (permission_id, actions_id)
+SELECT p.permission_id, a.actions_id
+FROM permissions p, actions a
+WHERE p.name = 'MANAGE_GLOBAL_REPORTS'
+  AND a.name IN ('SELECT', 'EXPORT')
 ON CONFLICT DO NOTHING;

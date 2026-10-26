@@ -45,7 +45,6 @@ public class UserServiceImpl implements UserService {
     private BCryptPasswordEncoder passwordEncoder;
     private RoleRepository roleRepository;
     private UserRepository userRepository;
-    private DirectionRepository directionRepository;
     private EmailService emailService;
     private final FileStorageService fileStorageService;
     private final TaskRepository taskRepository;
@@ -108,7 +107,7 @@ public class UserServiceImpl implements UserService {
             user.setEmail(normalizeEmail(toSave.email()));
             user.setPwd(passwordEncoder.encode(code));
             user.setCreatedAt(LocalDate.now());
-            user.setDirection(directionRepository.getReferenceById(toSave.directionId()));
+            user.setDirection(userMapper.resolveDirection(toSave.directionId()));
             user.setFirstname(toSave.firstname());
             user.setLastname(toSave.lastname());
             User savedUser = userRepository.save(user);

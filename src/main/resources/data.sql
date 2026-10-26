@@ -14,6 +14,15 @@ WHERE NOT EXISTS (
     WHERE direction.name = directions_to_insert.direction_name
 );
 
+-- =========================================================
+-- 1 bis. Rendre la direction facultative pour les utilisateurs
+-- =========================================================
+-- Hibernate (ddl-auto=update) ne retire pas une contrainte NOT NULL déjà
+-- présente sur une base existante. Cette migration idempotente aligne donc le
+-- schéma des bases déjà créées avec l'entité User, où direction_id est
+-- désormais optionnel. Aucune association existante n'est modifiée.
+ALTER TABLE users ALTER COLUMN direction_id DROP NOT NULL;
+
 
 -- =========================================================
 -- 2. Créer les rôles s'ils n'existent pas

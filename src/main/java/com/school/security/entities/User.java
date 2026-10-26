@@ -42,7 +42,7 @@ public class User implements Serializable, UserDetails {
     private String job;
 
     @ManyToOne
-    @JoinColumn(name = "direction_id", nullable = false)
+    @JoinColumn(name = "direction_id")
     private Direction direction;
 
     private String number;

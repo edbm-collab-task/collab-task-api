@@ -1,13 +1,14 @@
 package com.school.security.dtos.requests;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.school.security.enums.Gender;
-import org.springframework.web.multipart.MultipartFile;
+import java.util.Optional;
 
 public record UserReqDto(
         String firstname,
         String lastname,
         String job,
-        Long directionId,
+        @JsonDeserialize(using = OptionalDirectionIdDeserializer.class) Optional<Long> directionId,
         String email,
         String number,
         Boolean status,

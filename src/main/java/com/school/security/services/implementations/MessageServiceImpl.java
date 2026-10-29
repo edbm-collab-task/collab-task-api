@@ -2,10 +2,10 @@ package com.school.security.services.implementations;
 
 import com.school.security.dtos.responses.MessagePageResponse;
 import com.school.security.dtos.responses.MessageResponse;
+import com.school.security.entities.Attachment;
 import com.school.security.entities.Conversation;
 import com.school.security.entities.ConversationMember;
 import com.school.security.entities.Message;
-import com.school.security.entities.MessageAttachment;
 import com.school.security.entities.User;
 import com.school.security.exceptions.BadRequestException;
 import com.school.security.exceptions.ResourceNotFoundException;
@@ -463,16 +463,21 @@ public class MessageServiceImpl
                                         file
                                 );
 
-                MessageAttachment attachment =
-                        MessageAttachment.builder()
+                Attachment attachment =
+                        Attachment.builder()
                                 .message(message)
-                                .name(
+                                .originalName(
                                         file.getOriginalFilename()
                                                 != null
                                                 ? file.getOriginalFilename()
                                                 : "fichier"
                                 )
-                                .type(
+                                .storedName(
+                                        java.nio.file.Paths.get(url)
+                                                .getFileName()
+                                                .toString()
+                                )
+                                .contentType(
                                         file.getContentType()
                                                 != null
                                                 ? file.getContentType()
@@ -481,7 +486,11 @@ public class MessageServiceImpl
                                 .size(
                                         file.getSize()
                                 )
-                                .url(url)
+                                .path(url)
+                                .uploadedAt(
+                                        message.getCreatedAt()
+                                )
+                                .uploadedBy(sender)
                                 .build();
 
                 message.getAttachments()
@@ -580,12 +589,12 @@ public class MessageServiceImpl
          */
         if (message.getAttachments() != null) {
 
-            for (MessageAttachment attachment :
+            for (Attachment attachment :
                     message.getAttachments()) {
 
                 fileStorageService
                         .deleteMessageAttachment(
-                                attachment.getUrl()
+                                attachment.getPath()
                         );
             }
         }

@@ -1,11 +1,11 @@
 package com.school.security.controllers.api;
 
 import com.school.security.dtos.responses.TaskAttachmentResDto;
+import com.school.security.entities.Attachment;
 import com.school.security.entities.Task;
-import com.school.security.entities.TaskAttachment;
 import com.school.security.entities.User;
+import com.school.security.repositories.AttachmentRepository;
 import com.school.security.repositories.TaskRepository;
-import com.school.security.repositories.TaskAttachmentRepository;
 import com.school.security.repositories.UserRepository;
 import com.school.security.securities.services.FileStorageService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -34,25 +34,26 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  * <p>Pas de préfixe {@code @RequestMapping} au niveau de la classe : chaque
  * endpoint définit son propre chemin sous {@code /tasks/...}. Ce contrôleur
  * n'appelle aucun service métier dédié : il opère directement sur les
- * repositories ({@code TaskAttachmentRepository}, {@code TaskRepository},
+ * repositories ({@code AttachmentRepository}, {@code TaskRepository},
  * {@code UserRepository}) et délègue le stockage physique des fichiers à
  * {@code FileStorageService}.
  *
+ * <p>Depuis la fusion des tables {@code task_attachments} et
+ * {@code message_attachments}, les pièces jointes vivent dans l'entité unique
+ * {@link Attachment} ; côté tâche, la colonne {@code message_id} reste nulle.
+ *
  * <p>Points d'attention (comportement actuel, documentés, non corrigés) :
  * <ul>
- *   <li>AUCUNE annotation {@code @PreAuthorize} : tous les endpoints
- *       reposent sur la seule règle globale {@code anyRequest().authenticated()}
- *       de {@code SecurityConfig} ; aucun contrôle d'accès par projet, par
- *       rôle ou par appartenance n'est appliqué ;</li>
+ *   <li>la liste ({@code GET}) et le téléchargement ({@code GET .../download})
+ *       ne portent aucune {@code @PreAuthorize} : tout utilisateur authentifié
+ *       peut les appeler ; l'upload et la suppression exigent respectivement
+ *       {@code MANAGE_ATTACHMENTS/INSERT} et {@code MANAGE_ATTACHMENTS/DELETE} ;</li>
  *   <li>la suppression ({@code DELETE /tasks/attachments/{id}}) est une
  *       suppression PHYSIQUE : le fichier est effacé du disque ET
  *       l'enregistrement est supprimé de la base ;</li>
  *   <li>le chemin de téléchargement ({@code /tasks/attachments/{id}/download})
  *       n'inclut pas l'identifiant de la tâche : l'accès repose uniquement
  *       sur l'identifiant de la pièce jointe ;</li>
- *   <li>les champs {@code name} et {@code path} de l'entité
- *       {@code TaskAttachment} sont renseignés avec la même valeur
- *       ({@code filePath}) ;</li>
  *   <li>aucune validation de type ou de taille de fichier n'est réalisée au
  *       niveau du contrôleur ;</li>
  *   <li>injection de dépendances par champs ({@code @Autowired}).</li>
@@ -63,7 +64,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class TaskAttachmentController {
 
     @Autowired
-    private TaskAttachmentRepository attachmentRepository;
+    private AttachmentRepository attachmentRepository;
 
     @Autowired
     private TaskRepository taskRepository;
@@ -85,7 +86,7 @@ public class TaskAttachmentController {
     @Operation(summary = "Lister les pièces jointes d'une tâche", description = "Retourne la liste des pièces jointes d'une tâche, triées par date d'upload décroissante. Accessible à tout utilisateur authentifié.")
     @GetMapping("/tasks/{taskId}/attachments")
     public ResponseEntity<List<TaskAttachmentResDto>> getAttachments(@PathVariable Long taskId) {
-        List<TaskAttachment> attachments = attachmentRepository.findByTaskTaskIdOrderByUploadedAtDesc(taskId);
+        List<Attachment> attachments = attachmentRepository.findByTaskTaskIdOrderByUploadedAtDesc(taskId);
         List<TaskAttachmentResDto> dtos = attachments.stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
@@ -99,7 +100,7 @@ public class TaskAttachmentController {
      * un champ {@code file}. L'identifiant de l'utilisateur courant est résolu
      * via le {@code SecurityContext}. Le fichier est stocké physiquement par
      * {@code FileStorageService.saveTaskAttachment} puis un enregistrement
-     * {@code TaskAttachment} est persisté en base.
+     * {@link Attachment} est persisté en base, rattaché à la tâche.
      *
      * <p>Point d'attention : aucune restriction de type de fichier ni de
      * taille n'est appliquée au niveau du contrôleur ; seuls les contrôles
@@ -122,17 +123,17 @@ public class TaskAttachmentController {
 
         String filePath = fileStorageService.saveTaskAttachment(file);
 
-        TaskAttachment attachment = new TaskAttachment();
+        Attachment attachment = new Attachment();
         attachment.setTask(task);
-        attachment.setName(filePath);
         attachment.setOriginalName(file.getOriginalFilename());
+        attachment.setStoredName(Paths.get(filePath).getFileName().toString());
         attachment.setContentType(file.getContentType());
         attachment.setSize(file.getSize());
         attachment.setPath(filePath);
         attachment.setUploadedAt(LocalDateTime.now());
         attachment.setUploadedBy(user);
 
-        TaskAttachment saved = attachmentRepository.save(attachment);
+        Attachment saved = attachmentRepository.save(attachment);
         return ResponseEntity.ok(toDto(saved));
     }
 
@@ -152,7 +153,7 @@ public class TaskAttachmentController {
     @Operation(summary = "Télécharger une pièce jointe", description = "Télécharge le fichier associé à une pièce jointe par son identifiant. Accessible à tout utilisateur authentifié.")
     @GetMapping("/tasks/attachments/{id}/download")
     public ResponseEntity<Resource> downloadAttachment(@PathVariable Long id) throws IOException {
-        TaskAttachment attachment = attachmentRepository.findById(id)
+        Attachment attachment = attachmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Pièce jointe non trouvée"));
 
         Resource resource = fileStorageService.loadTaskAttachment(attachment.getPath());
@@ -186,7 +187,7 @@ public class TaskAttachmentController {
     @DeleteMapping("/tasks/attachments/{id}")
     @PreAuthorize("@permissionEvaluator.hasAction('MANAGE_ATTACHMENTS', 'DELETE')")
     public ResponseEntity<?> deleteAttachment(@PathVariable Long id) {
-        TaskAttachment attachment = attachmentRepository.findById(id)
+        Attachment attachment = attachmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Pièce jointe non trouvée"));
 
         fileStorageService.deleteTaskAttachment(attachment.getPath());
@@ -196,13 +197,17 @@ public class TaskAttachmentController {
     }
 
     /**
-     * Conversion d'une entité {@code TaskAttachment} en DTO de réponse.
+     * Conversion d'une entité {@link Attachment} en DTO de réponse.
      *
      * <p>Le nom de l'uploadeur est reconstruit à partir du prénom et du nom
      * (null-safe) ; si l'entité {@code uploadedBy} est elle-même nulle, une
      * chaîne vide est utilisée.
+     *
+     * <p>Le champ {@code name} du DTO conserve le chemin de stockage, comme
+     * avant la fusion des tables (le frontend ne l'utilise pas : il affiche
+     * {@code originalName}).
      */
-    private TaskAttachmentResDto toDto(TaskAttachment entity) {
+    private TaskAttachmentResDto toDto(Attachment entity) {
         String uploadedByName = "";
         if (entity.getUploadedBy() != null) {
             uploadedByName = (entity.getUploadedBy().getFirstname() != null ? entity.getUploadedBy().getFirstname() : "")
@@ -211,7 +216,7 @@ public class TaskAttachmentController {
         }
         return new TaskAttachmentResDto(
                 entity.getAttachmentId(),
-                entity.getName(),
+                entity.getPath(),
                 entity.getOriginalName(),
                 entity.getContentType(),
                 entity.getSize(),

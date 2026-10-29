@@ -9,7 +9,13 @@ import java.util.stream.Collectors;
 import lombok.*;
 
 @Entity
-@Table(name = "roles")
+@Table(
+        name = "roles",
+        uniqueConstraints = {
+            @UniqueConstraint(name = "uk_roles_name", columnNames = "name"),
+            @UniqueConstraint(name = "uk_roles_code_role", columnNames = "code_role")
+        }
+)
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode
@@ -20,10 +26,10 @@ public class Role implements Serializable {
     @Column(name = "roles_id")
     protected Long rolesId;
 
-@Column(name = "name", nullable = false, unique = true)
+    @Column(name = "name", nullable = false)
     private String name;
 
-    @Column(name = "code_role", nullable = false, unique = true)
+    @Column(name = "code_role", nullable = false, length = 10)
     private String codeRole;
 
     @ManyToMany(mappedBy = "roles")

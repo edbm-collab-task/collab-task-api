@@ -21,11 +21,11 @@ import org.springframework.stereotype.Component;
 @Component
 public class MessageMapper {
 
-    private final MessageAttachmentMapper
+    private final AttachmentMapper
             attachmentMapper;
 
     public MessageMapper(
-            MessageAttachmentMapper attachmentMapper
+            AttachmentMapper attachmentMapper
     ) {
         this.attachmentMapper = attachmentMapper;
     }
@@ -47,7 +47,7 @@ public class MessageMapper {
 
                 message.getCreatedAt(),
 
-                (message.getAttachments() == null ? java.util.Collections.<com.school.security.entities.MessageAttachment>emptyList() : message.getAttachments())
+                (message.getAttachments() == null ? java.util.Collections.<com.school.security.entities.Attachment>emptyList() : message.getAttachments())
                         .stream()
                         .map(
                                 attachmentMapper::toResponse

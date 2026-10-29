@@ -34,6 +34,11 @@ public class Task implements Serializable {
     @Column(nullable = false)
     private String title;
 
+    /**
+     * Description libre : stockée en {@code TEXT} (et non en {@code varchar(255)})
+     * car les descriptions rédigées dépassent régulièrement cette limite.
+     */
+    @Column(columnDefinition = "TEXT")
     private String description;
 
     private LocalDate dueDate;

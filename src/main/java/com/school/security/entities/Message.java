@@ -77,7 +77,7 @@ public class Message implements Serializable {
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
-    private List<MessageAttachment> attachments = new ArrayList<>();
+    private List<Attachment> attachments = new ArrayList<>();
 
     @PrePersist
     protected void onCreate() {
@@ -148,11 +148,11 @@ public class Message implements Serializable {
         this.deleted = deleted;
     }
 
-    public List<MessageAttachment> getAttachments() {
+    public List<Attachment> getAttachments() {
         return attachments;
     }
 
-    public void setAttachments(List<MessageAttachment> attachments) {
+    public void setAttachments(List<Attachment> attachments) {
         this.attachments = attachments;
     }
 }

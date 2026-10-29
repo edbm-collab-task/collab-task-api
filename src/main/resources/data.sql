@@ -37,9 +37,9 @@ INSERT INTO roles (name, code_role)
 SELECT role_name, code_role
 FROM (
     VALUES
-        ('ADMIN', 'ADM'),
-        ('USER', 'USER'),
-        ('SUPER_ADMIN', 'SADM')
+        ('ADMIN', 'A1D'),
+        ('USER', 'U1S'),
+        ('SUPER_ADMIN', 'S1ADM')
 ) AS roles_to_insert(role_name, code_role)
 WHERE NOT EXISTS (
     SELECT 1
@@ -51,11 +51,29 @@ WHERE NOT EXISTS (
 -- code_role est resté NULL. Sans ce backfill, findByCodeRole
 -- (UserServiceImpl) ne trouve jamais rien et l'écran d'attribution de rôle
 -- renvoie 404. Le AND code_role IS NULL évite d'écraser un code personnalisé.
--- Pas d'ON CONFLICT ici : roles n'a aucun index unique sur name ni sur
--- code_role, Postgres refuserait la clause.
-UPDATE roles SET code_role = 'ADM'      WHERE name = 'ADMIN'       AND code_role IS NULL;
-UPDATE roles SET code_role = 'USER'     WHERE name = 'USER'        AND code_role IS NULL;
-UPDATE roles SET code_role = 'SADM'     WHERE name = 'SUPER_ADMIN' AND code_role IS NULL;
+-- Les codes sont ceux attendus par le frontend (RoleType : U1S, A1D, S1ADM).
+UPDATE roles SET code_role = 'A1D'   WHERE name = 'ADMIN'       AND code_role IS NULL;
+UPDATE roles SET code_role = 'U1S'   WHERE name = 'USER'        AND code_role IS NULL;
+UPDATE roles SET code_role = 'S1ADM' WHERE name = 'SUPER_ADMIN' AND code_role IS NULL;
+
+-- Alignement des codes historiques (ADM / USER / SADM, ancien seed) sur ceux
+-- utilisés par le frontend. Idempotent : ne concerne que ces valeurs précises.
+-- La garde NOT EXISTS évite un conflit avec uk_roles_code_role si le code
+-- cible est déjà porté par un autre rôle.
+UPDATE roles SET code_role = 'A1D'
+WHERE name = 'ADMIN' AND code_role = 'ADM'
+  AND NOT EXISTS (SELECT 1 FROM roles r2
+                  WHERE r2.code_role = 'A1D' AND r2.roles_id <> roles.roles_id);
+
+UPDATE roles SET code_role = 'U1S'
+WHERE name = 'USER' AND code_role = 'USER'
+  AND NOT EXISTS (SELECT 1 FROM roles r2
+                  WHERE r2.code_role = 'U1S' AND r2.roles_id <> roles.roles_id);
+
+UPDATE roles SET code_role = 'S1ADM'
+WHERE name = 'SUPER_ADMIN' AND code_role = 'SADM'
+  AND NOT EXISTS (SELECT 1 FROM roles r2
+                  WHERE r2.code_role = 'S1ADM' AND r2.roles_id <> roles.roles_id);
 
 -- =========================================================
 -- 3. Créer les permissions si elles n'existent pas
@@ -502,7 +520,9 @@ SET actions = CASE p.name
     WHEN 'MANAGE_DIRECTIONS' THEN 11
     WHEN 'MANAGE_STATUSES' THEN 11
     WHEN 'VIEW_REPORTS' THEN 34
-    WHEN 'MANAGE_GLOBAL_REPORTS' THEN 18
+    -- SELECT | EXPORT (avant-réalignement) -> 18 après la section 17, soit
+    -- exactement les actions disponibles de la permission (section 18).
+    WHEN 'MANAGE_GLOBAL_REPORTS' THEN 34
     WHEN 'MANAGE_TASKS' THEN 15
     WHEN 'MANAGE_COMMENTS' THEN 15
     WHEN 'MANAGE_ATTACHMENTS' THEN 75
@@ -702,3 +722,81 @@ FROM permissions p, actions a
 WHERE p.name = 'MANAGE_GLOBAL_REPORTS'
   AND a.name IN ('SELECT', 'EXPORT')
 ON CONFLICT DO NOTHING;
+
+-- =========================================================
+-- 19. Fusion des pieces jointes (taches + messages)
+-- =========================================================
+-- Les tables task_attachments et message_attachments sont remplacees par la
+-- table unique attachments (entite Attachment) :
+--
+--   task_attachments.name          -> stored_name (contenait le chemin disque)
+--   task_attachments.original_name -> original_name
+--   task_attachments.content_type  -> content_type
+--   task_attachments.path          -> path
+--   task_attachments.uploaded_at   -> uploaded_at
+--   task_attachments.uploaded_by   -> uploaded_by
+--   message_attachments.name       -> original_name (nom d'origine)
+--   message_attachments.type       -> content_type
+--   message_attachments.url        -> path
+--   message_attachments.message_id -> message_id
+--
+-- La migration (contrainte "exactement un parent", recopie des donnees,
+-- suppression des anciennes tables) n'est PAS ecrite ici : les blocs
+-- conditionnels PostgreSQL DO $$ ... $$ contiennent des points-virgules que
+-- le separateur de scripts de Spring coupe. Elle est realisee en Java par
+-- com.school.security.config.AttachmentTableMigration (idempotente, marqueur
+-- app_migrations 'attachments-unified-v1').
+
+-- =========================================================
+-- 20. Normalisation du schema (convergence base existante / base neuve)
+-- =========================================================
+-- Hibernate (ddl-auto=update) cree un schema correct sur une base neuve mais
+-- ne corrige JAMAIS une base existante : ni les types de colonnes, ni les
+-- NULL / NOT NULL, ni les contraintes CHECK generees a partir des enums.
+-- Les instructions ci-dessous sont idempotentes et ramenent une base
+-- ancienne exactement au schema produit sur une base neuve. Sur une base
+-- neuve, elles ne changent rien.
+
+-- a) roles : name et code_role sont declares NOT NULL, et code_role est
+--    limite a 10 caracteres (codes courts : A1D, S1ADM, ...).
+ALTER TABLE roles ALTER COLUMN code_role TYPE varchar(10);
+ALTER TABLE roles ALTER COLUMN name SET NOT NULL;
+ALTER TABLE roles ALTER COLUMN code_role SET NOT NULL;
+
+-- b) tasks.description est declaree en TEXT (les descriptions depassent
+--    regulierement 255 caracteres).
+ALTER TABLE tasks ALTER COLUMN description TYPE text;
+
+-- c) Contraintes CHECK issues des enums : Hibernate les cree sur une base
+--    neuve mais ne les met jamais a jour. On les recree ici pour qu'elles
+--    refletent les valeurs courantes des enums.
+ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check;
+ALTER TABLE notifications ADD CONSTRAINT notifications_type_check
+    CHECK (type IN ('CONTRIBUTOR_ADDED', 'TASK_ASSIGNED', 'PRIORITY_CHANGED',
+                    'PROJECT_DEADLINE', 'TASK_DEADLINE'));
+
+ALTER TABLE user_project_permissions
+    DROP CONSTRAINT IF EXISTS user_project_permissions_permission_name_check;
+ALTER TABLE user_project_permissions
+    ADD CONSTRAINT user_project_permissions_permission_name_check
+    CHECK (permission_name IN ('MANAGE_USERS', 'MANAGE_ADMINS', 'MANAGE_ROLES',
+                               'MANAGE_PROJECTS', 'MANAGE_PROJECT_CONTRIBUTORS',
+                               'MANAGE_DIRECTIONS', 'MANAGE_STATUSES',
+                               'VIEW_REPORTS', 'MANAGE_GLOBAL_REPORTS',
+                               'MANAGE_TASKS', 'MANAGE_COMMENTS',
+                               'MANAGE_ATTACHMENTS', 'MANAGE_MESSAGES'));
+
+-- d) Doublon historique de contrainte unique sur comment_reactions : le
+--    schema neuf ne porte que la contrainte generee depuis l'entite.
+ALTER TABLE comment_reactions
+    DROP CONSTRAINT IF EXISTS uq_comment_reactions_comment_user;
+
+-- e) Contraintes UNIQUE de roles : declarees dans l'entite avec un nom
+--    explicite (uk_roles_name, uk_roles_code_role). Hibernate ne les ajoute
+--    jamais a une table existante : on les (re)cree ici. Le DROP + ADD est
+--    idempotent et garantit le meme etat final sur les deux types de base.
+ALTER TABLE roles DROP CONSTRAINT IF EXISTS uk_roles_name;
+ALTER TABLE roles ADD CONSTRAINT uk_roles_name UNIQUE (name);
+
+ALTER TABLE roles DROP CONSTRAINT IF EXISTS uk_roles_code_role;
+ALTER TABLE roles ADD CONSTRAINT uk_roles_code_role UNIQUE (code_role);

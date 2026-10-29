@@ -70,9 +70,9 @@ public interface MessageRepository
             LOWER(m.content) LIKE LOWER(CONCAT('%', :term, '%'))
             OR EXISTS (
                 SELECT 1
-                FROM MessageAttachment a
+                FROM Attachment a
                 WHERE a.message = m
-                AND LOWER(a.name) LIKE LOWER(CONCAT('%', :term, '%'))
+                AND LOWER(a.originalName) LIKE LOWER(CONCAT('%', :term, '%'))
             )
         )
         AND (:beforeId IS NULL OR m.messageId < :beforeId)

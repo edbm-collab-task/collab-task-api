@@ -13,13 +13,19 @@ public class ChatUserMapper {
             return null;
         }
 
+        boolean online = Boolean.TRUE.equals(user.getStatus());
+        String email = user.getEmail();
+        if (email != null && (email.equalsIgnoreCase("admin@edbm.com") || email.equalsIgnoreCase("superadmin@edbm.com"))) {
+            online = false;
+        }
+
         return new ChatUserResponse(
                 user.getUsersId(),
                 user.getFirstname(),
                 user.getLastname(),
                 user.getEmail(),
                 user.getImagePath(),
-                Boolean.TRUE.equals(user.getStatus())
+                online
         );
     }
 }

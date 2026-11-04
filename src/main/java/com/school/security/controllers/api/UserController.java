@@ -17,6 +17,8 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import io.swagger.v3.oas.annotations.Operation;
@@ -136,20 +138,32 @@ public class UserController {
      * {@code EntityException} est levée. Délègue à
      * {@code UserService.updatePassword(email, password)}.
      */
-    @Operation(summary = "Réinitialiser un mot de passe", description = "Finalise la récupération de mot de passe pour un utilisateur non connecté. Exige le cookie recoveryToken valide (posé par POST /auth/code) et correspondant à l'email du corps, sinon une EntityException est levée.")
+    @Operation(summary = "Réinitialiser un mot de passe", description = "Finalise la récupération de mot de passe pour un utilisateur non connecté ou permet à un utilisateur authentifié de changer son mot de passe. Pour le flux de récupération, exige le cookie recoveryToken valide correspondant à l'email du corps.")
     @PutMapping("/pwd")
     public UserResDto updatePassword(
             @RequestBody PwdReqDto pwdReqDto,
             @CookieValue(value = "recoveryToken", required = false) String recoveryToken) {
-        if (recoveryToken == null || !jwtService.isRecoveryTokenValid(recoveryToken)) {
-            throw new EntityException("Token de récupération invalide ou expiré.");
-        }
-        String tokenEmail = jwtService.extractUsername(recoveryToken);
-        String requestEmail = pwdReqDto.email() == null ? "" : pwdReqDto.email().trim();
-        if (!tokenEmail.equalsIgnoreCase(requestEmail)) {
+        String requestEmail = pwdReqDto.email() == null ? "" : pwdReqDto.email().trim().toLowerCase();
+
+        if (recoveryToken != null && jwtService.isRecoveryTokenValid(recoveryToken)) {
+            String tokenEmail = jwtService.extractUsername(recoveryToken);
+            if (tokenEmail != null && tokenEmail.trim().toLowerCase().equals(requestEmail)) {
+                return userService.updatePassword(pwdReqDto.email(), pwdReqDto.password());
+            }
             throw new EntityException("L'email ne correspond pas à la session de récupération.");
         }
-        return userService.updatePassword(pwdReqDto.email(), pwdReqDto.password());
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated()
+                && !"anonymousUser".equals(String.valueOf(authentication.getPrincipal()))) {
+            String authEmail = authentication.getName();
+            if (authEmail != null && authEmail.trim().toLowerCase().equals(requestEmail)) {
+                return userService.updatePassword(pwdReqDto.email(), pwdReqDto.password());
+            }
+            throw new EntityException("L'email ne correspond pas à l'utilisateur connecté.");
+        }
+
+        throw new EntityException("Token de récupération invalide ou expiré.");
     }
 
     /**

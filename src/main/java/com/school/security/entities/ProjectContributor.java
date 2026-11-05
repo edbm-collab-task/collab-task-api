@@ -8,8 +8,6 @@ import lombok.*;
 @Entity
 @Table(name = "project_contributors",
         uniqueConstraints = @UniqueConstraint(columnNames = {"project_id", "user_id"}))
-@Getter
-@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode
@@ -29,4 +27,36 @@ public class ProjectContributor implements Serializable {
 
     @Column(name = "added_at", nullable = false)
     private LocalDateTime addedAt;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public Project getProject() {
+        return project;
+    }
+
+    public void setProject(Project project) {
+        this.project = project;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
+
+    public LocalDateTime getAddedAt() {
+        return addedAt;
+    }
+
+    public void setAddedAt(LocalDateTime addedAt) {
+        this.addedAt = addedAt;
+    }
 }

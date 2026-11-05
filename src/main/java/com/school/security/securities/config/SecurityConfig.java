@@ -1,6 +1,7 @@
 package com.school.security.securities.config;
 
 import com.school.security.services.contracts.UserService;
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -21,6 +22,23 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+/**
+ * Configuration de la sécurité HTTP de l'application.
+ *
+ * <p>L'API est purement stateless : aucune session HTTP n'est créée
+ * ({@code SessionCreationPolicy.STATELESS}). Le CSRF est désactivé car
+ * l'authentification repose exclusivement sur des tokens JWT (portés en cookie
+ * HttpOnly ou en header Authorization Bearer). Le CORS est restreint à
+ * l'origine du frontend de développement ({@code localhost:5173}).
+ *
+ * <p>La chaîne de filtres évalue les règles d'autorisation dans l'ordre
+ * déclaré : la première règle qui correspond au chemin de la requête est
+ * appliquée (first-match-wins). Les chemins marqués {@code permitAll}
+ * acceptent les requêtes non authentifiées ; les autres exigent un token
+ * JWT valide. Les annotations {@code @PreAuthorize} au niveau des méthodes
+ * de contrôleurs s'appliquent toujours, même sur les endpoints
+ * {@code permitAll}.
+ */
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
@@ -30,33 +48,149 @@ public class SecurityConfig {
     private final UserService userService;
     private final BCryptPasswordEncoder passwordEncoder;
 
+    /**
+     * Définit la chaîne de sécurité HTTP.
+     *
+     * <p>Les endpoints d'authentification, de consultation d'utilisateurs,
+     * d'images, de directions, de rôles et de rapports sont en
+     * {@code permitAll} car conçus pour être utilisables sans authentification.
+     * Tout autre chemin exige un token JWT valide via le {@code JwtAuthenticationFilter}.
+     *
+     * <p>Le filtre JWT est inséré avant {@code UsernamePasswordAuthenticationFilter}
+     * afin de peupler le SecurityContext (authentification) avant que les
+     * annotations {@code @PreAuthorize} des contrôleurs ne soient évaluées.
+     */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                // Aucune session HTTP créée : l'authentification est entièrement
+                // portée par le JWT transporté en cookie ou header Authorization.
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())
+                .headers(headers -> headers
+                        .frameOptions(frame -> frame.disable())
+                        .addHeaderWriter((request, response) -> {
+                            if (request.getRequestURI().startsWith("/uploads/comments/")) {
+                                response.setHeader("X-Frame-Options", "ALLOWALL");
+                                response.setHeader("Content-Security-Policy", "frame-ancestors *");
+                            }
+                        }))
+                // Sans AuthenticationEntryPoint explicite, Spring Security retombe
+                // sur Http403ForbiddenEntryPoint : une requête non authentifiée reçoit
+                // 403 au lieu de 401, et le client ne peut pas distinguer « pas
+                // connecté / token expiré » de « droits insuffisants ». Le frontend ne
+                // déclenche son POST /auth/refresh que sur 401, donc ce 403 rend la
+                // rotation de jeton inopérante. Le corps est écrit directement plutôt
+                // que via sendError() pour éviter un forward ERROR vers /error.
+                .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(
+                        (request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.getWriter()
+                                    .write(
+                                            "{\"status\":401,\"error\":\"Unauthorized\""
+                                                    + ",\"message\":\"Access token manquant ou expiré\"}");
+                        }))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/ws").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/auth/login","/auth/create", "/auth/register", "/auth/logout", "/auth/refresh", "/auth/code").permitAll()
-                        .requestMatchers(HttpMethod.POST,"/users/{id}/image").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/users", "/users/*", "/users/email","/users/active","/users/disable").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/users/{id}/image").permitAll()
-                        .requestMatchers(HttpMethod.PUT,"/users/pwd","/users/role").permitAll()
-                        .requestMatchers(HttpMethod.PUT, "/users/account").hasAuthority("ADMIN")
-                        .requestMatchers(HttpMethod.PUT,"/auth/status").permitAll()
-                        .requestMatchers(HttpMethod.GET,"/auth/me","/auth/verification-code","/auth/recovery/me").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/directions", "/directions/{id}").permitAll()
-                        .requestMatchers(HttpMethod.PUT, "/directions/{id}").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/directions").permitAll()
-                        .requestMatchers(HttpMethod.DELETE, "/directions/{id}")
-                        .permitAll()
-                        .requestMatchers(HttpMethod.GET, "/uploads/messages/{filename}").permitAll()
-                        .anyRequest().authenticated())
+        // Dispatch interne d'erreur (forward vers /error) : sans cette règle, un
+        // appelant non authentifié qui passe par sendError() se voit renvoyer un
+        // second 403 par anyRequest().authenticated() au lieu de la page d'erreur.
+        // Le matcher est relatif au context-path (/api), donc "/error" et non "/api/error".
+        .requestMatchers("/error").permitAll()
+        // Endpoint WebSocket public (STOMP handshake) : l'authentification
+        // n'est pas requise pour l'ouverture initiale de la connexion.
+        .requestMatchers("/ws").permitAll()
+        // Endpoints Swagger / OpenAPI
+        .requestMatchers(
+                "/v3/api-docs",
+                "/v3/api-docs/**",
+                "/swagger-ui/**",
+                "/docs/**",
+                "/swagger-ui.html",
+                "/api-docs",
+                "/api-docs/**"
+        ).permitAll()
+        // Endpoints d'authentification publics : login, register, create
+        // (création par admin), logout, refresh (rotation du refresh token),
+        // code (envoi de code de récupération par email).
+        .requestMatchers(HttpMethod.POST, "/auth/login","/auth/create", "/auth/register", "/auth/logout", "/auth/refresh", "/auth/code").permitAll()
+        // Lecture d'images utilisateur — public pour affichage de profils sans
+        // authentification. L'ÉCRITURE d'image ({@code POST /users/{id}/image})
+        // n'est PAS en permitAll : elle relève de {@code anyRequest().authenticated()}
+        // (remplacer l'avatar d'un utilisateur exige d'être connecté).
+        .requestMatchers(HttpMethod.GET, "/users/{id}/image").permitAll()
+        // Liste des administrateurs : réservée au SUPER_ADMIN. Cette règle doit
+        // être déclarée AVANT le permitAll générique "/users/*" ci-dessous, sinon
+        // le first-match-wins la rendrait inatteignable.
+        .requestMatchers(HttpMethod.GET, "/users/admins").hasAuthority("SUPER_ADMIN")
+        .requestMatchers(HttpMethod.GET, "/users", "/users/*", "/users/email","/users/active","/users/disable").permitAll()
+        // Changement de mot de passe (récupération de compte) et attribution de
+        // rôle — déclarés permitAll car la récupération s'effectue sans session ;
+        // les contrôles réels s'appliquent au niveau des contrôleurs
+        // (cookie recoveryToken pour /users/pwd, @PreAuthorize MANAGE_USERS
+        // pour /users/role).
+        .requestMatchers(HttpMethod.PUT,"/users/pwd","/users/role").permitAll()
+        // Activation/désactivation de compte : réservé aux ADMIN et SUPER_ADMIN
+        // au niveau de la filter-chain (authority Spring Security).
+        .requestMatchers(HttpMethod.PUT, "/users/account").hasAnyAuthority("ADMIN", "SUPER_ADMIN")
+        // Mise à jour du statut de présence (online/offline) — endpoint public
+        // utilisé par le login/logout côté client.
+        .requestMatchers(HttpMethod.PUT,"/auth/status").permitAll()
+        // Profil courant (/me) et vérification de code de récupération — publics.
+        .requestMatchers(HttpMethod.GET,"/auth/me","/auth/verification-code","/auth/recovery/me").permitAll()
+        // Directions : toutes les opérations (lecture, création, modification,
+        // suppression) sont en permitAll. Les contrôles de sécurité réels
+        // s'appliquent via @PreAuthorize dans les contrôleurs.
+        .requestMatchers(HttpMethod.GET, "/directions", "/directions/{id}").permitAll()
+        .requestMatchers(HttpMethod.PUT, "/directions/{id}").permitAll()
+        .requestMatchers(HttpMethod.POST, "/directions").permitAll()
+        .requestMatchers(HttpMethod.DELETE, "/directions/{id}").permitAll()
+        // Téléchargement de pièces jointes de messages — public.
+        .requestMatchers(HttpMethod.GET, "/uploads/messages/{filename}").permitAll()
+        .requestMatchers(HttpMethod.GET, "/uploads/comments/{filename}").permitAll()
+        .requestMatchers(HttpMethod.GET, "/roles", "/roles/permissions", "/roles/permissions/actions", "/roles/actions", "/roles/actions-map").permitAll()
+        // Gestion des rôles (POST/PUT/DELETE) : réservée exclusivement au SUPER_ADMIN.
+        .requestMatchers(HttpMethod.POST, "/roles").hasAuthority("SUPER_ADMIN")
+        .requestMatchers(HttpMethod.PUT, "/roles/{id}").hasAuthority("SUPER_ADMIN")
+        .requestMatchers(HttpMethod.PUT, "/roles/{id}/actions").hasAuthority("SUPER_ADMIN")
+        .requestMatchers(HttpMethod.PUT, "/roles/permissions/{id}/actions").hasAuthority("SUPER_ADMIN")
+        .requestMatchers(HttpMethod.DELETE, "/roles/{id}").hasAuthority("SUPER_ADMIN")
+        // Rapports projet : publics au niveau filter-chain, mais la logique
+        // d'accès (super-admin, admin, owner ou contributeur) est vérifiée
+        // dans le service ProjectReportServiceImpl.
+        .requestMatchers(HttpMethod.GET, "/projects/{projectId}/report").permitAll()
+        .requestMatchers(HttpMethod.GET, "/projects/{projectId}/report/pdf").permitAll()
+        // Par défaut : toute requête non couverte par les règles ci-dessus
+        // exige un token JWT valide (utilisateur authentifié).
+        .anyRequest().authenticated())
+                // Distingue 401 (non authentifié) de 403 (authentifié mais refusé).
+                // Sans cette configuration, Spring renvoie 403 même pour un token
+                // absent/expiré : le refresh automatique du frontend (déclenché
+                // uniquement sur 401) ne fonctionnerait jamais.
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"message\":\"Non authentifie\"}");
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"message\":\"Acces refuse\"}");
+                        }))
+                // Le filtre JWT est placé AVANT UsernamePasswordAuthenticationFilter
+                // afin de peupler le SecurityContext dès réception de la requête,
+                // avant que les @PreAuthorize des contrôleurs ne soient évalués.
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
+    /**
+     * Fournit le provider d'authentification basé sur la base de données :
+     * utilise {@code BCryptPasswordEncoder} pour la vérification des mots de
+     * passe et le {@code UserService} comme source des comptes utilisateurs.
+     */
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
@@ -70,6 +204,12 @@ public class SecurityConfig {
         return configuration.getAuthenticationManager();
     }
 
+    /**
+     * Configuration CORS globale : seule l'origine du frontend Vite de
+     * développement ({@code http://localhost:5173}) est autorisée, avec
+     * envoi d'identifiants (cookies). Le header {@code Set-Cookie} est exposé
+     * pour permettre au navigateur d'accepter les cookies créés par l'API.
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
@@ -77,7 +217,7 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(List.of("http://localhost:5173"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
-        configuration.setExposedHeaders(List.of("Set-Cookie"));
+        configuration.setExposedHeaders(List.of("Set-Cookie", "Content-Disposition", "Content-Length", "Content-Type"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;

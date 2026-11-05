@@ -1,7 +1,6 @@
 package com.school.security.dtos.responses;
 
 import com.school.security.enums.Gender;
-import com.school.security.enums.RoleType;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -18,5 +17,6 @@ public record UserResDto(
         Boolean status,
         Boolean isActive,
         LocalDate createdAt,
-        RoleType role,
+        String role,
+        String codeRole,
         String imagePath) {}

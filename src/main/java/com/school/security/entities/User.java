@@ -12,11 +12,21 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+/**
+ * Entité utilisateur Spring Security.
+ *
+ * <p>Conventions JPA et règles métier constatées (documentées, non modifiées) :
+ * <ul>
+ *   <li>{@code isActive} est un flag distinct du statut {@code status} (boolean par défaut false) ;</li>
+ *   <li>{@code getAuthorities()} déduit les GrantedAuthority depuis les {@code Role} ;</li>
+ *   <li>{@code isEnabled()} retourne {@code isActive} ;</li>
+ *   <li>{@code pwd} n'est jamais exposé dans le DTO ; codage BCrypt assuré par {@link UserMapper}.</li>
+ *   <li>{@code ManyToMany roles} utilise {@code FetchType.EAGER} (non recommandé en production).</li>
+ * </ul>
+ */
 @Entity
 @Table(name = "users")
 @ToString
-@Getter
-@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode
@@ -28,28 +38,27 @@ public class User implements Serializable, UserDetails {
     protected Long usersId;
 
     private String firstname;
-
     private String lastname;
-
     private String job;
 
     @ManyToOne
-    @JoinColumn(name = "direction_id", nullable = false)
+    @JoinColumn(name = "direction_id")
     private Direction direction;
 
     private String number;
-
     private String email;
-
     private String pwd;
-
     private Boolean status = false;
-
-    private LocalDate createdAt ;
-
-    private Boolean isActive = true ;
-
+    private LocalDate createdAt;
+    private Boolean isActive = true;
     private String imagePath;
+
+    /**
+     * Indique que l'utilisateur se connecte pour la première fois avec un mot
+     * de passe temporaire : le changement de mot de passe est alors obligatoire
+     * avant d'accéder au reste de l'application.
+     */
+    private Boolean firstLogin = false;
 
     @Enumerated(EnumType.STRING)
     private Gender gender;
@@ -75,7 +84,7 @@ public class User implements Serializable, UserDetails {
     public Collection<? extends GrantedAuthority> getAuthorities() {
         List<GrantedAuthority> authorities = new ArrayList<>();
         for (Role role : this.roles) {
-            authorities.add(new SimpleGrantedAuthority(role.getName().name()));
+            authorities.add(new SimpleGrantedAuthority(role.getName()));
         }
         return authorities;
     }
@@ -108,5 +117,126 @@ public class User implements Serializable, UserDetails {
     @Override
     public boolean isEnabled() {
         return isActive;
+    }
+
+    // Getters and Setters
+    public Long getUsersId() {
+        return usersId;
+    }
+
+    public void setUsersId(Long usersId) {
+        this.usersId = usersId;
+    }
+
+    public String getFirstname() {
+        return firstname;
+    }
+
+    public void setFirstname(String firstname) {
+        this.firstname = firstname;
+    }
+
+    public String getLastname() {
+        return lastname;
+    }
+
+    public void setLastname(String lastname) {
+        this.lastname = lastname;
+    }
+
+    public String getJob() {
+        return job;
+    }
+
+    public void setJob(String job) {
+        this.job = job;
+    }
+
+    public Direction getDirection() {
+        return direction;
+    }
+
+    public void setDirection(Direction direction) {
+        this.direction = direction;
+    }
+
+    public String getNumber() {
+        return number;
+    }
+
+    public void setNumber(String number) {
+        this.number = number;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getPwd() {
+        return pwd;
+    }
+
+    public void setPwd(String pwd) {
+        this.pwd = pwd;
+    }
+
+    public Boolean getStatus() {
+        return status;
+    }
+
+    public void setStatus(Boolean status) {
+        this.status = status;
+    }
+
+    public LocalDate getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDate createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public Boolean getIsActive() {
+        return isActive;
+    }
+
+    public void setIsActive(Boolean isActive) {
+        this.isActive = isActive;
+    }
+
+    public String getImagePath() {
+        return imagePath;
+    }
+
+    public void setImagePath(String imagePath) {
+        this.imagePath = imagePath;
+    }
+
+    public Boolean getFirstLogin() {
+        return firstLogin;
+    }
+
+    public void setFirstLogin(Boolean firstLogin) {
+        this.firstLogin = firstLogin;
+    }
+
+    public Gender getGender() {
+        return gender;
+    }
+
+    public void setGender(Gender gender) {
+        this.gender = gender;
+    }
+
+    public List<Role> getRoles() {
+        return roles;
+    }
+
+    public void setRoles(List<Role> roles) {
+        this.roles = roles;
     }
 }

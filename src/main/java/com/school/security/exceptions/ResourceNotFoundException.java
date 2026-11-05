@@ -1,5 +1,11 @@
 package com.school.security.exceptions;
 
+/**
+ * Exception signalant une ressource introuvable.
+ *
+ * <p>Rôle HTTP constaté : systématiquement transformée en réponse {@code 404}
+ * par {@link GlobalExceptionHandler#handleResourceNotFoundException}.
+ */
 public class ResourceNotFoundException extends RuntimeException {
 
     public ResourceNotFoundException() {

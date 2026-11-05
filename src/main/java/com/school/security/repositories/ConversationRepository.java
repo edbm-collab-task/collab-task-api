@@ -8,9 +8,19 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
+/**
+ * Accès aux conversations.
+ *
+ * <p>Les requêtes JPQL ci-dessous portent sur les appartenances
+ * ({@code Conversation.members}) ; seul le sens des requêtes est documenté.
+ */
 public interface ConversationRepository
         extends JpaRepository<Conversation, Long> {
 
+    /**
+     * Conversations dont l'utilisateur est membre ({@code DISTINCT} pour éviter
+     * les doublons de jointure). Ne filtre ni le type ni l'état archivé.
+     */
     @Query("""
         SELECT DISTINCT c
         FROM Conversation c
@@ -21,6 +31,12 @@ public interface ConversationRepository
             @Param("userId") Long userId
     );
 
+    /**
+     * Conversations du type donné réunissant exactement deux membres, qui sont
+     * précisément {@code user1} et {@code user2} (un {@code EXISTS} par
+     * utilisateur plus un total de membres égal à 2). Renvoie une liste : vide,
+     * un seul élément, ou plusieurs si des doublons existent en base.
+     */
     @Query("""
         SELECT c
         FROM Conversation c

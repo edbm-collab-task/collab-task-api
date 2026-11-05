@@ -13,10 +13,13 @@ public record TaskResDto(
         String projectTitle,
         Long priorityId,
         String priorityName,
+        Integer prioritySortOrder,
         Long statusId,
         String statusName,
         Long parentTaskId,
-        List<AssigneeResDto> assignees) {
+        Integer sortOrder,
+        List<AssigneeResDto> assignees,
+        Long commentCount) {
 
     public record AssigneeResDto(
             Long userId,

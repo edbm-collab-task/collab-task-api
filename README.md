@@ -102,6 +102,7 @@ src/main/java/com/collab/tasks
 ├── entities/
 │   ├── User.java
 │   ├── Role.java
+│   ├── Permission.java
 │   ├── Project.java
 │   └── Task.java
 │

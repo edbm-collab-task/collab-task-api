@@ -53,7 +53,8 @@ class ProjectServiceImplTest {
                         LocalDate.of(2026, 1, 31),
                         true,
                         10L,
-                        "Jane Doe");
+                        "Jane Doe",
+                        false);
         projectTwoDto =
                 new ProjectResDto(
                         2L,
@@ -63,14 +64,14 @@ class ProjectServiceImplTest {
                         LocalDate.of(2026, 2, 28),
                         true,
                         11L,
-                        "John Smith");
+                        "John Smith",
+                        false);
         projectReqDto =
                 new ProjectReqDto(
                         "New Project",
                         "New description",
                         LocalDate.of(2026, 3, 1),
-                        LocalDate.of(2026, 3, 31),
-                        10L);
+                        LocalDate.of(2026, 3, 31));
     }
 
     @Test
@@ -123,7 +124,8 @@ class ProjectServiceImplTest {
                         LocalDate.of(2026, 3, 31),
                         true,
                         10L,
-                        "Jane Doe");
+                        "Jane Doe",
+                        false);
         when(projectMapper.fromDto(projectReqDto)).thenReturn(projectToCreate);
         when(projectRepository.save(projectToCreate)).thenReturn(projectToCreate);
         when(projectMapper.toDto(projectToCreate)).thenReturn(createdDto);
@@ -143,30 +145,30 @@ class ProjectServiceImplTest {
                 new ProjectReqDto(
                         "Updated Project",
                         "Updated description",
-                        LocalDate.of(2026, 4, 1),
-                        LocalDate.of(2026, 4, 30),
-                        10L);
+                        LocalDate.now().plusDays(30),
+                        LocalDate.now().plusDays(60));
         ProjectResDto updatedDto =
                 new ProjectResDto(
                         1L,
                         "Updated Project",
                         "Updated description",
-                        LocalDate.of(2026, 4, 1),
-                        LocalDate.of(2026, 4, 30),
+                        LocalDate.now().plusDays(30),
+                        LocalDate.now().plusDays(60),
                         true,
                         10L,
-                        "Jane Doe");
+                        "Jane Doe",
+                        false);
         when(projectRepository.findById(1L)).thenReturn(Optional.of(projectOne));
         when(projectRepository.save(projectOne)).thenReturn(updatedProject);
         when(projectMapper.toDto(updatedProject)).thenReturn(updatedDto);
 
-        ProjectResDto result = projectService.save(updateRequest, 1L);
+        ProjectResDto result = projectService.save(updateRequest, 1L, 10L);
 
         assertEquals(updatedDto, result);
         assertEquals("Updated Project", projectOne.getTitle());
         assertEquals("Updated description", projectOne.getDescription());
-        assertEquals(LocalDate.of(2026, 4, 1), projectOne.getStartDate());
-        assertEquals(LocalDate.of(2026, 4, 30), projectOne.getEndDate());
+        assertEquals(LocalDate.now().plusDays(30), projectOne.getStartDate());
+        assertEquals(LocalDate.now().plusDays(60), projectOne.getEndDate());
         verify(projectRepository, times(1)).findById(1L);
         verify(projectRepository, times(1)).save(projectOne);
         verify(projectMapper, times(1)).toDto(updatedProject);
@@ -181,8 +183,7 @@ class ProjectServiceImplTest {
                         "Fallback Project",
                         "Fallback description",
                         LocalDate.of(2026, 5, 1),
-                        LocalDate.of(2026, 5, 31),
-                        10L);
+                        LocalDate.of(2026, 5, 31));
         ProjectResDto createdDto =
                 new ProjectResDto(
                         4L,
@@ -192,13 +193,14 @@ class ProjectServiceImplTest {
                         LocalDate.of(2026, 5, 31),
                         true,
                         10L,
-                        "Jane Doe");
+                        "Jane Doe",
+                        false);
         when(projectRepository.findById(404L)).thenReturn(Optional.empty());
         when(projectMapper.fromDto(fallbackRequest)).thenReturn(projectToCreate);
         when(projectRepository.save(projectToCreate)).thenReturn(projectToCreate);
         when(projectMapper.toDto(projectToCreate)).thenReturn(createdDto);
 
-        ProjectResDto result = projectService.save(fallbackRequest, 404L);
+        ProjectResDto result = projectService.save(fallbackRequest, 404L, 10L);
 
         assertEquals(createdDto, result);
         verify(projectRepository, times(1)).findById(404L);
@@ -219,7 +221,8 @@ class ProjectServiceImplTest {
                         LocalDate.of(2026, 1, 31),
                         false,
                         10L,
-                        "Jane Doe");
+                        "Jane Doe",
+                        false);
         when(projectRepository.findById(1L)).thenReturn(Optional.of(projectOne));
         when(projectRepository.save(projectOne)).thenReturn(archivedProject);
         when(projectMapper.toDto(archivedProject)).thenReturn(archivedDto);

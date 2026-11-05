@@ -51,6 +51,8 @@ public interface ConversationService {
             Long conversationId
     );
 
+    int getUnreadCount();
+
     ConversationResponse togglePin(
             Long conversationId
     );

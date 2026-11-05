@@ -6,6 +6,19 @@ import lombok.*;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
+/**
+ * Appartenance à une conversation.
+ *
+ * <p>Contraintes et règles constatées (documentées, non modifiées) :
+ * <ul>
+ *   <li>{@code uniqueConstraint(name = "uk_conversation_user")} garantit qu'un
+ *       utilisateur n'a qu'une seule appartenance par conversation.</li>
+ *   <li>Tous les champs Boolean ({@code muted}, {@code archived}, {@code pinned})
+ *       ont pour défaut {@code false}.</li>
+ *   <li>{@code unreadCount} par défaut {@code 0}.</li>
+ *   <li>{@code joinedAt} est obligatoire (non nullable).</li>
+ * </ul>
+ */
 @Entity
 @Table(
         name = "conversation_members",
@@ -19,10 +32,9 @@ import java.time.LocalDateTime;
                 )
         }
 )
-@Getter
-@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode
 @Builder
 public class ConversationMember implements Serializable {
 
@@ -52,18 +64,86 @@ public class ConversationMember implements Serializable {
     private LocalDateTime readAt;
 
     @Column(nullable = false)
-    @Builder.Default
     private Boolean muted = false;
 
     @Column(nullable = false)
-    @Builder.Default
     private Boolean archived = false;
 
     @Column(nullable = false)
-    @Builder.Default
     private Boolean pinned = false;
 
     @Column(name = "unread_count", nullable = false)
-    @Builder.Default
     private Integer unreadCount = 0;
+
+    public Long getConversationMemberId() {
+        return conversationMemberId;
+    }
+
+    public void setConversationMemberId(Long conversationMemberId) {
+        this.conversationMemberId = conversationMemberId;
+    }
+
+    public Conversation getConversation() {
+        return conversation;
+    }
+
+    public void setConversation(Conversation conversation) {
+        this.conversation = conversation;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
+
+    public LocalDateTime getJoinedAt() {
+        return joinedAt;
+    }
+
+    public void setJoinedAt(LocalDateTime joinedAt) {
+        this.joinedAt = joinedAt;
+    }
+
+    public LocalDateTime getReadAt() {
+        return readAt;
+    }
+
+    public void setReadAt(LocalDateTime readAt) {
+        this.readAt = readAt;
+    }
+
+    public Boolean getMuted() {
+        return muted;
+    }
+
+    public void setMuted(Boolean muted) {
+        this.muted = muted;
+    }
+
+    public Boolean getArchived() {
+        return archived;
+    }
+
+    public void setArchived(Boolean archived) {
+        this.archived = archived;
+    }
+
+    public Boolean getPinned() {
+        return pinned;
+    }
+
+    public void setPinned(Boolean pinned) {
+        this.pinned = pinned;
+    }
+
+    public Integer getUnreadCount() {
+        return unreadCount;
+    }
+
+    public void setUnreadCount(Integer unreadCount) {
+        this.unreadCount = unreadCount;
+    }
 }

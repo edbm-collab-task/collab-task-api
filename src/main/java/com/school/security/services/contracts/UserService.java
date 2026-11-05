@@ -3,7 +3,6 @@ package com.school.security.services.contracts;
 import com.school.security.dtos.requests.UserReqDto;
 import com.school.security.dtos.responses.UserResDto;
 import com.school.security.entities.User;
-import com.school.security.enums.RoleType;
 import org.springframework.core.io.Resource;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,9 +17,9 @@ public interface UserService extends Service<UserReqDto, UserResDto, Long> {
 
     Resource getUserImage(Long id);
 
-    UserResDto attachRole(String email, RoleType name);
+    UserResDto attachRole(String email, String name);
 
-    UserResDto detachRole(String email, RoleType name);
+    UserResDto detachRole(String email, String name);
 
     UserDetailsService userDetailsService();
 
@@ -39,4 +38,8 @@ public interface UserService extends Service<UserReqDto, UserResDto, Long> {
     void updateStatus(String email, Boolean status);
 
     void updateAccount(String email, Boolean isActive);
+
+    List<UserResDto> findAllByRole(String roleType);
+
+    List<UserResDto> findPotentialContributors(Long projectId);
 }

@@ -16,6 +16,22 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Mapper tâche entre entité, DTO de demande et DTO de réponse.
+ *
+ * <p>Fonctionnement constaté (documenté, non modifié) :
+ * <ul>
+ *   <li>{@code fromDto} : les références {@code projectId}, {@code priorityId},
+ *       {@code statusId} sont résolues par {@code getReferenceById} ; {@code
+ *       parentTaskId} est optionnel ; les {@code assigneeIds} déclenchent une
+ *       recherche {@code findById} par utilisateur.</li>
+ *   <li>{@code toDto} : les assignees sont transformés en {@code
+ *       TaskResDto.AssigneeResDto} (id/prénom/nom/email/image) ; le parent et les
+ *       noms de statut/priority sont inclus.</li>
+ *   <li>dépendances injectées : {@code ProjectRepository}, {@code PriorityRepository},
+ *       {@code StatusRepository}, {@code TaskRepository}, {@code UserRepository}.</li>
+ * </ul>
+ */
 @Component
 public class TaskMapper implements Mapper<TaskReqDto, Task, TaskResDto> {
 
@@ -62,6 +78,10 @@ public class TaskMapper implements Mapper<TaskReqDto, Task, TaskResDto> {
 
     @Override
     public TaskResDto toDto(Task entity) {
+        return toDto(entity, 0L);
+    }
+
+    public TaskResDto toDto(Task entity, long commentCount) {
         List<TaskResDto.AssigneeResDto> assignees = Collections.emptyList();
         if (entity.getAssignees() != null && !entity.getAssignees().isEmpty()) {
             assignees = entity.getAssignees().stream()
@@ -83,9 +103,12 @@ public class TaskMapper implements Mapper<TaskReqDto, Task, TaskResDto> {
                 entity.getProject().getTitle(),
                 entity.getPriority().getPriorityId(),
                 entity.getPriority().getName(),
+                entity.getPriority().getSortOrder(),
                 entity.getStatus().getStatusId(),
                 entity.getStatus().getName(),
                 entity.getParent() != null ? entity.getParent().getTaskId() : null,
-                assignees);
+                entity.getSortOrder(),
+                assignees,
+                commentCount);
     }
 }

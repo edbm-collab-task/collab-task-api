@@ -1,10 +1,11 @@
 package com.school.security.services.implementations;
 
+import com.school.security.dtos.responses.MessagePageResponse;
 import com.school.security.dtos.responses.MessageResponse;
+import com.school.security.entities.Attachment;
 import com.school.security.entities.Conversation;
 import com.school.security.entities.ConversationMember;
 import com.school.security.entities.Message;
-import com.school.security.entities.MessageAttachment;
 import com.school.security.entities.User;
 import com.school.security.exceptions.BadRequestException;
 import com.school.security.exceptions.ResourceNotFoundException;
@@ -15,6 +16,8 @@ import com.school.security.repositories.MessageRepository;
 import com.school.security.repositories.UserRepository;
 import com.school.security.services.contracts.MessageService;
 import com.school.security.securities.services.FileStorageService;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -25,6 +28,27 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Implémentation du service de messages d'une conversation.
+ *
+ * <p>Règles métier constatées (documentées, non modifiées) :
+ * <ul>
+ *   <li>l'utilisateur courant est résolu depuis le {@code SecurityContext}
+ *       par email ; absence d'authentification → {@code BadRequestException},
+ *       email inconnu → {@code ResourceNotFoundException} ;</li>
+ *   <li>l'appartenance à la conversation est vérifiée via
+ *       {@link #verifyMember} pour la lecture et l'envoi ;</li>
+ *   <li>il n'existe ici AUCUNE méthode de modification/édition de message
+ *       (le contrat {@code MessageService} n'expose que lecture, envoi et
+ *       suppression) ;</li>
+ *   <li>ce service n'émet AUCUNE notification et ne réalise AUCUNE diffusion
+ *       WebSocket (aucune dépendance à un broker ou à un repository de
+ *       notifications) ;</li>
+ *   <li>la suppression d'un message combine une suppression PHYSIQUE des
+ *       fichiers de pièces jointes et une suppression LOGIQUE du message
+ *       (drapeau {@code deleted}, contenu vidé).</li>
+ * </ul>
+ */
 @Service
 @Transactional
 public class MessageServiceImpl
@@ -71,6 +95,14 @@ public class MessageServiceImpl
                 fileStorageService;
     }
 
+    /**
+     * Résout l'identifiant de l'utilisateur authentifié courant par email.
+     *
+     * <p>Ne teste pas {@code isAuthenticated()} : seul le nom de
+     * l'authentification est vérifié. Lève {@code BadRequestException} si
+     * aucune authentification/nom, {@code ResourceNotFoundException} si
+     * l'email n'existe pas en base.
+     */
     private Long currentUserId() {
 
         Authentication authentication =
@@ -98,9 +130,76 @@ public class MessageServiceImpl
                 .getUsersId();
     }
 
+    /**
+     * Page de messages d'une conversation, du plus ancien au plus récent, après
+     * vérification que l'utilisateur courant est membre de la conversation.
+     *
+     * <p>La requête est exécutée du plus récent au plus ancien sur
+     * {@code messageId}, puis ré-inversée : {@code before} nul renvoie la page
+     * la plus récente, sinon la page des messages plus anciens.
+     */
     @Override
     @Transactional(readOnly = true)
-    public List<MessageResponse> getMessages(
+    public MessagePageResponse getMessages(
+            Long conversationId,
+            int limit,
+            Long before
+    ) {
+
+        requireConversation(
+                conversationId
+        );
+
+        /*
+         * Un message de plus que la limite est demandé, afin de pouvoir
+         * détecter s'il reste des messages à renvoyer au client.
+         */
+        Pageable window =
+                PageRequest.of(
+                        0,
+                        limit + 1
+                );
+
+        List<Message> fetched =
+                before == null
+                        ? messageRepository
+                                .findByConversationConversationIdOrderByMessageIdDesc(
+                                        conversationId,
+                                        window
+                                )
+                        : messageRepository
+                                .findByConversationConversationIdAndMessageIdLessThanOrderByMessageIdDesc(
+                                        conversationId,
+                                        before,
+                                        window
+                                );
+
+        boolean hasMore =
+                fetched.size() > limit;
+
+        List<Message> page =
+                hasMore
+                        ? fetched.subList(
+                                0,
+                                limit
+                        )
+                        : fetched;
+
+        return new MessagePageResponse(
+                page.reversed()
+                        .stream()
+                        .map(messageMapper::toResponse)
+                        .toList(),
+                hasMore
+        );
+    }
+
+    /**
+     * Charge une conversation et vérifie que l'utilisateur courant en est
+     * membre. Point d'entrée unique de tout accès aux messages d'une
+     * conversation.
+     */
+    private Conversation requireConversation(
             Long conversationId
     ) {
 
@@ -123,15 +222,68 @@ public class MessageServiceImpl
                 currentUserId
         );
 
-        return messageRepository
-                .findByConversationConversationIdOrderByCreatedAtAsc(
-                        conversationId
-                )
-                .stream()
-                .map(messageMapper::toResponse)
-                .toList();
+        return conversation;
     }
 
+    /**
+     * Page de messages correspondant à un terme, après vérification que
+     * l'utilisateur courant est membre de la conversation.
+     *
+     * <p>La requête est exécutée du plus récent au plus ancien puis
+     * ré-inversée, comme {@link #getMessages(Long, int, Long)}.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public MessagePageResponse searchMessages(
+            Long conversationId,
+            String query,
+            int limit,
+            Long before
+    ) {
+
+        requireConversation(
+                conversationId
+        );
+
+        List<Message> fetched =
+                messageRepository.search(
+                        conversationId,
+                        query.trim(),
+                        before,
+                        PageRequest.of(
+                                0,
+                                limit + 1
+                        )
+                );
+
+        boolean hasMore =
+                fetched.size() > limit;
+
+        List<Message> page =
+                hasMore
+                        ? fetched.subList(
+                                0,
+                                limit
+                        )
+                        : fetched;
+
+        return new MessagePageResponse(
+                page.reversed()
+                        .stream()
+                        .map(messageMapper::toResponse)
+                        .toList(),
+                hasMore
+        );
+    }
+
+    /**
+     * Récupère un message par identifiant.
+     *
+     * <p>L'appartenance est vérifiée à partir de la conversation du message
+     * ({@code message.getConversation()}) ; un message inexistant lève
+     * {@code ResourceNotFoundException}, un non-membre
+     * {@code BadRequestException}.
+     */
     @Override
     @Transactional(readOnly = true)
     public MessageResponse getMessage(
@@ -157,6 +309,33 @@ public class MessageServiceImpl
         );
     }
 
+    /**
+     * Envoie un message dans une conversation.
+     *
+     * <p>Validations et comportements :
+     * <ul>
+     *   <li>expéditeur et conversation doivent exister, et l'expéditeur doit
+     *       être membre de la conversation ;</li>
+     *   <li>le contenu est {@code trim()}é ; un message sans texte est refusé
+     *       seulement s'il n'a AUCUNE pièce jointe non vide (un message
+     *       composé uniquement de fichiers est donc accepté) ;</li>
+     *   <li>si {@code replyToId} est fourni, le message cité doit exister et
+     *       appartenir à la MÊME conversation, sinon
+     *       {@code BadRequestException} ;</li>
+     *   <li>le message est créé avec {@code deleted=false} et
+     *       {@code readBy} initialisé à l'expéditeur uniquement ;</li>
+     *   <li>chaque pièce jointe est d'abord écrite physiquement via
+     *       {@link FileStorageService#saveMessageAttachment}, puis référencée
+     *       dans {@code message.attachments} (cascade {@code ALL} +
+     *       {@code orphanRemoval}) ; nom/type ont des valeurs de repli si
+     *       absents ;</li>
+     *   <li>le compteur de non-lus de chaque AUTRE membre est incrémenté
+     *       (gestion du {@code null} → 1) ;</li>
+     *   <li>{@code updatedAt} de la conversation est rafraîchi ;</li>
+     *   <li>aucune notification ni diffusion WebSocket n'est déclenchée
+     *       ici.</li>
+     * </ul>
+     */
     @Override
     public MessageResponse sendMessage(
             Long conversationId,
@@ -200,6 +379,8 @@ public class MessageServiceImpl
                         ? ""
                         : content.trim();
 
+        // Un message vide n'est autorisé que s'il porte au moins une pièce
+        // jointe réellement non vide.
         boolean hasAttachments =
                 attachments != null
                         && attachments.stream()
@@ -231,6 +412,7 @@ public class MessageServiceImpl
                                     )
                             );
 
+            // Le message cité doit appartenir à la même conversation.
             if (!replyTo
                     .getConversation()
                     .getConversationId()
@@ -251,6 +433,7 @@ public class MessageServiceImpl
                                 LocalDateTime.now()
                         )
                         .replyTo(replyTo)
+                        // Expéditeur marqué comme l'ayant déjà lu.
                         .readBy(
                                 new ArrayList<>(
                                         List.of(sender)
@@ -272,22 +455,29 @@ public class MessageServiceImpl
                     continue;
                 }
 
+                // Écriture physique du fichier ; l'URL renvoyée est du type
+                // "uploads/messages/<uuid>".
                 String url =
                         fileStorageService
                                 .saveMessageAttachment(
                                         file
                                 );
 
-                MessageAttachment attachment =
-                        MessageAttachment.builder()
+                Attachment attachment =
+                        Attachment.builder()
                                 .message(message)
-                                .name(
+                                .originalName(
                                         file.getOriginalFilename()
                                                 != null
                                                 ? file.getOriginalFilename()
                                                 : "fichier"
                                 )
-                                .type(
+                                .storedName(
+                                        java.nio.file.Paths.get(url)
+                                                .getFileName()
+                                                .toString()
+                                )
+                                .contentType(
                                         file.getContentType()
                                                 != null
                                                 ? file.getContentType()
@@ -296,7 +486,11 @@ public class MessageServiceImpl
                                 .size(
                                         file.getSize()
                                 )
-                                .url(url)
+                                .path(url)
+                                .uploadedAt(
+                                        message.getCreatedAt()
+                                )
+                                .uploadedBy(sender)
                                 .build();
 
                 message.getAttachments()
@@ -345,6 +539,21 @@ public class MessageServiceImpl
         );
     }
 
+    /**
+     * Supprime un message.
+     *
+     * <p>Seul l'EXPÉDITEUR du message peut le supprimer ; l'appartenance à la
+     * conversation n'est pas revérifiée ici. La suppression combine deux
+     * mécanismes :
+     * <ul>
+     *   <li>suppression PHYSIQUE de chaque fichier de pièce jointe via
+     *       {@link FileStorageService#deleteMessageAttachment} ;</li>
+     *   <li>suppression LOGIQUE du message : {@code deleted=true}, contenu
+     *       vidé, et {@code attachments.clear()} qui, via
+     *       {@code orphanRemoval}, supprime les lignes de pièces jointes en
+     *       base. Le message lui-même reste présent (tombstone).</li>
+     * </ul>
+     */
     @Override
     public void deleteMessage(
             Long messageId
@@ -380,16 +589,17 @@ public class MessageServiceImpl
          */
         if (message.getAttachments() != null) {
 
-            for (MessageAttachment attachment :
+            for (Attachment attachment :
                     message.getAttachments()) {
 
                 fileStorageService
                         .deleteMessageAttachment(
-                                attachment.getUrl()
+                                attachment.getPath()
                         );
             }
         }
 
+        // Marqueur de suppression logique : le message est conservé mais vidé.
         message.setDeleted(true);
         message.setContent("");
         message.getAttachments().clear();
@@ -399,6 +609,11 @@ public class MessageServiceImpl
         );
     }
 
+    /**
+     * Vérifie que l'utilisateur fait partie de la conversation en parcourant
+     * la collection {@code conversation.getMembers()} déjà chargée. Lève
+     * {@code BadRequestException} sinon.
+     */
     private void verifyMember(
             Conversation conversation,
             Long userId

@@ -8,6 +8,18 @@ import com.school.security.entities.Message;
 import com.school.security.repositories.MessageRepository;
 import org.springframework.stereotype.Component;
 
+/**
+ * Mapper deConversation vers réponse DTO.
+ *
+ * <p>Fonctionnement constaté (documenté, non modifié) :
+ * <ul>
+ *   <li>{@code member} : l'appartenance de l'utilisateur courant ({@code
+ *       currentUserId}) dans la conversation, utilisée pour l'état {@code archived},
+ *       {@code pinned}, {@code unreadCount}.</li>
+ *   <li>{@code lastMessage} : le message le plus récent ( {@code findTopByConversationConversationIdOrderByCreatedAtDesc} ).</li>
+ *   <li>la liste des {@code members} utilisateurs est restituée tels quels (ids uniquement).</li>
+ * </ul>
+ */
 @Component
 public class ConversationMapper {
 

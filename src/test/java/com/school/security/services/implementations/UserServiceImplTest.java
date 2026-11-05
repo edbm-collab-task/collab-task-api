@@ -1,9 +1,12 @@
 package com.school.security.services.implementations;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -211,6 +214,39 @@ class UserServiceImplTest {
         assertEquals("DSI", result.direction());
         assertEquals(direction, existing.getDirection());
         verifyNoInteractions(directionRepository);
+    }
+
+    @Test
+    void createShouldFlagFirstLoginForAdminCreatedAccount() {
+        stubSuccessfulNewUserCreation();
+
+        userService.create(request("alice@test.com", Optional.empty(), "USER"));
+
+        verify(userRepository, atLeastOnce())
+                .save(org.mockito.ArgumentMatchers.argThat(
+                        user -> Boolean.TRUE.equals(user.getFirstLogin())));
+    }
+
+    @Test
+    void updatePasswordShouldClearFirstLogin() {
+        User existing = existingUserWithoutDirection();
+        existing.setFirstLogin(true);
+        when(userRepository.findByEmail("alice@test.com")).thenReturn(Optional.of(existing));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        userService.updatePassword("alice@test.com", "newPassword123");
+
+        assertFalse(existing.getFirstLogin());
+    }
+
+    @Test
+    void selfRegistrationShouldNotFlagFirstLogin() {
+        stubSuccessfulNewUserCreation();
+
+        userService.createOrUpdate(request("alice@test.com", Optional.empty(), "USER"));
+
+        assertTrue(Boolean.FALSE.equals(
+                userRepository.findByEmail("alice@test.com").orElseThrow().getFirstLogin()));
     }
 
     @Test

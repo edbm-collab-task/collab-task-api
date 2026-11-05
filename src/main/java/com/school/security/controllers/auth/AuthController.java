@@ -186,7 +186,8 @@ public class AuthController {
                         user.getEmail(),
                         buildPermissionSummaries(user),
                         accessToken,
-                        refreshToken
+                        refreshToken,
+                        Boolean.TRUE.equals(user.getFirstLogin())
                 )
         );
     }
@@ -352,10 +353,11 @@ public class AuthController {
                             user.getRoles().getFirst().getCodeRole(),
                             user.getFirstname(),
                             user.getLastname(),
-user.getEmail(),
-                        buildPermissionSummaries(user),
-                        newAccessToken,
-                        newRefreshToken
+                            user.getEmail(),
+                            buildPermissionSummaries(user),
+                            newAccessToken,
+                            newRefreshToken,
+                            Boolean.TRUE.equals(user.getFirstLogin())
                     )
             );
 
@@ -684,7 +686,10 @@ user.getEmail(),
                         user.getFirstname(),
                         user.getLastname(),
                         user.getEmail(),
-                        buildPermissionSummaries(user)
+                        buildPermissionSummaries(user),
+                        null,
+                        null,
+                        Boolean.TRUE.equals(user.getFirstLogin())
                 )
         );
     }

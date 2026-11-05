@@ -23,6 +23,16 @@ WHERE NOT EXISTS (
 -- désormais optionnel. Aucune association existante n'est modifiée.
 ALTER TABLE users ALTER COLUMN direction_id DROP NOT NULL;
 
+-- =========================================================
+-- 1 ter. Flag de première connexion
+-- =========================================================
+-- Les comptes créés par un administrateur reçoivent un mot de passe
+-- temporaire et doivent le changer à la première connexion. La colonne est
+-- ajoutée de façon idempotente pour les bases existantes (Hibernate la crée
+-- aussi via ddl-auto=update) et les comptes existants restent à FALSE.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS first_login BOOLEAN NOT NULL DEFAULT FALSE;
+UPDATE users SET first_login = FALSE WHERE first_login IS NULL;
+
 
 -- =========================================================
 -- 2. Créer les rôles s'ils n'existent pas

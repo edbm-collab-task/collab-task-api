@@ -67,6 +67,12 @@ public class UserServiceImpl implements UserService {
         if (userOptional.isPresent()) {
             User user = userOptional.get();
             User toUpdate = userMapper.toUpdate(toSave,user);
+            // Un mot de passe fourni par l'utilisateur lui-même remplace le mot
+            // de passe temporaire : la première connexion est considérée comme
+            // effectuée.
+            if (toSave.password() != null && !toSave.password().isBlank()) {
+                toUpdate.setFirstLogin(false);
+            }
             userRepository.save(toUpdate);
             return userMapper.toDto(toUpdate);
 
@@ -78,6 +84,8 @@ public class UserServiceImpl implements UserService {
             }
             user.setStatus(false);
             user.setCreatedAt(LocalDate.now());
+            // Auto-inscription : l'utilisateur choisit son propre mot de passe.
+            user.setFirstLogin(false);
             var userToSave = userRepository.save(user);
             attachRole(email,"USER");
             return userMapper.toDto(userToSave);
@@ -110,6 +118,9 @@ public class UserServiceImpl implements UserService {
             user.setDirection(userMapper.resolveDirection(toSave.directionId()));
             user.setFirstname(toSave.firstname());
             user.setLastname(toSave.lastname());
+            // Mot de passe temporaire envoyé par email : changement obligatoire
+            // à la première connexion.
+            user.setFirstLogin(true);
             User savedUser = userRepository.save(user);
 
 String roleName = (toSave.role() != null && !toSave.role().isBlank()) ? toSave.role() : "USER";
@@ -320,6 +331,9 @@ public UserResDto detachRole(String email, String roleRef) {
         }
 
         user.setPwd(passwordEncoder.encode(newPassword));
+        // Le mot de passe a été changé : la contrainte de première connexion
+        // est levée.
+        user.setFirstLogin(false);
         User saved = userRepository.save(user);
         return this.userMapper.toDto(saved);
     }

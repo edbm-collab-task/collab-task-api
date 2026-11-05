@@ -53,6 +53,13 @@ public class User implements Serializable, UserDetails {
     private Boolean isActive = true;
     private String imagePath;
 
+    /**
+     * Indique que l'utilisateur se connecte pour la première fois avec un mot
+     * de passe temporaire : le changement de mot de passe est alors obligatoire
+     * avant d'accéder au reste de l'application.
+     */
+    private Boolean firstLogin = false;
+
     @Enumerated(EnumType.STRING)
     private Gender gender;
 
@@ -207,6 +214,14 @@ public class User implements Serializable, UserDetails {
 
     public void setImagePath(String imagePath) {
         this.imagePath = imagePath;
+    }
+
+    public Boolean getFirstLogin() {
+        return firstLogin;
+    }
+
+    public void setFirstLogin(Boolean firstLogin) {
+        this.firstLogin = firstLogin;
     }
 
     public Gender getGender() {

@@ -112,6 +112,7 @@ class RoleControllerTest {
                                         1L,
                                         "ADMIN",
                                         "ADM",
+                                        2,
                                         List.of(
                                                 new PermissionResDto(
                                                         1L,
@@ -138,7 +139,7 @@ class RoleControllerTest {
     @Test
     void createShouldAcceptPermissionNamesInRequestBody() throws Exception {
         when(roleService.create(any(RoleReqDto.class)))
-                .thenReturn(new RoleResDto(5L, "EDITOR", "EDT", List.of()));
+                .thenReturn(new RoleResDto(5L, "EDITOR", "EDT", 3, List.of()));
 
         mockMvc.perform(
                         post("/roles")

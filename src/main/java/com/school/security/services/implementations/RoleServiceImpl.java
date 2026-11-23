@@ -85,10 +85,15 @@ public class RoleServiceImpl implements RoleService {
     private static final Set<PermissionType> ACTIONS_MANAGEMENT_EXCLUDED =
             EnumSet.of(PermissionType.MANAGE_MESSAGES);
 
-    /** Retourne l'ensemble des rôles avec leurs permissions associées. */
+    /**
+     * Retourne l'ensemble des rôles avec leurs permissions associées.
+     *
+     * <p>L'ordre est porté par la requête : {@code SUPER_ADMIN} (1), {@code ADMIN}
+     * (2), puis tous les autres rôles (3) départagés par nom.
+     */
     @Override
     public List<RoleResDto> findAll() {
-        return roleRepository.findAll().stream()
+        return roleRepository.findAllByOrderBySortOrderAscNameAsc().stream()
                 .map(roleMapper::toDto)
                 .collect(Collectors.toList());
     }
@@ -123,6 +128,8 @@ public class RoleServiceImpl implements RoleService {
         Role role = new Role();
         role.setName(name);
         role.setCodeRole(dto.codeRole());
+        // Les rôles créés via l'API sont toujours situés sous ADMIN.
+        role.setSortOrder(Role.RANK_OTHER);
 
         if (dto.permissions() != null) {
             List<Permission> permissions = dto.permissions().stream()

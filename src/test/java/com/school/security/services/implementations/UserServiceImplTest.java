@@ -1,5 +1,6 @@
 package com.school.security.services.implementations;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -19,6 +20,7 @@ import com.school.security.entities.Direction;
 import com.school.security.entities.Role;
 import com.school.security.entities.User;
 import com.school.security.enums.Gender;
+import com.school.security.exceptions.BadRequestException;
 import com.school.security.exceptions.EntityException;
 import com.school.security.mappers.RoleMapper;
 import com.school.security.mappers.UserMapper;
@@ -31,11 +33,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 /**
@@ -59,6 +64,7 @@ class UserServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         passwordEncoder = new BCryptPasswordEncoder();
         UserMapper userMapper =
                 new UserMapper(new RoleMapper(), directionRepository, passwordEncoder);
@@ -80,6 +86,79 @@ class UserServiceImplTest {
         userRole.setRolesId(1L);
         userRole.setName("USER");
         userRole.setCodeRole("USER");
+        userRole.setSortOrder(Role.RANK_OTHER);
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    // ─── hiérarchie des rôles ──────────────────────────────────────
+
+    @Test
+    void attachRoleShouldRejectHigherRankForAdminCaller() {
+        Role adminRole = role("ADMIN", Role.RANK_ADMIN);
+        Role superAdminRole = role("SUPER_ADMIN", Role.RANK_SUPER_ADMIN);
+        User caller = new User();
+        caller.setRoles(new ArrayList<>(List.of(adminRole)));
+        when(userRepository.findByEmail("admin@test.com")).thenReturn(Optional.of(caller));
+        when(roleRepository.findByName("SUPER_ADMIN")).thenReturn(Optional.of(superAdminRole));
+        SecurityContextHolder.getContext()
+                .setAuthentication(
+                        new UsernamePasswordAuthenticationToken("admin@test.com", null, List.of()));
+
+        assertThrows(
+                BadRequestException.class,
+                () -> userService.attachRole("alice@test.com", "SUPER_ADMIN"));
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void attachRoleShouldAllowLowerRankForAdminCaller() {
+        Role adminRole = role("ADMIN", Role.RANK_ADMIN);
+        Role customRole = role("CDP", Role.RANK_OTHER);
+        User caller = new User();
+        caller.setRoles(new ArrayList<>(List.of(adminRole)));
+        User target = new User();
+        target.setRoles(new ArrayList<>());
+        when(userRepository.findByEmail("admin@test.com")).thenReturn(Optional.of(caller));
+        when(userRepository.findByEmail("alice@test.com")).thenReturn(Optional.of(target));
+        when(roleRepository.findByName("CDP")).thenReturn(Optional.of(customRole));
+        when(userRepository.save(any(User.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        SecurityContextHolder.getContext()
+                .setAuthentication(
+                        new UsernamePasswordAuthenticationToken("admin@test.com", null, List.of()));
+
+        assertDoesNotThrow(() -> userService.attachRole("alice@test.com", "CDP"));
+    }
+
+    @Test
+    void attachRoleShouldAllowSuperAdminCallerToGrantSuperAdmin() {
+        Role superAdminRole = role("SUPER_ADMIN", Role.RANK_SUPER_ADMIN);
+        User caller = new User();
+        caller.setRoles(new ArrayList<>(List.of(superAdminRole)));
+        User target = new User();
+        target.setRoles(new ArrayList<>());
+        when(userRepository.findByEmail("admin@test.com")).thenReturn(Optional.of(caller));
+        when(userRepository.findByEmail("alice@test.com")).thenReturn(Optional.of(target));
+        when(roleRepository.findByName("SUPER_ADMIN")).thenReturn(Optional.of(superAdminRole));
+        when(userRepository.save(any(User.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        SecurityContextHolder.getContext()
+                .setAuthentication(
+                        new UsernamePasswordAuthenticationToken("admin@test.com", null, List.of()));
+
+        assertDoesNotThrow(() -> userService.attachRole("alice@test.com", "SUPER_ADMIN"));
+    }
+
+    @Test
+    void createShouldAttachUserRoleWithoutAuthenticatedCaller() {
+        stubSuccessfulNewUserCreation();
+
+        assertDoesNotThrow(
+                () -> userService.createOrUpdate(request("alice@test.com", Optional.empty(), "USER")));
     }
 
     @Test
@@ -259,6 +338,13 @@ class UserServiceImplTest {
 
         assertNull(result.direction());
         assertEquals("alice@test.com", result.email());
+    }
+
+    private Role role(String name, int rank) {
+        Role role = new Role();
+        role.setName(name);
+        role.setSortOrder(rank);
+        return role;
     }
 
     private void stubSuccessfulNewUserCreation() {

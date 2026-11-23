@@ -13,7 +13,12 @@ import java.util.List;
  * @param id identifiant du rôle
  * @param name nom du rôle
  * @param codeRole code court du rôle
+ * @param sortOrder rang hiérarchique (1 = SUPER_ADMIN, 2 = ADMIN, 3 = autres)
  * @param permissions permissions affectées au rôle
  */
 public record RoleResDto(
-        Long id, String name, String codeRole, List<PermissionResDto> permissions) {}
+        Long id,
+        String name,
+        String codeRole,
+        Integer sortOrder,
+        List<PermissionResDto> permissions) {}

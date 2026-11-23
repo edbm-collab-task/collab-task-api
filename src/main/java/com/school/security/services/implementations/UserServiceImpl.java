@@ -5,6 +5,7 @@ import com.school.security.dtos.requests.UserReqDto;
 import com.school.security.dtos.responses.UserResDto;
 import com.school.security.entities.Role;
 import com.school.security.entities.User;
+import com.school.security.enums.RoleType;
 import com.school.security.exceptions.BadRequestException;
 import com.school.security.exceptions.EntityException;
 import com.school.security.mappers.UserMapper;
@@ -17,6 +18,8 @@ import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -87,7 +90,8 @@ public class UserServiceImpl implements UserService {
             // Auto-inscription : l'utilisateur choisit son propre mot de passe.
             user.setFirstLogin(false);
             var userToSave = userRepository.save(user);
-            attachRole(email,"USER");
+            // Auto-inscription : flux système, aucun appelant à comparer.
+            attachRole(email, "USER", false);
             return userMapper.toDto(userToSave);
         }
     }
@@ -239,9 +243,21 @@ String roleName = (toSave.role() != null && !toSave.role().isBlank()) ? toSave.r
      * Rattache le rôle {@code name} à l'utilisateur identifié par son email en
      * REMPLAÇANT l'ensemble des rôles existants (clear() puis add()) : dans la
      * pratique, un utilisateur ne porte donc qu'un seul rôle à la fois.
+     *
+     * <p>Vérifie la hiérarchie des rangs : un appelant authentifié ne peut
+     * attribuer qu'un rôle de rang strictement supérieur au sien. {@code
+     * SUPER_ADMIN} (rang 1) n'est pas concerné. Les flux système (inscription)
+     * passent par la surcharge interne qui désactive ce contrôle.
      */
     @Override
-public UserResDto attachRole(String email, String roleRef) {
+    public UserResDto attachRole(String email, String roleRef) {
+        return attachRole(email, roleRef, true);
+    }
+
+    private UserResDto attachRole(String email, String roleRef, boolean enforceHierarchy) {
+        if (enforceHierarchy) {
+            checkRoleHierarchy(roleRef);
+        }
         Optional<User> optionalUser = userRepository.findByEmail(email);
         Optional<Role> optionalRole = findRole(roleRef);
 
@@ -257,7 +273,8 @@ public UserResDto attachRole(String email, String roleRef) {
     }
 
     @Override
-public UserResDto detachRole(String email, String roleRef) {
+    public UserResDto detachRole(String email, String roleRef) {
+        checkRoleHierarchy(roleRef);
         Optional<User> optionalUser = userRepository.findByEmail(email);
         Optional<Role> optionalRole = findRole(roleRef);
 
@@ -269,6 +286,50 @@ public UserResDto detachRole(String email, String roleRef) {
         } else {
             throw new EntityException("User or Role not found");
         }
+    }
+
+    /**
+     * Refuse d'attribuer ou de retirer un rôle dont le rang est inférieur ou égal
+     * à celui du meilleur rôle de l'appelant. Sans appelant authentifié (flux
+     * système), le contrôle est ignoré ; un rôle inconnu est laissé à la gestion
+     * habituelle de {@code attachRole}/{@code detachRole}.
+     */
+    private void checkRoleHierarchy(String roleRef) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
+            return;
+        }
+
+        Role target = findRole(roleRef).orElse(null);
+        if (target == null) {
+            return;
+        }
+
+        User caller = userRepository.findByEmail(auth.getName()).orElse(null);
+        if (caller == null) {
+            return;
+        }
+
+        boolean superAdmin = caller.getRoles().stream()
+                .anyMatch(role -> RoleType.SUPER_ADMIN.name().equals(role.getName()));
+        if (superAdmin) {
+            return;
+        }
+
+        int callerRank = caller.getRoles().stream()
+                .map(this::rankOf)
+                .min(Integer::compareTo)
+                .orElse(Role.RANK_OTHER);
+        if (rankOf(target) <= callerRank) {
+            throw new BadRequestException(
+                    "Impossible d'attribuer un rôle de rang supérieur ou égal au vôtre.");
+        }
+    }
+
+    /** Un rang absent (base non migrée) est traité comme le rang des autres rôles. */
+    private int rankOf(Role role) {
+        Integer rank = role.getSortOrder();
+        return rank == null ? Role.RANK_OTHER : rank;
     }
 
     private Optional<Role> findRole(String roleRef) {

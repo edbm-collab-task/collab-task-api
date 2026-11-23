@@ -86,6 +86,21 @@ WHERE name = 'SUPER_ADMIN' AND code_role = 'SADM'
                   WHERE r2.code_role = 'S1ADM' AND r2.roles_id <> roles.roles_id);
 
 -- =========================================================
+-- 2 bis. Numéro d'ordre (rang hiérarchique) des rôles
+-- =========================================================
+-- 1 = SUPER_ADMIN, 2 = ADMIN, 3 = tous les autres (USER et rôles créés via l'API).
+-- La colonne est ajoutée de façon idempotente pour les bases existantes ;
+-- l'UPDATE écrase toute valeur obsolète afin que la règle reste unique.
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS sort_order INTEGER;
+
+UPDATE roles SET sort_order =
+    CASE
+        WHEN name = 'SUPER_ADMIN' THEN 1
+        WHEN name = 'ADMIN'       THEN 2
+        ELSE 3
+    END;
+
+-- =========================================================
 -- 3. Créer les permissions si elles n'existent pas
 -- =========================================================
 

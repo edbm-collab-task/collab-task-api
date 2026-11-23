@@ -120,6 +120,24 @@ class RoleServiceImplTest {
         assertEquals(List.of(), roleService.findAllPermissions());
     }
 
+    // ─── findAll : ordre hiérarchique ──────────────────────────────
+
+    @Test
+    void findAllShouldUseSortedByRankQuery() {
+        Role superAdmin = new Role();
+        superAdmin.setSortOrder(Role.RANK_SUPER_ADMIN);
+        Role admin = new Role();
+        admin.setSortOrder(Role.RANK_ADMIN);
+        when(roleRepository.findAllByOrderBySortOrderAscNameAsc())
+                .thenReturn(List.of(superAdmin, admin));
+
+        var result = roleService.findAll();
+
+        assertEquals(2, result.size());
+        verify(roleRepository).findAllByOrderBySortOrderAscNameAsc();
+        verify(roleRepository, never()).findAll();
+    }
+
     // ─── create : le contrat de requête reste exprimé en noms ──────
 
     @Test
@@ -135,6 +153,8 @@ class RoleServiceImplTest {
         ArgumentCaptor<Role> captor = ArgumentCaptor.forClass(Role.class);
         verify(roleRepository).save(captor.capture());
         assertEquals(List.of(manageProjects), captor.getValue().getPermissions());
+        // Les rôles ajoutés sont toujours classés sous ADMIN.
+        assertEquals(Role.RANK_OTHER, captor.getValue().getSortOrder());
         // La catégorie n'est pas modifiable via l'API : elle vient de la base.
         verify(permissionRepository, never()).save(any(Permission.class));
     }

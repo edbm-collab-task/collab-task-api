@@ -21,6 +21,11 @@ import lombok.*;
 @EqualsAndHashCode
 public class Role implements Serializable {
 
+    /** Rangs métier seedés dans {@code data.sql} (1 = plus élevé). */
+    public static final int RANK_SUPER_ADMIN = 1;
+    public static final int RANK_ADMIN = 2;
+    public static final int RANK_OTHER = 3;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "roles_id")
@@ -31,6 +36,10 @@ public class Role implements Serializable {
 
     @Column(name = "code_role", nullable = false, length = 10)
     private String codeRole;
+
+    /** Rang hiérarchique : 1 (SUPER_ADMIN) > 2 (ADMIN) > 3 (tous les autres). */
+    @Column(name = "sort_order")
+    private Integer sortOrder;
 
     @ManyToMany(mappedBy = "roles")
     private List<User> users = new ArrayList<>();
@@ -66,6 +75,14 @@ public class Role implements Serializable {
 
     public void setCodeRole(String codeRole) {
         this.codeRole = codeRole;
+    }
+
+    public Integer getSortOrder() {
+        return sortOrder;
+    }
+
+    public void setSortOrder(Integer sortOrder) {
+        this.sortOrder = sortOrder;
     }
 
     public List<User> getUsers() {

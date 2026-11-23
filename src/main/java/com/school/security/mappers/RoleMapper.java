@@ -27,7 +27,12 @@ public class RoleMapper implements Mapper<RoleReqDto, Role, RoleResDto> {
                 .map(this::toPermissionDto)
                 .collect(Collectors.toList())
             : new ArrayList<>();
-        return new RoleResDto(entity.getRolesId(), entity.getName(), entity.getCodeRole(), perms);
+        return new RoleResDto(
+                entity.getRolesId(),
+                entity.getName(),
+                entity.getCodeRole(),
+                entity.getSortOrder(),
+                perms);
     }
 
     /** Convertit une permission en DTO de réponse, catégorie comprise. */
